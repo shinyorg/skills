@@ -1,14 +1,14 @@
 {
-  "name": "shiny-mediator",
+  "name": "shiny",
   "version": "1.0.0",
-  "description": "Claude Code plugin for Shiny Mediator - a mediator pattern implementation for .NET applications with AOT/trimming support, source generators, and rich middleware pipeline",
+  "description": "Claude Code plugin for Shiny Libraries",
   "author": {
-    "name": "Shiny",
-    "email": "hello@shinylib.net",
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
     "url": "https://shinylib.net"
   },
-  "homepage": "https://shinylib.net/mediator",
-  "repository": "https://github.com/shinyorg/mediator",
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/",
   "license": "MIT",
   "keywords": [
     "mediator",
@@ -21,7 +21,14 @@
     "source-generators",
     "aot",
     "request-response",
-    "event-driven"
+    "event-driven",
+    "shell",
+    "navigation",
+    "mvvm",
+    "viewmodel",
+    "xaml",
+    "mobile",
+    "cross-platform"
   ],
   "skills": "./skills/"
 }
