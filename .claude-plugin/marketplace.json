@@ -19,6 +19,11 @@
       "name": "shiny-reflector",
       "source": "./",
       "description": "Claude Code plugin for Shiny Reflector - source-generated reflection for .NET with AOT support, JSON serialization, and assembly info generation"
+    },
+    {
+      "name": "shiny-extensions",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Extensions - attribute-driven DI registration, cross-platform key/value stores, and ASP.NET infrastructure modules"
     }
   ]
 }

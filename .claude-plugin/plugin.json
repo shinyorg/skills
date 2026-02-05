@@ -33,7 +33,11 @@
     "property-access",
     "json-serialization",
     "assembly-info",
-    "performance"
+    "performance",
+    "dependency-injection",
+    "key-value-store",
+    "persistent-storage",
+    "infrastructure-modules"
   ],
   "skills": "./skills/"
 }
