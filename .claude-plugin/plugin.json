@@ -37,7 +37,12 @@
     "dependency-injection",
     "key-value-store",
     "persistent-storage",
-    "infrastructure-modules"
+    "infrastructure-modules",
+    "localization",
+    "resx",
+    "i18n",
+    "internationalization",
+    "IStringLocalizer"
   ],
   "skills": "./skills/"
 }

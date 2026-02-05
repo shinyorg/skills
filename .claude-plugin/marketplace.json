@@ -24,6 +24,11 @@
       "name": "shiny-extensions",
       "source": "./",
       "description": "Claude Code plugin for Shiny Extensions - attribute-driven DI registration, cross-platform key/value stores, and ASP.NET infrastructure modules"
+    },
+    {
+      "name": "localizegen",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Localization Generator - strongly-typed localization class generation from .resx files for .NET applications"
     }
   ]
 }
