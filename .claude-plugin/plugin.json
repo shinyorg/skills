@@ -28,7 +28,12 @@
     "viewmodel",
     "xaml",
     "mobile",
-    "cross-platform"
+    "cross-platform",
+    "reflection",
+    "property-access",
+    "json-serialization",
+    "assembly-info",
+    "performance"
   ],
   "skills": "./skills/"
 }

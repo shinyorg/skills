@@ -10,10 +10,15 @@
       "source": "./",
       "description": "Claude Code plugin for Shiny Mediator - code generation, documentation, and scaffolding for .NET mediator pattern implementation"
     },
-        {
+    {
       "name": "shiny-maui-shell",
       "source": "./",
       "description": "Claude Code plugin for Shiny MAUI Shell - code generation, documentation, and scaffolding for .NET MAUI Shell applications"
+    },
+    {
+      "name": "shiny-reflector",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Reflector - source-generated reflection for .NET with AOT support, JSON serialization, and assembly info generation"
     }
   ]
 }
