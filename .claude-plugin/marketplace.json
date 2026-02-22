@@ -29,6 +29,16 @@
       "name": "localizegen",
       "source": "./",
       "description": "Claude Code plugin for Shiny Localization Generator - strongly-typed localization class generation from .resx files for .NET applications"
+    },
+    {
+      "name": "shiny-tableview",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny TableView - settings-style TableView pages and cells for .NET MAUI with cascading styles, 14 cell types, sections, drag-sort, and MVVM support"
+    },
+    {
+      "name": "shiny-sqlitedocumentdb",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny SqliteDocumentDb - schema-free SQLite JSON document store for .NET with LINQ queries and AOT support"
     }
   ]
 }
