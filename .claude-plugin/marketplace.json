@@ -39,6 +39,11 @@
       "name": "shiny-sqlitedocumentdb",
       "source": "./",
       "description": "Claude Code plugin for Shiny SqliteDocumentDb - schema-free SQLite JSON document store for .NET with LINQ queries and AOT support"
+    },
+    {
+      "name": "shiny-spatial",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Spatial - dependency-free, AOT-compatible .NET geospatial database using SQLite R*Tree indexing with custom C# geometry algorithms for spatial queries"
     }
   ]
 }
