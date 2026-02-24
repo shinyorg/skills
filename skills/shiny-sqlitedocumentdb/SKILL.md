@@ -31,6 +31,9 @@ Invoke this skill when the user wants to:
 - Stream query results with `IAsyncEnumerable<T>`
 - Create JSON property indexes for faster queries
 - Project query results into DTOs at the SQL level
+- Compute aggregates (Max, Min, Sum, Average) across documents
+- Use aggregate projections with GROUP BY via `Sql.*` markers
+- Sort query results with expression-based `OrderBy<T>`
 - Use transactions for atomic document operations
 - Work with nested objects and child collections without table design
 
@@ -323,6 +326,86 @@ o => new OrderDetail { HasLines = o.Lines.Any() }
 // Any(predicate)
 o => new OrderDetail { HasPriority = o.Tags.Any(t => t == "priority") }
 // SQL: CASE WHEN EXISTS (...) THEN json('true') ELSE json('false') END
+
+// Collection aggregates — Sum, Max, Min, Average
+o => new R { TotalQty = o.Lines.Sum(l => l.Quantity) }
+// SQL: (SELECT SUM(json_extract(value, '$.quantity')) FROM json_each(Data, '$.lines'))
+
+o => new R { MaxPrice = o.Lines.Max(l => l.UnitPrice) }
+// SQL: (SELECT MAX(json_extract(value, '$.unitPrice')) FROM json_each(Data, '$.lines'))
+```
+
+## Ordering
+
+Sort results at the SQL level using `OrderBy<T>`. Available on all `GetAll`, `Query`, `GetAllStream`, and `QueryStream` expression methods.
+
+```csharp
+// Ascending
+var users = await store.GetAll(ctx.User, OrderBy<User>.Ascending(u => u.Age));
+
+// Descending
+var users = await store.GetAll(ctx.User, OrderBy<User>.Descending(u => u.Age));
+
+// With query predicate
+var results = await store.Query<User>(
+    u => u.Age > 25,
+    ctx.User,
+    OrderBy<User>.Ascending(u => u.Name));
+
+// With projection
+var results = await store.GetAll<User, UserSummary>(
+    u => new UserSummary { Name = u.Name, Email = u.Email },
+    ctx.User,
+    ctx.UserSummary,
+    OrderBy<User>.Ascending(u => u.Name));
+
+// With streaming
+await foreach (var user in store.GetAllStream(ctx.User, OrderBy<User>.Descending(u => u.Age)))
+{
+    Console.WriteLine(user.Name);
+}
+```
+
+The `orderBy` parameter is always optional (`null` default) — all existing call sites work unchanged.
+
+Generated SQL: `ORDER BY json_extract(Data, '$.age') ASC`
+
+## Scalar Aggregates
+
+Compute Max, Min, Sum, Average across all documents or filtered by a predicate.
+
+```csharp
+var maxAge = await store.Max<User, int>(u => u.Age, ctx.User);
+var minAge = await store.Min<User, int>(u => u.Age, ctx.User);
+var totalAge = await store.Sum<User, int>(u => u.Age, ctx.User);
+var avgAge = await store.Average<User>(u => u.Age, ctx.User);
+
+// With predicate filter
+var maxAge = await store.Max<User, int>(u => u.Age < 35, u => u.Age, ctx.User);
+```
+
+## Aggregate Projections (GROUP BY)
+
+Use `Sql` marker class for aggregate projections with automatic GROUP BY.
+
+```csharp
+var results = await store.Aggregate<Order, OrderStats>(
+    o => new OrderStats
+    {
+        Status = o.Status,            // GROUP BY column
+        OrderCount = Sql.Count(),     // COUNT(*)
+    },
+    ctx.Order,
+    ctx.OrderStats);
+
+// All Sql markers: Sql.Count(), Sql.Max(x.Prop), Sql.Min(x.Prop), Sql.Sum(x.Prop), Sql.Avg(x.Prop)
+
+// With predicate filter
+var results = await store.Aggregate<Order, OrderStats>(
+    o => o.Status == "Shipped",
+    o => new OrderStats { Status = o.Status, OrderCount = Sql.Count() },
+    ctx.Order,
+    ctx.OrderStats);
 ```
 
 ## Streaming
@@ -437,7 +520,7 @@ The `tx` parameter is an `IDocumentStore` scoped to the transaction. All operati
 1. **Always use AOT overloads** — pass `JsonTypeInfo<T>` to every API call (e.g., `ctx.User`, `ctx.Order`)
 2. **Pass `ctx.Options` for shared config** — set `DocumentStoreOptions.JsonSerializerOptions = ctx.Options` so the expression visitor resolves property names correctly
 3. **Derive from `JsonSerializerContext`** — add `[JsonSerializable(typeof(T))]` for each type; do NOT add `[JsonSerializerContext]` attribute
-4. **Include projection types in the JSON context** — if using `Query<T, TResult>`, register both `T` and `TResult`
+4. **Include projection and aggregate types in the JSON context** — if using `Query<T, TResult>` or `Aggregate<T, TResult>`, register both `T` and `TResult`
 5. **Use streaming for large result sets** — prefer `GetAllStream`/`QueryStream` when processing results incrementally
 6. **Create indexes for frequently queried properties** — use `store.CreateIndexAsync<T>(expr, jsonTypeInfo)` for up to 30x faster queries
 7. **Use `Dictionary<string, object?>` for AOT-safe raw SQL parameters** — anonymous objects work but dictionaries are fully AOT-compatible
