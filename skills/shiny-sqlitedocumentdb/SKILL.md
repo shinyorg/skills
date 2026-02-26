@@ -127,27 +127,55 @@ var store = new SqliteDocumentStore(new DocumentStoreOptions
 });
 
 // All calls auto-resolve type info — no explicit JsonTypeInfo needed
-var id = await store.Set(new User { Name = "Alice", Age = 25 });
-var user = await store.Get<User>(id);
+var user = new User { Name = "Alice", Age = 25 };
+await store.Set(user);
+var fetched = await store.Get<User>(user.Id);
 var users = await store.Query<User>().Where(u => u.Age > 25).ToList();
 ```
 
 You can still pass `JsonTypeInfo<T>` explicitly when needed (e.g., for types not registered in the context):
 
 ```csharp
-await store.Set(new User { Name = "Alice" }, ctx.User);
+await store.Set(new User { Name = "Alice" }, ctx.User); // Id auto-generated
 ```
+
+## Document Types
+
+Every document type must have a public `Id` property of type `Guid`, `int`, `long`, or `string`. The Id is stored in both the SQLite `Id` column and inside the JSON blob, so query results always include it.
+
+```csharp
+public class User
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Age { get; set; }
+    public string? Email { get; set; }
+}
+```
+
+### Auto-generation rules
+
+| Id CLR Type | Default Value | Auto-Gen Strategy |
+|-------------|--------------|-------------------|
+| `Guid` | `Guid.Empty` | `Guid.NewGuid()` |
+| `string` | `null` or `""` | `Guid.NewGuid().ToString("N")` |
+| `int` | `0` | `MAX(CAST(Id AS INTEGER)) + 1` per TypeName |
+| `long` | `0` | `MAX(CAST(Id AS INTEGER)) + 1` per TypeName |
+
+When `Set` is called with a default Id, the store auto-generates one and writes it back to the object. When a non-default Id is provided, it is used as-is.
 
 ## Core API Reference (IDocumentStore)
 
 ### Set (Insert/Replace)
 
 ```csharp
-// Auto-generated GUID key — returns the ID
-var id = await store.Set(new User { Name = "Alice", Age = 25 });
+// Auto-generated ID — written back to the object
+var user = new User { Name = "Alice", Age = 25 };
+await store.Set(user);
+// user.Id is now populated
 
-// Explicit key
-await store.Set("user-1", new User { Name = "Alice", Age = 25 });
+// Explicit ID
+await store.Set(new User { Id = "user-1", Name = "Alice", Age = 25 });
 ```
 
 ### Get
@@ -160,7 +188,8 @@ var user = await store.Get<User>("user-1");
 
 ```csharp
 // Deep-merges patch into existing document via json_patch (RFC 7396)
-await store.Upsert("user-1", new User { Name = "Alice", Age = 30 });
+// Document must have a non-default Id
+await store.Upsert(new User { Id = "user-1", Name = "Alice", Age = 30 });
 ```
 
 ### SetProperty / RemoveProperty
@@ -215,8 +244,8 @@ var count = await store.Count<User>(
 ```csharp
 await store.RunInTransaction(async tx =>
 {
-    await tx.Set("u1", new User { Name = "Alice", Age = 25 });
-    await tx.Set("u2", new User { Name = "Bob", Age = 30 });
+    await tx.Set(new User { Id = "u1", Name = "Alice", Age = 25 });
+    await tx.Set(new User { Id = "u2", Name = "Bob", Age = 30 });
     // Commits on success, rolls back on exception
 });
 ```
@@ -664,8 +693,8 @@ Index names are deterministic (`idx_json_{typeName}_{jsonPath}`). `CreateIndexAs
 ```csharp
 await store.RunInTransaction(async tx =>
 {
-    await tx.Set("u1", new User { Name = "Alice", Age = 25 });
-    await tx.Set("u2", new User { Name = "Bob", Age = 30 });
+    await tx.Set(new User { Id = "u1", Name = "Alice", Age = 25 });
+    await tx.Set(new User { Id = "u2", Name = "Bob", Age = 30 });
     // Commits on success, rolls back on exception
 });
 ```
