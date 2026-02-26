@@ -44,6 +44,11 @@
       "name": "shiny-spatial",
       "source": "./",
       "description": "Claude Code plugin for Shiny Spatial - dependency-free, AOT-compatible .NET geospatial database using SQLite R*Tree indexing with custom C# geometry algorithms for spatial queries"
+    },
+    {
+      "name": "shiny-aspire-orleans",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Aspire Orleans - zero-friction integration between .NET Aspire and Microsoft Orleans with automatic ADO.NET schema provisioning and configuration"
     }
   ]
 }

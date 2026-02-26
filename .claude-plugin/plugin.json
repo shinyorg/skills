@@ -42,7 +42,11 @@
     "resx",
     "i18n",
     "internationalization",
-    "IStringLocalizer"
+    "IStringLocalizer",
+    "aspire",
+    "orleans",
+    "clustering",
+    "grain-storage"
   ],
   "skills": "./skills/"
 }
