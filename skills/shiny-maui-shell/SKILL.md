@@ -21,6 +21,10 @@ triggers:
   - GoBack
   - PopToRoot
   - SetRoot
+  - Navigating
+  - Navigated
+  - NavigationEventArgs
+  - NavigatedEventArgs
 ---
 
 # Shiny MAUI Shell Skill
@@ -156,7 +160,28 @@ Implement these interfaces on ViewModels as needed:
 | `IQueryAttributable` | `ApplyQueryAttributes(IDictionary<string, object>)` - receive navigation args |
 | `IDisposable` | Cleanup when page is removed from navigation stack |
 
-### 4. Navigation
+### 4. Navigation Events
+
+`INavigator` exposes two events for observing navigation:
+
+- `Navigating` — fires **before** navigation with the source ViewModel instance
+- `Navigated` — fires **after** navigation with the destination ViewModel instance
+
+```csharp
+navigator.Navigating += (sender, args) =>
+{
+    // args.FromUri, args.FromViewModel, args.ToUri, args.NavigationType, args.Parameters
+};
+
+navigator.Navigated += (sender, args) =>
+{
+    // args.ToUri, args.ToViewModel, args.NavigationType, args.Parameters
+};
+```
+
+Hook these events in an `IMauiInitializeService` for cross-cutting concerns like logging or analytics.
+
+### 5. Navigation
 
 Always use `INavigator` for navigation, never `Shell.Current.GoToAsync` directly:
 
@@ -187,7 +212,7 @@ await navigator.Alert("Title", "Something happened");
 bool confirmed = await navigator.Confirm("Delete?", "Are you sure?");
 ```
 
-### 5. Modal Pages
+### 6. Modal Pages
 
 Set `Shell.PresentationMode="Modal"` on the page XAML:
 ```xml
@@ -199,7 +224,7 @@ Set `Shell.PresentationMode="Modal"` on the page XAML:
 
 Navigate to it like any other page. Close with `GoBack()`.
 
-### 6. File Organization
+### 7. File Organization
 
 Place files following standard MAUI conventions:
 - Pages: `Views/{Name}Page.xaml` + `Views/{Name}Page.xaml.cs`
