@@ -22,6 +22,12 @@ The primary navigation service. Injected via DI as a singleton.
 ```csharp
 public interface INavigator
 {
+    // Fires before navigation occurs - includes the source ViewModel instance
+    event EventHandler<NavigationEventArgs>? Navigating;
+
+    // Fires after navigation completes - includes the destination ViewModel instance
+    event EventHandler<NavigatedEventArgs>? Navigated;
+
     // Navigate to a registered route with key-value arguments
     Task NavigateTo(string route, params IEnumerable<(string Key, object Value)> args);
 
@@ -53,6 +59,65 @@ public interface INavigator
     // Display a confirmation dialog, returns true if accepted
     Task<bool> Confirm(string? title, string message, string acceptText = "Yes", string cancelText = "No");
 }
+```
+
+## Navigation Events
+
+### NavigationEventArgs (pre-navigation)
+
+Fired via `INavigator.Navigating` before navigation occurs. Provides the source ViewModel instance.
+
+```csharp
+public record NavigationEventArgs(
+    string? FromUri,                                  // Current location URI
+    object? FromViewModel,                            // Source ViewModel instance (cast as needed)
+    string ToUri,                                     // Destination route URI
+    NavigationType NavigationType,                    // Push, SetRoot, GoBack, or PopToRoot
+    IReadOnlyDictionary<string, object> Parameters    // Navigation parameters
+);
+```
+
+### NavigatedEventArgs (post-navigation)
+
+Fired via `INavigator.Navigated` after navigation completes and the destination page's ViewModel is resolved. Provides the destination ViewModel instance.
+
+```csharp
+public record NavigatedEventArgs(
+    string ToUri,                                     // Destination route URI
+    object? ToViewModel,                              // Destination ViewModel instance (cast as needed)
+    NavigationType NavigationType,                    // Push, SetRoot, GoBack, or PopToRoot
+    IReadOnlyDictionary<string, object> Parameters    // Navigation parameters
+);
+```
+
+### NavigationType Enum
+
+```csharp
+public enum NavigationType
+{
+    Push,
+    SetRoot,
+    GoBack,
+    PopToRoot
+}
+```
+
+### Usage
+
+```csharp
+navigator.Navigating += (sender, args) =>
+{
+    // Access the source ViewModel
+    if (args.FromViewModel is MyViewModel vm)
+        Console.WriteLine($"Leaving {vm.Title}");
+};
+
+navigator.Navigated += (sender, args) =>
+{
+    // Access the destination ViewModel
+    if (args.ToViewModel is DetailViewModel detail)
+        Console.WriteLine($"Arrived at {detail.ItemId}");
+};
 ```
 
 ### Usage Examples
