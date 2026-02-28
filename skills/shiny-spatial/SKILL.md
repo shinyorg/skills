@@ -9,6 +9,9 @@ triggers:
   - rtree
   - shiny.spatial
   - shiny spatial
+  - geofence
+  - geofencing
+  - region change
 ---
 
 # Shiny.Spatial Skill
@@ -25,6 +28,9 @@ Invoke this skill when the user wants to:
 - Work with WKB (Well-Known Binary) serialization
 - Use pre-built databases (US/Canadian states, provinces, cities)
 - Build location-aware applications on iOS, Android, or any .NET platform
+- Set up GPS-driven geofence monitoring with enter/exit events
+- Implement an `ISpatialGeofenceDelegate` for region change handling
+- Configure `ISpatialGeofenceManager` to start/stop geofence detection
 
 ## Library Overview
 
@@ -342,6 +348,170 @@ table.Insert(new SpatialFeature(new Point(-104.99, 39.74))
 var results = table.FindWithinDistance(new Coordinate(-104.99, 39.74), 1000);
 results.Count.ShouldBe(1);
 results[0].Properties["name"].ShouldBe("Denver");
+```
+
+## Geofencing (`Shiny.Spatial.Geofencing`)
+
+A separate NuGet package that adds GPS-driven geofence monitoring on top of `Shiny.Spatial`. Built on [Shiny.Locations](https://shinylib.net) for background GPS on iOS and Android.
+
+The primary use case is monitoring preexisting spatial databases containing city and state/province polygons. There is currently no API to add individual geofences manually — you point the monitor at one or more spatial database tables and it detects region enter/exit automatically.
+
+### Install
+
+```bash
+dotnet add package Shiny.Spatial.Geofencing
+```
+
+**Platforms**: iOS, Android (registration API is `#if IOS || ANDROID`)
+
+### Setup (DI Registration)
+
+`Add()` requires a file path on disk. For databases bundled as MAUI raw assets (`Resources/Raw`), copy the asset to `AppDataDirectory` first since SQLite cannot open files directly from the app package.
+
+```csharp
+// In MauiProgram.cs
+builder.Services.AddSpatialGps<MyGeofenceDelegate>(config =>
+{
+    config.MinimumDistance = Distance.FromMeters(300); // default
+    config.MinimumTime = TimeSpan.FromMinutes(1);     // default
+    config
+        .Add(CopyAssetToAppData("us-states.db"), "states")
+        .Add(CopyAssetToAppData("us-cities.db"), "cities");
+});
+
+// Helper to copy a MAUI raw asset to a writable location
+static string CopyAssetToAppData(string assetFileName)
+{
+    var destPath = Path.Combine(FileSystem.AppDataDirectory, assetFileName);
+    if (!File.Exists(destPath))
+    {
+        using var source = FileSystem.OpenAppPackageFileAsync(assetFileName).GetAwaiter().GetResult();
+        using var dest = File.Create(destPath);
+        source.CopyTo(dest);
+    }
+    return destPath;
+}
+```
+
+### Key Types
+
+#### `ISpatialGeofenceManager`
+
+The main interface for controlling geofence monitoring. Inject this to start/stop monitoring and query the current region.
+
+```csharp
+public interface ISpatialGeofenceManager
+{
+    bool IsStarted { get; }
+    Task<AccessState> RequestAccess();
+    Task Start();
+    Task Stop();
+    Task<IReadOnlyList<SpatialCurrentRegion>> GetCurrent(CancellationToken cancelToken = default);
+}
+```
+
+| Method | Description |
+|---|---|
+| `IsStarted` | Whether geofence monitoring is active |
+| `RequestAccess()` | Requests GPS permissions |
+| `Start()` | Begins background GPS monitoring and region detection |
+| `Stop()` | Stops monitoring |
+| `GetCurrent()` | Gets the current GPS position and queries all monitored tables to determine which region(s) the device is in |
+
+#### `ISpatialGeofenceDelegate`
+
+Implement this interface to receive geofence enter/exit events. Register it with `AddSpatialGps<T>()`.
+
+```csharp
+public interface ISpatialGeofenceDelegate
+{
+    Task OnRegionChanged(SpatialRegionChange change);
+}
+```
+
+#### `SpatialRegionChange`
+
+Event data for geofence transitions. Each event represents either entering or exiting a single region.
+
+```csharp
+public record SpatialRegionChange(
+    string TableName,    // the spatial table that was matched
+    SpatialFeature Region, // the region being entered or exited
+    bool Entered          // true = entered, false = exited
+);
+```
+
+When transitioning directly from Region A to Region B, two events fire: an exit from A (`Entered = false`), then an entry into B (`Entered = true`).
+
+#### `SpatialCurrentRegion`
+
+Returned by `ISpatialGeofenceManager.GetCurrent()`.
+
+```csharp
+public record SpatialCurrentRegion(string TableName, SpatialFeature? Region);
+```
+
+#### `SpatialMonitorConfig`
+
+Configuration for which databases/tables to monitor.
+
+```csharp
+public class SpatialMonitorConfig
+{
+    public List<SpatialMonitorEntry> Entries { get; }
+    public Distance? MinimumDistance { get; set; } // default: 300m
+    public TimeSpan? MinimumTime { get; set; }    // default: 1 minute
+    public SpatialMonitorConfig Add(string databasePath, string tableName);
+}
+```
+
+- `Add()` takes a file path on disk — for MAUI raw assets, copy to `AppDataDirectory` first (see setup example above)
+
+### Delegate Example
+
+```csharp
+public class MyGeofenceDelegate(
+    ILogger<MyGeofenceDelegate> logger,
+    INotificationManager notifications
+) : ISpatialGeofenceDelegate
+{
+    public async Task OnRegionChanged(SpatialRegionChange change)
+    {
+        var regionName = change.Region.Properties.GetValueOrDefault("name") ?? "Unknown";
+        var action = change.Entered ? "Entered" : "Exited";
+
+        logger.LogInformation("{Action} {Region} in {Table}", action, regionName, change.TableName);
+        await notifications.Send("Geofence", $"{action}: {regionName}");
+    }
+}
+```
+
+### Usage in a Page/ViewModel
+
+```csharp
+public class MyViewModel(ISpatialGeofenceManager geofences)
+{
+    public async Task StartMonitoring()
+    {
+        await geofences.RequestAccess();
+        await geofences.Start();
+    }
+
+    public async Task StopMonitoring()
+    {
+        await geofences.Stop();
+    }
+
+    public async Task CheckCurrentRegions()
+    {
+        var regions = await geofences.GetCurrent();
+        foreach (var r in regions)
+        {
+            var name = r.Region?.Properties.GetValueOrDefault("name") ?? "None";
+            Console.WriteLine($"{r.TableName}: {name}");
+        }
+    }
+}
 ```
 
 ## Best Practices
