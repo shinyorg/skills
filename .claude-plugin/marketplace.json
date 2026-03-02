@@ -49,6 +49,16 @@
       "name": "shiny-aspire",
       "source": "./",
       "description": "Claude Code plugin for Shiny Aspire - Orleans ADO.NET hosting integration and Gluetun VPN container routing for .NET Aspire applications"
+    },
+    {
+      "name": "shiny-music",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny Music - unified API for accessing the device music library on Android and iOS with permissions, metadata querying, playback, and file copy"
+    },
+    {
+      "name": "shiny-obd",
+      "source": "./",
+      "description": "Claude Code plugin for Shiny OBD - OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE transport"
     }
   ]
 }

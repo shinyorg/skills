@@ -46,7 +46,15 @@
     "aspire",
     "orleans",
     "clustering",
-    "grain-storage"
+    "grain-storage",
+    "music-library",
+    "media-player",
+    "audio",
+    "obd",
+    "obd-ii",
+    "vehicle-diagnostics",
+    "bluetooth",
+    "elm327"
   ],
   "skills": "./skills/"
 }
