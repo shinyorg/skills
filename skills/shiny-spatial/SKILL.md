@@ -40,15 +40,15 @@ Invoke this skill when the user wants to:
 
 ### Target Frameworks
 
-| Framework | Notes |
-|---|---|
-| `netstandard2.0` | Broad compatibility (Xamarin, .NET Framework, etc.) |
-| `net10.0` | Modern .NET with AOT support |
+| Package | Framework | Notes |
+|---|---|---|
+| `Shiny.Spatial` | `net10.0` | AOT compatible and trimmable |
+| `Shiny.Spatial.Geofencing` | `net10.0-ios`, `net10.0-android` | iOS/Android GPS geofencing |
 
 ### Dependencies
 
 - `Microsoft.Data.Sqlite` — brings `SQLitePCLRaw.bundle_e_sqlite3` with R*Tree enabled
-- `System.Memory` — netstandard2.0 only (Span polyfill)
+- `Shiny.Locations` — geofencing package only (background GPS)
 
 ## Setup
 
