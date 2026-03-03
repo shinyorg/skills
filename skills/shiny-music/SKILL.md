@@ -32,7 +32,7 @@ You are an expert in Shiny.Music, a .NET library that provides a unified API for
 Invoke this skill when the user wants to:
 - Access the device music library on Android or iOS
 - Request permissions to read audio/music from the device
-- Query or search music track metadata (title, artist, album, duration, etc.)
+- Query or search music track metadata (title, artist, album, duration, explicit content, etc.)
 - Play, pause, resume, stop, or seek within music tracks
 - Copy music files from the device library to app storage
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
@@ -202,6 +202,7 @@ public record MusicMetadata(
     string? Genre,
     TimeSpan Duration,
     string? AlbumArtUri,
+    bool? IsExplicit,
     string ContentUri
 );
 ```
@@ -215,6 +216,7 @@ public record MusicMetadata(
 | `Genre` | Genre, or `null` if unavailable. |
 | `Duration` | Playback duration. |
 | `AlbumArtUri` | Album art URI (Android only via MediaStore; `null` on iOS). |
+| `IsExplicit` | Whether the track is marked as explicit content. iOS only via `MPMediaItem.IsExplicitItem`; always `null` on Android. |
 | `ContentUri` | URI for playback/copy. Android: `content://` URI. iOS: `ipod-library://` asset URL. **Empty string for DRM-protected Apple Music tracks** — these cannot be played or copied. |
 
 ### PermissionStatus
