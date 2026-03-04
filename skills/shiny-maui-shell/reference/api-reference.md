@@ -126,7 +126,7 @@ navigator.Navigated += (sender, args) =>
 public class MyViewModel(INavigator navigator)
 {
     // Route-based navigation
-    await navigator.NavigateTo("detail", ("ItemId", "abc"), ("Mode", "edit"));
+    await navigator.NavigateTo("Detail", ("ItemId", "abc"), ("Mode", "edit"));
 
     // ViewModel-based navigation
     await navigator.NavigateTo<DetailViewModel>(vm => vm.ItemId = "abc");
@@ -243,10 +243,16 @@ Marks a ViewModel class for source generation. Applied to the ViewModel class.
 ```csharp
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ShellMapAttribute<TPage>(
-    string? route = null,         // Route name (defaults to page class name)
+    string? route = null,         // Route name — must be a valid C# identifier; used as generated constant and method name
     bool registerRoute = true     // Set false for AppShell.xaml pages
 ) : Attribute;
 ```
+
+The `route` parameter drives naming:
+- `[ShellMap<DetailPage>("Detail")]` → `Routes.Detail`, `NavigateToDetail(...)`
+- `[ShellMap<HomePage>]` (no route) → `Routes.Home`, `NavigateToHome(...)`
+
+Invalid route names (hyphens, spaces, leading digits) produce a **SHINY001** compiler error.
 
 ### ShellPropertyAttribute
 
@@ -263,7 +269,7 @@ public sealed class ShellPropertyAttribute(
 
 Given this input:
 ```csharp
-[ShellMap<DetailPage>("detail")]
+[ShellMap<DetailPage>("Detail")]
 public partial class DetailViewModel : ObservableObject
 {
     [ShellProperty] public string ItemId { get; set; }
@@ -277,7 +283,7 @@ The source generator produces:
 ```csharp
 public static class Routes
 {
-    public const string Detail = "detail";
+    public const string Detail = "Detail";
 }
 ```
 
@@ -296,17 +302,28 @@ public static class NavigationExtensions
 }
 ```
 
-**NavigationBuilderExtensions.g.cs:**
+**NavigationBuilderExtensions.g.cs** (uses string literals, not `Routes.*`):
 ```csharp
 public static class NavigationBuilderExtensions
 {
     public static ShinyAppBuilder AddGeneratedMaps(this ShinyAppBuilder builder)
     {
-        builder.Add<DetailPage, DetailViewModel>(Routes.Detail);
+        builder.Add<DetailPage, DetailViewModel>("Detail");
         return builder;
     }
 }
 ```
+
+### Configuring Source Generation
+
+Disable individual generated files via MSBuild properties:
+
+| Property | Default | Controls |
+|---|---|---|
+| `ShinyMauiShell_GenerateRouteConstants` | `true` | `Routes.g.cs` |
+| `ShinyMauiShell_GenerateNavExtensions` | `true` | `NavigationExtensions.g.cs` |
+
+`NavigationBuilderExtensions.g.cs` is always generated.
 
 ## Extension Method
 
@@ -363,6 +380,8 @@ When implemented on a ViewModel, `Dispose()` is called when the page is permanen
 - ViewModel class must be `partial`
 - Ensure `Shiny.Maui.Shell` NuGet is installed (includes the generator)
 - Check that `[ShellMap<TPage>]` attribute is applied to the class
+- Route names must be valid C# identifiers — check for **SHINY001** errors
+- Route constants and nav extensions can be disabled via `ShinyMauiShell_GenerateRouteConstants` and `ShinyMauiShell_GenerateNavExtensions` MSBuild properties
 - Clean and rebuild the project
 
 ### OnAppearing/OnDisappearing not firing
