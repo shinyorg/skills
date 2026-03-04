@@ -237,7 +237,7 @@ public partial class MainViewModel(INavigator navigator) : ObservableObject,
     Task NavigateToDetail() => navigator.NavigateTo<DetailViewModel>(vm => vm.ItemId = "123");
 
     [RelayCommand]
-    Task NavigateByRoute() => navigator.NavigateTo("detail", ("ItemId", "123"));
+    Task NavigateByRoute() => navigator.NavigateTo("Detail", ("ItemId", "123"));
 }
 ```
 
@@ -281,7 +281,7 @@ public partial class ItemListViewModel(INavigator navigator) : ObservableObject,
 
 ### Detail ViewModel
 ```csharp
-[ShellMap<ItemDetailPage>("itemDetail")]
+[ShellMap<ItemDetailPage>("ItemDetail")]
 public partial class ItemDetailViewModel(INavigator navigator, IItemService itemService) : ObservableObject,
     IQueryAttributable,
     IPageLifecycleAware,
@@ -374,8 +374,8 @@ builder
     .UseMauiApp<App>()
     .UseShinyShell(x => x
         .Add<MainPage, MainViewModel>(registerRoute: false)
-        .Add<DetailPage, DetailViewModel>("detail")
-        .Add<SettingsPage, SettingsViewModel>("settings")
-        .Add<ModalPage, ModalViewModel>("modal")
+        .Add<DetailPage, DetailViewModel>("Detail")
+        .Add<SettingsPage, SettingsViewModel>("Settings")
+        .Add<ModalPage, ModalViewModel>("Modal")
     )
 ```

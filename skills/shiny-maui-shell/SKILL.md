@@ -46,6 +46,7 @@ Invoke this skill when the user wants to:
 ## Library Overview
 
 **Documentation**: https://shinylib.net/maui
+**GitHub**: https://github.com/shinyorg/mauishell
 **NuGet**: `Shiny.Maui.Shell`
 **Namespace**: `Shiny`
 
@@ -76,8 +77,8 @@ public static MauiApp CreateMauiApp()
         .UseMauiApp<App>()
         .UseShinyShell(x => x
             .Add<MainPage, MainViewModel>(registerRoute: false)
-            .Add<DetailPage, DetailViewModel>("detail")
-            .Add<SettingsPage, SettingsViewModel>("settings")
+            .Add<DetailPage, DetailViewModel>("Detail")
+            .Add<SettingsPage, SettingsViewModel>("Settings")
         )
         .ConfigureFonts(fonts =>
         {
@@ -110,13 +111,16 @@ When generating code for Shiny MAUI Shell projects, follow these conventions:
 All ViewModels must implement `INotifyPropertyChanged`. Use `CommunityToolkit.Mvvm` `ObservableObject` as the base:
 
 ```csharp
-[ShellMap<MyPage>("myRoute")]
+[ShellMap<MyPage>("MyRoute")]
 public partial class MyViewModel : ObservableObject
 {
 }
 ```
 
-- Use `[ShellMap<TPage>("route")]` on every ViewModel class
+- Use `[ShellMap<TPage>("Route")]` on every ViewModel class
+- The `route` parameter must be a valid C# identifier — it is used as the generated constant name and method name
+- Invalid route names (hyphens, spaces, leading digits) produce a **SHINY001** compiler error
+- When no route is specified, the page type name without the `Page` suffix is used as the generated name
 - Set `registerRoute: false` only for pages already declared in AppShell.xaml
 - ViewModel classes using source generation should be `partial`
 - Use primary constructors to inject `INavigator` and other dependencies
@@ -126,7 +130,7 @@ public partial class MyViewModel : ObservableObject
 Use `[ShellProperty]` on ViewModel properties that should be passed as navigation parameters:
 
 ```csharp
-[ShellMap<DetailPage>("detail")]
+[ShellMap<DetailPage>("Detail")]
 public partial class DetailViewModel : ObservableObject, IQueryAttributable
 {
     [ShellProperty]
@@ -187,7 +191,7 @@ Always use `INavigator` for navigation, never `Shell.Current.GoToAsync` directly
 
 ```csharp
 // Route-based navigation with args
-await navigator.NavigateTo("detail", ("ItemId", "123"), ("PageIndex", 0));
+await navigator.NavigateTo("Detail", ("ItemId", "123"), ("PageIndex", 0));
 
 // ViewModel-based navigation with strongly-typed configuration
 await navigator.NavigateTo<DetailViewModel>(vm => vm.ItemId = "123");
@@ -233,18 +237,20 @@ Place files following standard MAUI conventions:
 
 ## Source Generation Output
 
-The source generator produces three files from `[ShellMap]` and `[ShellProperty]` attributes:
+The source generator produces up to three files from `[ShellMap]` and `[ShellProperty]` attributes. Each can be individually disabled via MSBuild properties.
 
 ### Routes.g.cs
+The constant name is derived from the `route` parameter (or page type name without `Page` suffix when no route is specified):
 ```csharp
 public static class Routes
 {
-    public const string Detail = "detail";
-    public const string Settings = "settings";
+    public const string Detail = "Detail";
+    public const string Settings = "Settings";
 }
 ```
 
 ### NavigationExtensions.g.cs
+Method names are also derived from the route parameter:
 ```csharp
 public static class NavigationExtensions
 {
@@ -260,17 +266,34 @@ public static class NavigationExtensions
 ```
 
 ### NavigationBuilderExtensions.g.cs
+Uses inline string literals (not `Routes.*` constants), so it works regardless of whether route constants are enabled:
 ```csharp
 public static class NavigationBuilderExtensions
 {
     public static ShinyAppBuilder AddGeneratedMaps(this ShinyAppBuilder builder)
     {
-        builder.Add<DetailPage, DetailViewModel>(Routes.Detail);
-        builder.Add<SettingsPage, SettingsViewModel>(Routes.Settings);
+        builder.Add<DetailPage, DetailViewModel>("Detail");
+        builder.Add<SettingsPage, SettingsViewModel>("Settings");
         return builder;
     }
 }
 ```
+
+### Configuring Source Generation
+
+Disable individual generated files via MSBuild properties in `.csproj`:
+
+```xml
+<PropertyGroup>
+    <!-- Disable Routes.g.cs -->
+    <ShinyMauiShell_GenerateRouteConstants>false</ShinyMauiShell_GenerateRouteConstants>
+
+    <!-- Disable NavigationExtensions.g.cs -->
+    <ShinyMauiShell_GenerateNavExtensions>false</ShinyMauiShell_GenerateNavExtensions>
+</PropertyGroup>
+```
+
+`NavigationBuilderExtensions.g.cs` (`AddGeneratedMaps()`) is always generated — even when no `[ShellMap]` attributes exist yet — so you can wire up `MauiProgram.cs` immediately.
 
 ## Complete ViewModel Example
 
@@ -281,7 +304,7 @@ using Shiny;
 
 namespace MyApp.ViewModels;
 
-[ShellMap<DetailPage>("detail")]
+[ShellMap<DetailPage>("Detail")]
 public partial class DetailViewModel(INavigator navigator) : ObservableObject,
     IQueryAttributable,
     IPageLifecycleAware,
