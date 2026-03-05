@@ -128,7 +128,7 @@ var store = new SqliteDocumentStore(new DocumentStoreOptions
 
 // All calls auto-resolve type info — no explicit JsonTypeInfo needed
 var user = new User { Name = "Alice", Age = 25 };
-await store.Set(user);
+await store.Insert(user);
 var fetched = await store.Get<User>(user.Id);
 var users = await store.Query<User>().Where(u => u.Age > 25).ToList();
 ```
@@ -136,7 +136,7 @@ var users = await store.Query<User>().Where(u => u.Age > 25).ToList();
 You can still pass `JsonTypeInfo<T>` explicitly when needed (e.g., for types not registered in the context):
 
 ```csharp
-await store.Set(new User { Name = "Alice" }, ctx.User); // Id auto-generated
+await store.Insert(new User { Id = "alice-1", Name = "Alice" }, ctx.User);
 ```
 
 ## Document Types
@@ -158,30 +158,36 @@ public class User
 | Id CLR Type | Default Value | Auto-Gen Strategy |
 |-------------|--------------|-------------------|
 | `Guid` | `Guid.Empty` | `Guid.NewGuid()` |
-| `string` | `null` or `""` | `Guid.NewGuid().ToString("N")` |
+| `string` | `null` or `""` | **Throws** — an explicit Id is required |
 | `int` | `0` | `MAX(CAST(Id AS INTEGER)) + 1` per TypeName |
 | `long` | `0` | `MAX(CAST(Id AS INTEGER)) + 1` per TypeName |
 
-When `Set` is called with a default Id, the store auto-generates one and writes it back to the object. When a non-default Id is provided, it is used as-is.
+When `Insert` is called with a default Id, the store auto-generates one and writes it back to the object (except for `string` Ids, which throw if the value is `null` or `""`). When a non-default Id is provided, it is used as-is.
 
 ## Core API Reference (IDocumentStore)
 
-### Set (Insert/Replace)
+### Insert / Update / Upsert
 
 ```csharp
 // Auto-generated ID — written back to the object
 var user = new User { Name = "Alice", Age = 25 };
-await store.Set(user);
+await store.Insert(user);
 // user.Id is now populated
 
 // Explicit ID
-await store.Set(new User { Id = "user-1", Name = "Alice", Age = 25 });
+await store.Insert(new User { Id = "user-1", Name = "Alice", Age = 25 });
 ```
 
 ### Get
 
+The `id` parameter accepts `Guid`, `int`, `long`, or `string`. Passing an unsupported type throws `ArgumentException`.
+
 ```csharp
 var user = await store.Get<User>("user-1");
+
+// Guid, int, and long Ids work directly — no ToString() needed
+var item = await store.Get<GuidIdModel>(myGuid);
+var order = await store.Get<IntIdModel>(42);
 ```
 
 ### Upsert (JSON Merge Patch)
@@ -193,6 +199,8 @@ await store.Upsert(new User { Id = "user-1", Name = "Alice", Age = 30 });
 ```
 
 ### SetProperty / RemoveProperty
+
+The `id` parameter accepts `Guid`, `int`, `long`, or `string`. Passing an unsupported type throws `ArgumentException`.
 
 ```csharp
 // Update a single field via json_set — no deserialization
@@ -207,9 +215,12 @@ await store.RemoveProperty<User>("user-1", u => u.Email);
 
 ### Remove / Clear
 
+The `id` parameter accepts `Guid`, `int`, `long`, or `string`. Passing an unsupported type throws `ArgumentException`.
+
 ```csharp
 // By ID
 bool deleted = await store.Remove<User>("user-1");
+bool removed = await store.Remove<GuidIdModel>(myGuid);
 
 // Clear all documents of a type
 int deletedCount = await store.Clear<User>();
@@ -244,8 +255,8 @@ var count = await store.Count<User>(
 ```csharp
 await store.RunInTransaction(async tx =>
 {
-    await tx.Set(new User { Id = "u1", Name = "Alice", Age = 25 });
-    await tx.Set(new User { Id = "u2", Name = "Bob", Age = 30 });
+    await tx.Insert(new User { Id = "u1", Name = "Alice", Age = 25 });
+    await tx.Insert(new User { Id = "u2", Name = "Bob", Age = 30 });
     // Commits on success, rolls back on exception
 });
 ```
@@ -693,8 +704,8 @@ Index names are deterministic (`idx_json_{typeName}_{jsonPath}`). `CreateIndexAs
 ```csharp
 await store.RunInTransaction(async tx =>
 {
-    await tx.Set(new User { Id = "u1", Name = "Alice", Age = 25 });
-    await tx.Set(new User { Id = "u2", Name = "Bob", Age = 30 });
+    await tx.Insert(new User { Id = "u1", Name = "Alice", Age = 25 });
+    await tx.Insert(new User { Id = "u2", Name = "Bob", Age = 30 });
     // Commits on success, rolls back on exception
 });
 ```
