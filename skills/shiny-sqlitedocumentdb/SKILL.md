@@ -261,6 +261,14 @@ await store.RunInTransaction(async tx =>
 });
 ```
 
+### Backup
+
+Creates a hot backup of the database to a file using the SQLite Online Backup API. The store remains fully usable during the backup. Not supported inside a transaction.
+
+```csharp
+await store.Backup("/path/to/backup.db");
+```
+
 ## Fluent Query Builder (IDocumentQuery<T>)
 
 The fluent query builder is the primary way to query documents. Start with `store.Query<T>()` and chain builder methods, then terminate with a materialization method.
