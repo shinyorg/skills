@@ -6,8 +6,8 @@ triggers:
   - aspire orleans
   - orleans aspire
   - WithDatabaseSetup
-  - UseOrleansWithAdoNet
-  - UseOrleansClientWithAdoNet
+  - UseAdoNet
+  - UseAdoNetClient
   - orleans database setup
   - orleans schema
   - orleans clustering
@@ -50,8 +50,8 @@ Invoke this skill when the user wants to:
 - Configure an Orleans silo with ADO.NET providers from Aspire-injected config
 - Configure an Orleans client with ADO.NET clustering from Aspire-injected config
 - Use `WithDatabaseSetup` to auto-provision Orleans tables
-- Use `UseOrleansWithAdoNet` to configure a silo
-- Use `UseOrleansClientWithAdoNet` to configure a client
+- Use `silo.UseAdoNet()` to configure a silo inside `UseOrleans`
+- Use `silo.UseAdoNetClient()` to configure a client inside `UseOrleans`
 - Select which Orleans features to provision (clustering, persistence, reminders)
 - Set up multiple named grain storage providers
 - Add a Gluetun VPN container to an Aspire app
@@ -72,8 +72,8 @@ Invoke this skill when the user wants to:
 | Package | NuGet | Usage |
 |---|---|---|
 | `Shiny.Aspire.Orleans.Hosting` | Install in Aspire AppHost | Auto-runs Orleans schema scripts when the database becomes ready |
-| `Shiny.Aspire.Orleans.Server` | Install in Orleans silo | Configures ADO.NET clustering, grain storage, and reminders from Aspire config |
-| `Shiny.Aspire.Orleans.Client` | Install in Orleans client | Configures ADO.NET clustering from Aspire config |
+| `Shiny.Aspire.Orleans.Server` | Install in Orleans silo | Registers ADO.NET provider builders for clustering, grain storage, and reminders |
+| `Shiny.Aspire.Orleans.Client` | Install in Orleans client | Registers ADO.NET provider builder for clustering |
 | `Shiny.Aspire.Hosting.Gluetun` | Install in Aspire AppHost | Adds a Gluetun VPN container and routes other containers through it |
 
 ### Supported Databases
@@ -83,6 +83,15 @@ Invoke this skill when the user wants to:
 | PostgreSQL | `Npgsql` | `PostgresDatabase` |
 | SQL Server | `Microsoft.Data.SqlClient` | `SqlServerDatabase` |
 | MySQL | `MySql.Data.MySqlClient` | `MySqlDatabase` |
+
+## Architecture: Provider Registration
+
+The Server and Client packages register Orleans provider builders via `[assembly: RegisterProvider]` attributes. When Orleans calls `ApplyConfiguration` during `UseOrleans()`, it reads the Aspire-injected configuration (e.g. `Orleans:Clustering:ProviderType = "PostgresDatabase"`) and resolves the matching provider builder automatically. The provider builder maps the database type to the correct ADO.NET invariant and resolves the connection string from the `ServiceKey`.
+
+This means:
+- **No manual configuration** — providers are resolved automatically from Aspire config.
+- **ISiloBuilder extensions** — `UseAdoNet()` and `UseAdoNetClient()` are identity methods for discoverability. The actual wiring happens through the registered provider builders.
+- **Composable** — because configuration happens inside `UseOrleans(silo => { ... })`, users can add other silo features alongside `UseAdoNet()`.
 
 ## Setup
 
@@ -96,6 +105,7 @@ using Shiny.Aspire.Orleans.Hosting;
 var builder = DistributedApplication.CreateBuilder(args);
 
 var db = builder.AddPostgres("pg")
+    .WithPgAdmin()
     .AddDatabase("orleans-db");
 
 var orleans = builder.AddOrleans("cluster")
@@ -117,26 +127,36 @@ builder.Build().Run();
 
 ### 2. Orleans Silo
 
-Install `Shiny.Aspire.Orleans.Server` in the silo project.
+Install `Shiny.Aspire.Orleans.Server` in the silo project. Call `silo.UseAdoNet()` inside `UseOrleans`.
 
 ```csharp
 using Shiny.Aspire.Orleans.Server;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.UseOrleansWithAdoNet(); // reads Aspire-injected config automatically
+
+builder.UseOrleans(silo =>
+{
+    silo.UseAdoNet();
+});
+
 var app = builder.Build();
 app.Run();
 ```
 
 ### 3. Orleans Client
 
-Install `Shiny.Aspire.Orleans.Client` in the client project (e.g. an API gateway).
+Install `Shiny.Aspire.Orleans.Client` in the client project (e.g. an API gateway). Call `silo.UseAdoNetClient()` inside `UseOrleans`.
 
 ```csharp
 using Shiny.Aspire.Orleans.Client;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.UseOrleansClientWithAdoNet(); // reads Aspire-injected config automatically
+
+builder.UseOrleans(silo =>
+{
+    silo.UseAdoNetClient();
+});
+
 var app = builder.Build();
 
 app.MapGet("/counter/{name}", async (string name, IClusterClient client) =>
@@ -208,32 +228,42 @@ Auto-detected from the Aspire resource — you do not need to specify this direc
 
 ### Server Package — `Shiny.Aspire.Orleans.Server`
 
-#### UseOrleansWithAdoNet
+#### UseAdoNet (ISiloBuilder extension)
 
 ```csharp
-public static IHostApplicationBuilder UseOrleansWithAdoNet(
-    this IHostApplicationBuilder builder
-)
+public static ISiloBuilder UseAdoNet(this ISiloBuilder siloBuilder)
 ```
 
-Reads Aspire-injected configuration and configures the Orleans silo with ADO.NET providers for:
-- **Clustering** — from `Orleans:Clustering:ProviderType` and `Orleans:Clustering:ServiceKey`
-- **Grain Storage** — from `Orleans:GrainStorage:{Name}:ProviderType` and `Orleans:GrainStorage:{Name}:ServiceKey` (supports multiple named providers)
-- **Reminders** — from `Orleans:Reminders:ProviderType` and `Orleans:Reminders:ServiceKey`
+Marker extension for discoverability. The actual provider registration happens automatically via `[assembly: RegisterProvider]` attributes when the package is referenced. Providers are registered for all three database types across Clustering, GrainStorage, and Reminders.
 
-The connection string is resolved from `ConnectionStrings:{ServiceKey}` using Aspire's standard connection string injection.
+Call inside `UseOrleans`:
+
+```csharp
+builder.UseOrleans(silo =>
+{
+    silo.UseAdoNet();
+    // compose with other silo features here
+});
+```
 
 ### Client Package — `Shiny.Aspire.Orleans.Client`
 
-#### UseOrleansClientWithAdoNet
+#### UseAdoNetClient (ISiloBuilder extension)
 
 ```csharp
-public static IHostApplicationBuilder UseOrleansClientWithAdoNet(
-    this IHostApplicationBuilder builder
-)
+public static ISiloBuilder UseAdoNetClient(this ISiloBuilder siloBuilder)
 ```
 
-Reads Aspire-injected configuration and configures the Orleans client with ADO.NET clustering only (clients do not need grain storage or reminders). Reads `Orleans:Clustering:ProviderType` and `Orleans:Clustering:ServiceKey`.
+Marker extension for discoverability. Registers ADO.NET clustering provider builders for both Silo and Client targets. Clients do not need grain storage or reminders.
+
+Call inside `UseOrleans`:
+
+```csharp
+builder.UseOrleans(silo =>
+{
+    silo.UseAdoNetClient();
+});
+```
 
 ## Configuration Flow
 
@@ -248,6 +278,8 @@ Orleans:Reminders:ProviderType  = "PostgresDatabase"
 Orleans:Reminders:ServiceKey    = "orleans-db"
 ConnectionStrings:orleans-db    = "Host=...;Database=..."
 ```
+
+Orleans' `ApplyConfiguration` reads these sections and delegates to the registered provider builders, which configure the ADO.NET providers with the correct connection strings and invariants.
 
 ## Schema Provisioning Order
 
@@ -297,7 +329,7 @@ Each named provider reads from `Orleans:GrainStorage:{Name}:ProviderType` and `O
 1. **Always use `WithDatabaseSetup`** in the AppHost to auto-provision schemas — never require manual SQL scripts.
 2. **Always call `WaitFor(db)`** on projects that reference Orleans, so the database is ready before the silo starts.
 3. **Use `.AsClient()`** when wiring a client project — this provides only clustering config, not full silo config.
-4. **One call per project** — use `UseOrleansWithAdoNet()` in silo projects and `UseOrleansClientWithAdoNet()` in client projects.
+4. **Use `UseOrleans(silo => { ... })`** — call `silo.UseAdoNet()` in silo projects and `silo.UseAdoNetClient()` in client projects inside the `UseOrleans` lambda.
 5. **Feature flags are optional** — only use `OrleansFeature` flags if the user explicitly wants to skip certain schemas.
 6. **Don't hardcode connection strings** — Aspire injects them automatically via configuration.
 7. **Don't manually configure ADO.NET invariants** — the packages auto-detect the correct invariant from the provider type.
