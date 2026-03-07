@@ -34,6 +34,8 @@ Invoke this skill when the user wants to:
 - Request permissions to read audio/music from the device
 - Query or search music track metadata (title, artist, album, duration, explicit content, etc.)
 - Play, pause, resume, stop, or seek within music tracks
+- Play Apple Music subscription (DRM) tracks via `StoreId` and `MPMusicPlayerController` on iOS
+- Check for an active streaming subscription via `HasStreamingSubscriptionAsync()`
 - Copy music files from the device library to app storage
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
 - Configure Android manifest permissions or iOS Info.plist for music access
@@ -144,9 +146,23 @@ Copies a music file to the specified path. Creates parent directories if needed.
 - **Android**: Reads from ContentResolver input stream. All local files can be copied. Original format preserved.
 - **iOS**: Exports via `AVAssetExportSession` in M4A format. DRM-protected Apple Music subscription tracks **cannot** be copied (`AssetURL` is null).
 
+### HasStreamingSubscriptionAsync
+
+```csharp
+Task<bool> HasStreamingSubscriptionAsync();
+```
+
+Checks whether the user has an active music streaming subscription that allows catalog playback. On iOS, this queries `SKCloudServiceController` for the `MusicCatalogPlayback` capability. On Android, this always returns `false`.
+
 ### IMusicPlayer
 
 Controls playback of music files from the device library. Implements `IDisposable`.
+
+On iOS, the player supports two modes:
+- **Local playback** via `AVAudioPlayer` when `ContentUri` is available (purchased/synced tracks).
+- **Streaming playback** via `MPMusicPlayerController.SystemMusicPlayer` when `StoreId` is available (Apple Music subscription tracks).
+
+`PlayAsync` automatically selects the appropriate mode based on the track's properties.
 
 #### PlayAsync
 
@@ -154,10 +170,11 @@ Controls playback of music files from the device library. Implements `IDisposabl
 Task PlayAsync(MusicMetadata track);
 ```
 
-Stops any current track, loads the specified one, and begins playback. Throws `InvalidOperationException` if `ContentUri` is empty or the platform player fails.
+Stops any current track, loads the specified one, and begins playback. Throws `InvalidOperationException` if both `ContentUri` and `StoreId` are empty or the platform player fails.
 
 - **Android**: Uses `Android.Media.MediaPlayer` with content URIs.
-- **iOS**: Uses `AVFoundation.AVAudioPlayer` with `ipod-library://` asset URLs.
+- **iOS (local)**: Uses `AVAudioPlayer` with `ipod-library://` asset URLs when `ContentUri` is available.
+- **iOS (streaming)**: Uses `MPMusicPlayerController.SystemMusicPlayer` with the Apple Music catalog `StoreId` when `ContentUri` is empty but `StoreId` is available.
 
 #### Pause / Resume / Stop
 
@@ -196,28 +213,30 @@ Seeks to the specified position. Android uses millisecond precision; iOS uses se
 ```csharp
 public record MusicMetadata(
     string Id,
-    string Title,
-    string Artist,
-    string Album,
+    string? Title,
+    string? Artist,
+    string? Album,
     string? Genre,
     TimeSpan Duration,
     string? AlbumArtUri,
     bool? IsExplicit,
-    string ContentUri
+    string ContentUri,
+    string? StoreId = null
 );
 ```
 
 | Property | Description |
 |----------|-------------|
 | `Id` | Platform-specific unique ID. Android: MediaStore row ID. iOS: MPMediaItem persistent ID. |
-| `Title` | Track title. |
-| `Artist` | Artist or performer. |
-| `Album` | Album name. |
+| `Title` | Track title, or `null` if not available. |
+| `Artist` | Artist or performer, or `null` if not available. |
+| `Album` | Album name, or `null` if not available. |
 | `Genre` | Genre, or `null` if unavailable. |
 | `Duration` | Playback duration. |
 | `AlbumArtUri` | Album art URI (Android only via MediaStore; `null` on iOS). |
 | `IsExplicit` | Whether the track is marked as explicit content. iOS only via `MPMediaItem.IsExplicitItem`; always `null` on Android. |
-| `ContentUri` | URI for playback/copy. Android: `content://` URI. iOS: `ipod-library://` asset URL. **Empty string for DRM-protected Apple Music tracks** — these cannot be played or copied. |
+| `ContentUri` | URI for playback/copy. Android: `content://` URI. iOS: `ipod-library://` asset URL. **Empty string for DRM-protected Apple Music tracks** — these cannot be played via AVAudioPlayer or copied. |
+| `StoreId` | Optional Apple Music catalog ID (from `PlayParams.Id`). Enables streaming playback via `MPMusicPlayerController` on iOS. Always `null` on Android. |
 
 ### PermissionStatus
 
@@ -241,25 +260,40 @@ public record MusicMetadata(
 On iOS, Apple Music subscription tracks are DRM-protected. For these tracks:
 - `MPMediaItem.AssetURL` is `null`
 - `MusicMetadata.ContentUri` will be `string.Empty`
-- `PlayAsync` will throw (no valid URL)
 - `CopyTrackAsync` will return `false`
 
-Always check `string.IsNullOrEmpty(track.ContentUri)` before attempting playback or copy on iOS.
+However, if the track has a `StoreId` (Apple Music catalog ID), it **can** be played via `MPMusicPlayerController.SystemMusicPlayer`. The player automatically uses this path when `StoreId` is available.
 
-| Track Source | ContentUri | Playable | Copyable |
-|---|---|---|---|
-| iTunes purchases (DRM-free) | ✅ populated | ✅ | ✅ |
-| Locally synced from computer | ✅ populated | ✅ | ✅ |
-| Apple Music subscription | ❌ empty | ❌ | ❌ |
-| iTunes Match (cloud) | ⚠️ only if downloaded | ⚠️ | ⚠️ |
-| Android local files | ✅ always populated | ✅ | ✅ |
+| Track Source | ContentUri | StoreId | Playable | Copyable |
+|---|---|---|---|---|
+| iTunes purchases (DRM-free) | ✅ populated | ⚠️ may exist | ✅ (AVAudioPlayer) | ✅ |
+| Locally synced from computer | ✅ populated | ❌ | ✅ (AVAudioPlayer) | ✅ |
+| Apple Music subscription | ❌ empty | ✅ populated | ✅ (SystemMusicPlayer) | ❌ |
+| iTunes Match (cloud) | ⚠️ only if downloaded | ⚠️ may exist | ⚠️ | ⚠️ |
+| Android local files | ✅ always populated | ❌ | ✅ | ✅ |
+
+## Streaming Subscription Check
+
+Use `HasStreamingSubscriptionAsync()` to determine if the user can play Apple Music catalog content:
+
+```csharp
+var canStream = await _library.HasStreamingSubscriptionAsync();
+if (canStream)
+{
+    // User has an active Apple Music subscription
+    // Tracks with StoreId can be played via MPMusicPlayerController
+}
+```
+
+On Android, this always returns `false`.
 
 ## Code Generation Best Practices
 
 1. **Always request permission first** — call `RequestPermissionAsync()` before any query or playback operation.
-2. **Check `ContentUri` before playing on iOS** — empty means DRM-protected, will throw.
+2. **Check playability before playing on iOS** — use `StoreId` for streaming or `ContentUri` for local playback. If both are empty, the track cannot be played.
 3. **Register as singletons** — both `IMediaLibrary` and `IMusicPlayer` should be singletons in DI.
 4. **Dispose the player** — `IMusicPlayer` implements `IDisposable`; call `Dispose()` or let the DI container handle it.
 5. **Test on physical devices** — simulators/emulators have no music content.
 6. **Handle `Restricted` on iOS** — distinct from `Denied`; means system policy blocks access.
 7. **Copy format on iOS is M4A** — regardless of original encoding, `AVAssetExportSession` outputs M4A.
+8. **Use `HasStreamingSubscriptionAsync()`** — check before presenting streaming playback UI to the user.
