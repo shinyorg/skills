@@ -54,7 +54,22 @@
     "obd-ii",
     "vehicle-diagnostics",
     "bluetooth",
-    "elm327"
+    "elm327",
+    "spatial",
+    "geospatial",
+    "geofence",
+    "rtree",
+    "document-store",
+    "sqlite",
+    "json-document",
+    "linq",
+    "tableview",
+    "settings-page",
+    "maui-hosting",
+    "maui-module",
+    "lifecycle",
+    "web-hosting",
+    "web-module"
   ],
   "skills": "./skills/"
 }
