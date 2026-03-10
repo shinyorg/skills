@@ -51,7 +51,7 @@ Invoke this skill when the user wants to:
 - Configure an Orleans client with ADO.NET clustering from Aspire-injected config
 - Use `WithDatabaseSetup` to auto-provision Orleans tables
 - Use `silo.UseAdoNet()` to configure a silo inside `UseOrleans`
-- Use `silo.UseAdoNetClient()` to configure a client inside `UseOrleans`
+- Use `client.UseAdoNetClient()` to configure a client inside `UseOrleansClient`
 - Select which Orleans features to provision (clustering, persistence, reminders)
 - Set up multiple named grain storage providers
 - Add a Gluetun VPN container to an Aspire app
@@ -90,8 +90,8 @@ The Server and Client packages register Orleans provider builders via `[assembly
 
 This means:
 - **No manual configuration** — providers are resolved automatically from Aspire config.
-- **ISiloBuilder extensions** — `UseAdoNet()` and `UseAdoNetClient()` are identity methods for discoverability. The actual wiring happens through the registered provider builders.
-- **Composable** — because configuration happens inside `UseOrleans(silo => { ... })`, users can add other silo features alongside `UseAdoNet()`.
+- **Extension methods** — `UseAdoNet()` on `ISiloBuilder` and `UseAdoNetClient()` on `IClientBuilder` are identity methods for discoverability. The actual wiring happens through the registered provider builders.
+- **Composable** — because configuration happens inside `UseOrleans(silo => { ... })` or `UseOrleansClient(client => { ... })`, users can add other features alongside.
 
 ## Setup
 
@@ -145,16 +145,16 @@ app.Run();
 
 ### 3. Orleans Client
 
-Install `Shiny.Aspire.Orleans.Client` in the client project (e.g. an API gateway). Call `silo.UseAdoNetClient()` inside `UseOrleans`.
+Install `Shiny.Aspire.Orleans.Client` in the client project (e.g. an API gateway). Call `client.UseAdoNetClient()` inside `UseOrleansClient`.
 
 ```csharp
 using Shiny.Aspire.Orleans.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.UseOrleans(silo =>
+builder.UseOrleansClient(client =>
 {
-    silo.UseAdoNetClient();
+    client.UseAdoNetClient();
 });
 
 var app = builder.Build();
@@ -248,20 +248,20 @@ builder.UseOrleans(silo =>
 
 ### Client Package — `Shiny.Aspire.Orleans.Client`
 
-#### UseAdoNetClient (ISiloBuilder extension)
+#### UseAdoNetClient (IClientBuilder extension)
 
 ```csharp
-public static ISiloBuilder UseAdoNetClient(this ISiloBuilder siloBuilder)
+public static IClientBuilder UseAdoNetClient(this IClientBuilder clientBuilder)
 ```
 
 Marker extension for discoverability. Registers ADO.NET clustering provider builders for both Silo and Client targets. Clients do not need grain storage or reminders.
 
-Call inside `UseOrleans`:
+Call inside `UseOrleansClient`:
 
 ```csharp
-builder.UseOrleans(silo =>
+builder.UseOrleansClient(client =>
 {
-    silo.UseAdoNetClient();
+    client.UseAdoNetClient();
 });
 ```
 
@@ -329,7 +329,7 @@ Each named provider reads from `Orleans:GrainStorage:{Name}:ProviderType` and `O
 1. **Always use `WithDatabaseSetup`** in the AppHost to auto-provision schemas — never require manual SQL scripts.
 2. **Always call `WaitFor(db)`** on projects that reference Orleans, so the database is ready before the silo starts.
 3. **Use `.AsClient()`** when wiring a client project — this provides only clustering config, not full silo config.
-4. **Use `UseOrleans(silo => { ... })`** — call `silo.UseAdoNet()` in silo projects and `silo.UseAdoNetClient()` in client projects inside the `UseOrleans` lambda.
+4. **Use `UseOrleans` and `UseOrleansClient`** — call `silo.UseAdoNet()` in silo projects inside `UseOrleans` and `client.UseAdoNetClient()` in client projects inside `UseOrleansClient`.
 5. **Feature flags are optional** — only use `OrleansFeature` flags if the user explicitly wants to skip certain schemas.
 6. **Don't hardcode connection strings** — Aspire injects them automatically via configuration.
 7. **Don't manually configure ADO.NET invariants** — the packages auto-detect the correct invariant from the provider type.
