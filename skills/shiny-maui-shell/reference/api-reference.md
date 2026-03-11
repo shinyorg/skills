@@ -52,12 +52,65 @@ public interface INavigator
 
     // Go back multiple pages
     Task GoBack(int backCount = 1, params IEnumerable<(string Key, object Value)> args);
+}
+```
 
+## IDialogs Interface
+
+A testable dialog service. Injected via DI as a singleton. Use this instead of `Shell.Current.DisplayAlert`, `Shell.Current.DisplayPromptAsync`, or `Shell.Current.DisplayActionSheet`.
+
+```csharp
+public interface IDialogs
+{
     // Display an alert dialog
     Task Alert(string? title, string message, string acceptText = "OK");
 
     // Display a confirmation dialog, returns true if accepted
     Task<bool> Confirm(string? title, string message, string acceptText = "Yes", string cancelText = "No");
+
+    // Display a text input prompt, returns entered text or null if cancelled
+    Task<string?> Prompt(
+        string? title,
+        string message,
+        string acceptText = "OK",
+        string cancelText = "Cancel",
+        string? placeholder = null,
+        string initialValue = "",
+        int maxLength = -1,
+        Keyboard? keyboard = null
+    );
+
+    // Display an action sheet with multiple options, returns selected button text
+    Task<string> ActionSheet(string? title, string? cancel, string? destruction, params string[] buttons);
+}
+```
+
+### Usage Examples
+
+```csharp
+public class MyViewModel(IDialogs dialogs)
+{
+    // Alert
+    await dialogs.Alert("Error", "Something went wrong");
+
+    // Confirm
+    if (await dialogs.Confirm("Delete", "Are you sure?"))
+    {
+        // delete item
+    }
+
+    // Prompt for text input
+    var name = await dialogs.Prompt("Name", "Enter your name", placeholder: "John Doe");
+    if (name != null)
+    {
+        // user accepted with a value
+    }
+
+    // Prompt with numeric keyboard and max length
+    var code = await dialogs.Prompt("Code", "Enter PIN", maxLength: 4, keyboard: Keyboard.Numeric);
+
+    // Action sheet
+    var action = await dialogs.ActionSheet("Photo", "Cancel", "Delete", "Take Photo", "Choose from Library");
 }
 ```
 
@@ -142,15 +195,6 @@ public class MyViewModel(INavigator navigator)
 
     // Replace root
     await navigator.SetRoot<DashboardViewModel>();
-
-    // Alert
-    await navigator.Alert("Error", "Something went wrong");
-
-    // Confirm
-    if (await navigator.Confirm("Delete", "Are you sure?"))
-    {
-        // delete item
-    }
 }
 ```
 
@@ -188,7 +232,7 @@ public async Task<bool> CanNavigate()
     if (!hasUnsavedChanges)
         return true;
 
-    return await navigator.Confirm("Unsaved Changes", "Discard changes?");
+    return await dialogs.Confirm("Unsaved Changes", "Discard changes?");
 }
 ```
 
@@ -340,6 +384,7 @@ public static MauiAppBuilder UseShinyShell(
 
 Registers:
 - `INavigator` as singleton
+- `IDialogs` as singleton
 - `IMauiInitializeService` for lifecycle hooks
 - `ShinyAppBuilder` as singleton
 - All mapped Pages and ViewModels as transient
