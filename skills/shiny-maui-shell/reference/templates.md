@@ -282,7 +282,7 @@ public partial class ItemListViewModel(INavigator navigator) : ObservableObject,
 ### Detail ViewModel
 ```csharp
 [ShellMap<ItemDetailPage>("ItemDetail")]
-public partial class ItemDetailViewModel(INavigator navigator, IItemService itemService) : ObservableObject,
+public partial class ItemDetailViewModel(INavigator navigator, IDialogs dialogs, IItemService itemService) : ObservableObject,
     IQueryAttributable,
     IPageLifecycleAware,
     INavigationConfirmation,
@@ -314,7 +314,7 @@ public partial class ItemDetailViewModel(INavigator navigator, IItemService item
     public async Task<bool> CanNavigate()
     {
         if (!isDirty) return true;
-        return await navigator.Confirm("Unsaved Changes", "Discard changes?");
+        return await dialogs.Confirm("Unsaved Changes", "Discard changes?");
     }
 
     [RelayCommand]

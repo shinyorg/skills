@@ -9,6 +9,7 @@ triggers:
   - maui page
   - maui viewmodel
   - INavigator
+  - IDialogs
   - ShellMap
   - ShellProperty
   - UseShinyShell
@@ -23,6 +24,11 @@ triggers:
   - SetRoot
   - Navigating
   - Navigated
+  - IDialogs
+  - Alert
+  - Confirm
+  - Prompt
+  - ActionSheet
   - NavigationEventArgs
   - NavigatedEventArgs
 ---
@@ -37,6 +43,7 @@ Invoke this skill when the user wants to:
 - Create new MAUI pages with ViewModels using Shiny Shell conventions
 - Set up or configure Shiny MAUI Shell in their application
 - Implement navigation between pages using `INavigator`
+- Show dialogs (alert, confirm, prompt, action sheet) using `IDialogs`
 - Add ViewModel lifecycle hooks (appearing, disappearing, navigation confirmation)
 - Use source generation with `[ShellMap]` and `[ShellProperty]` attributes
 - Pass parameters between pages during navigation
@@ -53,6 +60,7 @@ Invoke this skill when the user wants to:
 Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - Page-to-ViewModel registration and automatic BindingContext assignment
 - A testable `INavigator` service for all navigation operations
+- A testable `IDialogs` service for alert, confirm, prompt, and action sheet dialogs
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
 - Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
 - No special AppShell subclass required
@@ -210,13 +218,33 @@ await navigator.PopToRoot();
 
 // Set new root page
 await navigator.SetRoot<MainViewModel>();
-
-// Dialogs
-await navigator.Alert("Title", "Something happened");
-bool confirmed = await navigator.Confirm("Delete?", "Are you sure?");
 ```
 
-### 6. Modal Pages
+### 6. Dialogs
+
+Always use `IDialogs` for user-facing dialogs. Inject it via the primary constructor:
+
+```csharp
+public class MyViewModel(INavigator navigator, IDialogs dialogs)
+{
+    // Alert - informational message
+    await dialogs.Alert("Title", "Something happened");
+
+    // Confirm - yes/no question, returns bool
+    bool confirmed = await dialogs.Confirm("Delete?", "Are you sure?");
+
+    // Prompt - text input, returns string? (null if cancelled)
+    var name = await dialogs.Prompt("Name", "Enter your name", placeholder: "John Doe");
+
+    // Prompt with numeric keyboard
+    var age = await dialogs.Prompt("Age", "Enter your age", keyboard: Keyboard.Numeric);
+
+    // Action sheet - choose from options
+    var choice = await dialogs.ActionSheet("Options", "Cancel", "Delete", "Edit", "Share");
+}
+```
+
+### 7. Modal Pages
 
 Set `Shell.PresentationMode="Modal"` on the page XAML:
 ```xml
@@ -228,7 +256,7 @@ Set `Shell.PresentationMode="Modal"` on the page XAML:
 
 Navigate to it like any other page. Close with `GoBack()`.
 
-### 7. File Organization
+### 8. File Organization
 
 Place files following standard MAUI conventions:
 - Pages: `Views/{Name}Page.xaml` + `Views/{Name}Page.xaml.cs`
@@ -305,7 +333,7 @@ using Shiny;
 namespace MyApp.ViewModels;
 
 [ShellMap<DetailPage>("Detail")]
-public partial class DetailViewModel(INavigator navigator) : ObservableObject,
+public partial class DetailViewModel(INavigator navigator, IDialogs dialogs) : ObservableObject,
     IQueryAttributable,
     IPageLifecycleAware,
     INavigationConfirmation,
@@ -346,7 +374,7 @@ public partial class DetailViewModel(INavigator navigator) : ObservableObject,
         if (!hasUnsavedChanges)
             return true;
 
-        return await navigator.Confirm(
+        return await dialogs.Confirm(
             "Unsaved Changes",
             "You have unsaved changes. Discard them?"
         );
@@ -380,13 +408,14 @@ public partial class DetailViewModel(INavigator navigator) : ObservableObject,
 
 1. **Use source generation** - Always prefer `[ShellMap]` + `[ShellProperty]` + `AddGeneratedMaps()` over manual registration
 2. **Inject INavigator** - Never use `Shell.Current.GoToAsync` directly; use `INavigator` for testability
-3. **Use primary constructors** - Inject dependencies via primary constructor parameters
-4. **Implement IQueryAttributable** - Required to receive navigation parameters on the target ViewModel
-5. **Use ObservableObject** - From CommunityToolkit.Mvvm as the ViewModel base class
-6. **Implement IDisposable** - Clean up event handlers and subscriptions to prevent memory leaks
-7. **Use CanNavigate for guards** - Protect unsaved changes with `INavigationConfirmation`
-8. **Mark ViewModel partial** - Required when using `[ShellMap]` source generation and CommunityToolkit attributes
-9. **Pass results via GoBack args** - Return data to the previous page through navigation parameters
+3. **Inject IDialogs** - Never use `Shell.Current.DisplayAlert` directly; use `IDialogs` for testability
+4. **Use primary constructors** - Inject dependencies via primary constructor parameters
+5. **Implement IQueryAttributable** - Required to receive navigation parameters on the target ViewModel
+6. **Use ObservableObject** - From CommunityToolkit.Mvvm as the ViewModel base class
+7. **Implement IDisposable** - Clean up event handlers and subscriptions to prevent memory leaks
+8. **Use CanNavigate for guards** - Protect unsaved changes with `INavigationConfirmation`
+9. **Mark ViewModel partial** - Required when using `[ShellMap]` source generation and CommunityToolkit attributes
+10. **Pass results via GoBack args** - Return data to the previous page through navigation parameters
 
 ## Reference Files
 
