@@ -5,6 +5,8 @@ auto_invoke: true
 triggers:
   - maui shell
   - shell navigation
+  - shell switch
+  - switch shell
   - maui navigation
   - maui page
   - maui viewmodel
@@ -22,6 +24,7 @@ triggers:
   - GoBack
   - PopToRoot
   - SetRoot
+  - SwitchShell
   - Navigating
   - Navigated
   - IDialogs
@@ -42,6 +45,7 @@ You are an expert in Shiny MAUI Shell, a library that enhances .NET MAUI Shell w
 Invoke this skill when the user wants to:
 - Create new MAUI pages with ViewModels using Shiny Shell conventions
 - Set up or configure Shiny MAUI Shell in their application
+- Switch between different Shell instances at runtime (e.g., login shell vs main app shell)
 - Implement navigation between pages using `INavigator`
 - Show dialogs (alert, confirm, prompt, action sheet) using `IDialogs`
 - Add ViewModel lifecycle hooks (appearing, disappearing, navigation confirmation)
@@ -61,6 +65,7 @@ Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - Page-to-ViewModel registration and automatic BindingContext assignment
 - A testable `INavigator` service for all navigation operations
 - A testable `IDialogs` service for alert, confirm, prompt, and action sheet dialogs
+- Shell switching — swap the entire Shell at runtime (e.g., login → main app)
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
 - Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
 - No special AppShell subclass required
@@ -218,6 +223,12 @@ await navigator.PopToRoot();
 
 // Set new root page
 await navigator.SetRoot<MainViewModel>();
+
+// Switch to a different Shell instance
+await navigator.SwitchShell(new MainAppShell());
+
+// Switch to a Shell resolved from DI
+await navigator.SwitchShell<MainAppShell>();
 ```
 
 ### 6. Dialogs
