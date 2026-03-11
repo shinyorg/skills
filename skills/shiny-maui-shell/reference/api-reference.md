@@ -52,6 +52,12 @@ public interface INavigator
 
     // Go back multiple pages
     Task GoBack(int backCount = 1, params IEnumerable<(string Key, object Value)> args);
+
+    // Switch to a different Shell instance (replaces Application.MainPage)
+    Task SwitchShell(Shell shell);
+
+    // Switch to a Shell resolved from the DI container
+    Task SwitchShell<TShell>() where TShell : Shell;
 }
 ```
 
@@ -151,7 +157,8 @@ public enum NavigationType
     Push,
     SetRoot,
     GoBack,
-    PopToRoot
+    PopToRoot,
+    SwitchShell
 }
 ```
 
@@ -195,6 +202,12 @@ public class MyViewModel(INavigator navigator)
 
     // Replace root
     await navigator.SetRoot<DashboardViewModel>();
+
+    // Switch to a different Shell instance
+    await navigator.SwitchShell(new MainAppShell());
+
+    // Switch to a Shell resolved from DI
+    await navigator.SwitchShell<MainAppShell>();
 }
 ```
 
