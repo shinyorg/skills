@@ -18,6 +18,13 @@ triggers:
   - document query
   - fluent query
   - paginate
+  - MapTypeToTable
+  - table per type
+  - GetDiff
+  - JsonPatchDocument
+  - document diff
+  - BatchInsert
+  - batch insert
 ---
 
 # Shiny SqliteDocumentDb Skill
@@ -40,12 +47,18 @@ Invoke this skill when the user wants to:
 - Paginate query results with LIMIT/OFFSET
 - Use transactions for atomic document operations
 - Work with nested objects and child collections without table design
+- Map document types to dedicated tables (table-per-type)
+- Use a custom Id property instead of the default `Id`
+- Diff a modified object against a stored document (`GetDiff`)
+- Batch insert multiple documents efficiently (`BatchInsert`)
 
 ## Library Overview
 
 - **Repository**: https://github.com/shinyorg/SqliteDocumentDb
 - **Namespace**: `Shiny.SqliteDocumentDb`
-- **NuGet**: `Shiny.SqliteDocumentDb`
+- **NuGet (core)**: `Shiny.SqliteDocumentDb`
+- **NuGet (DI extensions)**: `Shiny.SqliteDocumentDb.Extensions.DependencyInjection`
+- **Dependencies**: `Microsoft.Data.Sqlite`, `SystemTextJsonPatch`
 - **Target**: `net10.0`
 
 ## Setup
@@ -61,7 +74,11 @@ var store = new SqliteDocumentStore(new DocumentStoreOptions
 
 ### Dependency Injection
 
+Requires the separate `Shiny.SqliteDocumentDb.Extensions.DependencyInjection` NuGet package.
+
 ```csharp
+using Shiny.SqliteDocumentDb.Extensions.DependencyInjection;
+
 services.AddSqliteDocumentStore("Data Source=mydata.db");
 
 // or with full options
@@ -83,10 +100,54 @@ Registers `IDocumentStore` as a singleton backed by `SqliteDocumentStore`.
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `ConnectionString` | `string` (required) | — | SQLite connection string |
+| `TableName` | `string` | `"documents"` | Default table name for all document types not mapped via `MapTypeToTable` |
 | `TypeNameResolution` | `TypeNameResolution` | `ShortName` | How type names are stored (`ShortName` or `FullName`) |
 | `JsonSerializerOptions` | `JsonSerializerOptions?` | `null` | JSON serialization settings. When a `JsonSerializerContext` is attached as the `TypeInfoResolver`, all methods auto-resolve type info from the context |
 | `UseReflectionFallback` | `bool` | `true` | When `false`, throws `InvalidOperationException` if a type can't be resolved from the configured `TypeInfoResolver` instead of falling back to reflection. Recommended for AOT deployments |
 | `Logging` | `Action<string>?` | `null` | Callback invoked with every SQL statement executed |
+
+## Table-Per-Type Mapping
+
+By default all document types share a single table. Use `MapTypeToTable` to give a type its own dedicated table. Tables are lazily created on first use. Two types cannot map to the same custom table.
+
+### Basic mapping
+
+```csharp
+var store = new SqliteDocumentStore(new DocumentStoreOptions
+{
+    ConnectionString = "Data Source=mydata.db",
+    TableName = "docs"                 // change the default table name (optional)
+}
+.MapTypeToTable<Order>("orders")       // explicit table name
+.MapTypeToTable<AuditLog>()            // auto-derived table name "AuditLog"
+// User stays in the default "docs" table
+);
+```
+
+### Custom Id property
+
+By default every document type must have a property named `Id`. When mapping a type to a table, you can also specify a custom Id property via an expression. Custom Id requires a table mapping.
+
+```csharp
+var store = new SqliteDocumentStore(new DocumentStoreOptions
+{
+    ConnectionString = "Data Source=mydata.db"
+}
+.MapTypeToTable<Sensor>("sensors", s => s.DeviceKey)      // Guid DeviceKey as Id
+.MapTypeToTable<Tenant>("tenants", t => t.TenantCode)     // string TenantCode as Id
+);
+```
+
+### MapTypeToTable overloads
+
+| Overload | Description |
+|----------|-------------|
+| `MapTypeToTable<T>()` | Auto-derive table name from type name |
+| `MapTypeToTable<T>(string tableName)` | Explicit table name |
+| `MapTypeToTable<T>(Expression<Func<T, object>> idProperty)` | Auto-derive table + custom Id |
+| `MapTypeToTable<T>(string tableName, Expression<Func<T, object>> idProperty)` | Explicit table + custom Id |
+
+All overloads return `DocumentStoreOptions` for fluent chaining. Duplicate table names throw `InvalidOperationException`.
 
 ## AOT Setup
 
@@ -178,6 +239,25 @@ await store.Insert(user);
 await store.Insert(new User { Id = "user-1", Name = "Alice", Age = 25 });
 ```
 
+### Batch insert
+
+`BatchInsert` inserts multiple documents in a single transaction with prepared command reuse. Returns the count inserted. Rolls back atomically on failure. Auto-generates IDs for Guid, int, and long Id types.
+
+```csharp
+var users = Enumerable.Range(1, 1000).Select(i => new User
+{
+    Id = $"user-{i}", Name = $"User {i}", Age = 20 + i
+});
+var count = await store.BatchInsert(users); // single transaction, prepared command reused
+
+// Inside a transaction — uses the existing transaction
+await store.RunInTransaction(async tx =>
+{
+    await tx.BatchInsert(moreUsers);
+    await tx.Insert(singleUser);
+});
+```
+
 ### Get
 
 The `id` parameter accepts `Guid`, `int`, `long`, or `string`. Passing an unsupported type throws `ArgumentException`.
@@ -189,6 +269,35 @@ var user = await store.Get<User>("user-1");
 var item = await store.Get<GuidIdModel>(myGuid);
 var order = await store.Get<IntIdModel>(42);
 ```
+
+### GetDiff (Diff)
+
+Compare a modified object against the stored document and get an RFC 6902 `JsonPatchDocument<T>` describing the differences. Returns `null` if no document with that ID exists. Deep diffs nested objects (individual property ops); arrays/collections are replaced as a whole.
+
+```csharp
+var modified = new Order
+{
+    Id = "ord-1", CustomerName = "Alice", Status = "Delivered",
+    ShippingAddress = new() { City = "Seattle", State = "WA" },
+    Lines = [new() { ProductName = "Widget", Quantity = 10, UnitPrice = 8.99m }],
+    Tags = ["priority", "expedited"]
+};
+
+// Returns JsonPatchDocument<Order> from SystemTextJsonPatch
+var patch = await store.GetDiff("ord-1", modified);
+// patch.Operations:
+//   Replace /status → Delivered
+//   Replace /shippingAddress/city → Seattle
+//   Replace /shippingAddress/state → WA
+//   Replace /lines → [...]
+//   Replace /tags → [...]
+
+// Apply the patch to any instance
+var current = await store.Get<Order>("ord-1");
+patch!.ApplyTo(current!);
+```
+
+Works with table-per-type, custom Id, and inside transactions.
 
 ### Upsert (JSON Merge Patch)
 
@@ -731,3 +840,6 @@ The `tx` parameter is an `IDocumentStore` scoped to the transaction. All operati
 7. **Create indexes for frequently queried properties** — `store.CreateIndexAsync<T>(expr, jsonTypeInfo)` for up to 30x faster queries.
 8. **Use `Dictionary<string, object?>` for AOT-safe raw SQL parameters** — anonymous objects work but dictionaries are fully AOT-compatible.
 9. **Keep index management separate** — index methods are on `SqliteDocumentStore`, not `IDocumentStore`; cast or use the concrete type.
+10. **Use `MapTypeToTable` for isolation** — when types have different lifecycles or access patterns, give them dedicated tables.
+11. **Custom Id requires table mapping** — there is no overload for custom Id without `MapTypeToTable`. This is by design.
+12. **DI is in a separate package** — use `Shiny.SqliteDocumentDb.Extensions.DependencyInjection` for `AddSqliteDocumentStore`. The core library has no DI dependency.
