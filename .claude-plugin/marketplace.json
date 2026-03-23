@@ -51,9 +51,9 @@
       "description": "Generate settings-style TableView pages and cells for .NET MAUI using Shiny.Maui.TableView - a pure MAUI implementation with cascading styles, 14 cell types, sections, drag-sort, and full MVVM support"
     },
     {
-      "name": "shiny-sqlitedocumentdb",
+      "name": "shiny-documentdb",
       "source": "./",
-      "description": "Generate code using Shiny.SqliteDocumentDb, a schema-free SQLite JSON document store for .NET with LINQ queries and AOT support"
+      "description": "Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, MySQL, SQL Server, and PostgreSQL with LINQ queries and AOT support"
     },
     {
       "name": "shiny-spatial",
@@ -68,7 +68,7 @@
     {
       "name": "shiny-music",
       "source": "./",
-      "description": "Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, playback, and file copy"
+      "description": "Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, filtering, playback, and file copy"
     },
     {
       "name": "shiny-obd",
