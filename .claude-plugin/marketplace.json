@@ -74,6 +74,11 @@
       "name": "shiny-obd",
       "source": "./",
       "description": "Generate code using Shiny.Obd, an OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE transport"
+    },
+    {
+      "name": "shiny-contactstore",
+      "source": "./",
+      "description": "Generate code using Shiny.Maui.ContactStore for cross-platform device contact access with CRUD, LINQ queries, and MAUI permissions"
     }
   ]
 }
