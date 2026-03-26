@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution/">
+    <File Path=".claude-plugin/marketplace.json" />
+    <File Path=".claude-plugin/plugin.json" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="src/McpServer/McpServer.csproj" />
+</Solution>
