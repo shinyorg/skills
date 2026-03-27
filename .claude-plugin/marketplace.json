@@ -79,6 +79,46 @@
       "name": "shiny-contactstore",
       "source": "./",
       "description": "Generate code using Shiny.Maui.ContactStore for cross-platform device contact access with CRUD, LINQ queries, and MAUI permissions"
+    },
+    {
+      "name": "shiny-ble-hosting",
+      "source": "./",
+      "description": "Generate code using Shiny.BluetoothLE.Hosting, a BLE peripheral hosting library for .NET with GATT server, advertising, and managed characteristic patterns"
+    },
+    {
+      "name": "shiny-bluetoothle",
+      "source": "./",
+      "description": "Shiny BluetoothLE client/central operations for scanning, connecting, and communicating with BLE peripherals"
+    },
+    {
+      "name": "shiny-core",
+      "source": "./",
+      "description": "Core infrastructure, hosting, DI, key-value stores, lifecycle hooks, and platform abstractions for Shiny on .NET MAUI, iOS, and Android"
+    },
+    {
+      "name": "shiny-http-transfers",
+      "source": "./",
+      "description": "Guide for generating code that uses Shiny.NET HTTP Transfers for background uploads and downloads on iOS/Android"
+    },
+    {
+      "name": "shiny-jobs",
+      "source": "./",
+      "description": "Background job scheduling and execution for .NET MAUI, iOS, and Android using Shiny.Jobs"
+    },
+    {
+      "name": "shiny-locations",
+      "source": "./",
+      "description": "GPS tracking and geofence monitoring for .NET MAUI, iOS, and Android using Shiny.Locations"
+    },
+    {
+      "name": "shiny-notifications",
+      "source": "./",
+      "description": "Cross-platform local notification management for .NET MAUI apps using Shiny, supporting scheduled, repeating, and geofence-triggered notifications with channels, badges, and interactive actions."
+    },
+    {
+      "name": "shiny-push",
+      "source": "./",
+      "description": "Guide for implementing push notifications in .NET MAUI apps using Shiny.Push (native FCM/APNs) and Shiny.Push.AzureNotificationHubs"
     }
   ]
 }
