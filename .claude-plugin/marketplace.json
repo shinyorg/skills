@@ -119,6 +119,11 @@
       "name": "shiny-push",
       "source": "./",
       "description": "Guide for implementing push notifications in .NET MAUI apps using Shiny.Push (native FCM/APNs) and Shiny.Push.AzureNotificationHubs"
+    },
+    {
+      "name": "shiny-firebase",
+      "source": "./",
+      "description": "Generate code using Shiny.Push.FirebaseMessaging for Firebase Cloud Messaging (FCM) push notifications in .NET MAUI apps on iOS and Android"
     }
   ]
 }
