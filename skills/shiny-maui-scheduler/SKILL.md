@@ -1,6 +1,13 @@
 ---
 name: shiny-maui-scheduler
 description: Generate .NET MAUI scheduler views, event providers, and calendar/agenda/list components using Shiny.Maui.Scheduler
+auto_invoke: true
+triggers:
+  - SchedulerAgendaView
+  - ISchedulerEventProvider
+  - Shiny.Maui.Scheduler
+  - SchedulerCalendarView
+  - SchedulerCalendarListView
 ---
 
 # Shiny MAUI Scheduler Skill
