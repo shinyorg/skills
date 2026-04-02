@@ -278,7 +278,7 @@ public partial class MyPage : ContentPage
 | AllowPan | bool | true |
 | AllowZoom | bool | false |
 | ShowAdditionalTimezones | bool | false |
-| AdditionalTimezones | IList\<TimeZoneInfo\> | empty |
+| AdditionalTimezones | `IList<TimeZoneInfo>` | empty |
 
 ### SchedulerCalendarListView
 
