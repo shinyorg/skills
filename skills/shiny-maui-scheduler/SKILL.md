@@ -279,7 +279,7 @@ public partial class MyPage : ContentPage
 | DayPickerItemTemplate | DataTemplate? | null |
 | CurrentTimeMarkerColor | Color | Red |
 | TimezoneColor | Color | Gray |
-| SeparatorColor | Color | Light gray |
+| SeparatorColor | Color | LightGray |
 | DefaultEventColor | Color | CornflowerBlue |
 | TimeSlotHeight | double | 60.0 |
 | AllowPan | bool | true |
