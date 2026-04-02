@@ -52,8 +52,20 @@ public partial class {Name}Page : ContentPage
         <Label Grid.Row="1"
                Text="{Binding Source={x:Reference diagram}, Path=ParseError}"
                TextColor="Red"
-               Padding="10"
-               IsVisible="{Binding Source={x:Reference diagram}, Path=ParseError, Converter={StaticResource IsNotNull}}" />
+               Padding="10">
+            <Label.Triggers>
+                <DataTrigger TargetType="Label"
+                             Binding="{Binding Source={x:Reference diagram}, Path=ParseError}"
+                             Value="{x:Null}">
+                    <Setter Property="IsVisible" Value="False" />
+                </DataTrigger>
+                <DataTrigger TargetType="Label"
+                             Binding="{Binding Source={x:Reference diagram}, Path=ParseError}"
+                             Value="">
+                    <Setter Property="IsVisible" Value="False" />
+                </DataTrigger>
+            </Label.Triggers>
+        </Label>
     </Grid>
 </ContentPage>
 ```
