@@ -15,8 +15,11 @@ triggers:
   - ShellMap
   - ShellProperty
   - UseShinyShell
+  - UseDialogs
   - ShinyShell
+  - ShellServices
   - ShinyAppBuilder
+  - IMainThread
   - Shiny.Maui.Shell
   - IPageLifecycleAware
   - INavigationConfirmation
@@ -70,6 +73,9 @@ Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
 - Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
 - `ShinyShell` base class for deterministic initial-page BindingContext assignment
+- `ShellServices` record that aggregates `INavigator`, `IDialogs`, and `IMainThread` for convenient single-parameter injection
+- `IMainThread` abstraction with built-in workarounds for macOS and Linux where `MainThread.InvokeOnMainThreadAsync` can deadlock / fail
+- Pluggable `IDialogs` implementation via `UseDialogs<TDialog>()` — swap in your own dialog provider (e.g. ACR UserDialogs, a custom sheet, a test double)
 
 Inspired by [Prism Library](https://prismlibrary.com) by Dan Siegel and Brian Lagunas.
 
@@ -109,6 +115,18 @@ builder
     .UseMauiApp<App>()
     .UseShinyShell(x => x.AddGeneratedMaps())
 ```
+
+**With a custom dialog provider:**
+```csharp
+builder
+    .UseMauiApp<App>()
+    .UseShinyShell(x => x
+        .AddGeneratedMaps()
+        .UseDialogs<MyCustomDialogs>()   // register a custom IDialogs implementation
+    );
+```
+
+`UseDialogs<TDialog>()` replaces the default `ShellDialogs` provider. The default registration uses `TryAddSingleton`, so a `UseDialogs<>` call always wins.
 
 ### 3. AppShell must inherit from `ShinyShell`
 
@@ -292,7 +310,43 @@ public class MyViewModel(INavigator navigator, IDialogs dialogs)
 }
 ```
 
-### 7. Modal Pages
+### 7. ShellServices Aggregate & IMainThread
+
+`ShellServices` is a convenience record that bundles the three shell services together. Inject it when a ViewModel or service needs most of them and you want a single parameter:
+
+```csharp
+public record ShellServices(
+    INavigator Navigator,
+    IDialogs Dialogs,
+    IMainThread MainThread
+);
+
+public class MyViewModel(ShellServices shell)
+{
+    async Task DoWork()
+    {
+        shell.MainThread.BeginInvokeOnMainThread(() => /* UI update */);
+        await shell.Dialogs.Alert("Done", "Work complete");
+        await shell.Navigator.GoBack();
+    }
+}
+```
+
+`IMainThread` is the thread-marshalling abstraction used internally by `ShellNavigator` and `ShellDialogs`. Prefer it over `Microsoft.Maui.ApplicationModel.MainThread` inside Shiny Shell code because the default implementation (`MauiMainThread`) transparently works around platforms where MAUI's `MainThread.InvokeOnMainThreadAsync` is broken — currently macOS and Linux, where calls are executed inline instead of being dispatched.
+
+```csharp
+public interface IMainThread
+{
+    Task InvokeOnMainThreadAsync(Action action);
+    Task InvokeOnMainThreadAsync(Func<Task> func);
+    Task<T> InvokeOnMainThreadAsync<T>(Func<Task<T>> func);
+    void BeginInvokeOnMainThread(Action action);
+}
+```
+
+Both `ShellServices` and `IMainThread` are registered as singletons by `UseShinyShell()` — no extra setup required.
+
+### 8. Modal Pages
 
 Set `Shell.PresentationMode="Modal"` on the page XAML:
 ```xml
@@ -304,7 +358,7 @@ Set `Shell.PresentationMode="Modal"` on the page XAML:
 
 Navigate to it like any other page. Close with `GoBack()`.
 
-### 8. File Organization
+### 9. File Organization
 
 Place files following standard MAUI conventions:
 - Pages: `Views/{Name}Page.xaml` + `Views/{Name}Page.xaml.cs`

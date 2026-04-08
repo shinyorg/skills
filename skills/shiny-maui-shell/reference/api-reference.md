@@ -272,10 +272,10 @@ public void OnNavigatingFrom(IDictionary<string, object> parameters)
 
 ## ShinyAppBuilder Class
 
-Fluent builder for registering Page-to-ViewModel mappings. Used inside `UseShinyShell()`.
+Fluent builder for registering Page-to-ViewModel mappings and configuring shell services. Used inside `UseShinyShell()`.
 
 ```csharp
-public sealed class ShinyAppBuilder
+public sealed class ShinyAppBuilder(MauiAppBuilder builder)
 {
     // Register a Page-ViewModel pair
     // route: optional route name (defaults to page class name)
@@ -283,7 +283,21 @@ public sealed class ShinyAppBuilder
     ShinyAppBuilder Add<TPage, TViewModel>(string? route = null, bool registerRoute = true)
         where TPage : Page
         where TViewModel : class, INotifyPropertyChanged;
+
+    // Replace the default IDialogs provider with a custom implementation.
+    // Registered as a singleton. Call order does not matter — UseDialogs<>
+    // always wins over the default ShellDialogs (registered via TryAddSingleton).
+    ShinyAppBuilder UseDialogs<TDialog>() where TDialog : class, IDialogs;
 }
+```
+
+### UseDialogs Example
+
+```csharp
+builder.UseShinyShell(x => x
+    .AddGeneratedMaps()
+    .UseDialogs<MyCustomDialogs>()
+);
 ```
 
 ### Constraints
@@ -417,6 +431,48 @@ public partial class AppShell : ShinyShell
 </shiny:ShinyShell>
 ```
 
+## ShellServices Record
+
+A convenience aggregate that bundles the three shell services together, so a single constructor parameter is enough when a class needs most of them.
+
+```csharp
+public record ShellServices(
+    INavigator Navigator,
+    IDialogs Dialogs,
+    IMainThread MainThread
+);
+```
+
+Registered as a singleton by `UseShinyShell()`. Inject directly:
+
+```csharp
+public class MyViewModel(ShellServices shell)
+{
+    async Task DoWork()
+    {
+        shell.MainThread.BeginInvokeOnMainThread(() => /* UI update */);
+        await shell.Dialogs.Alert("Done", "Work complete");
+        await shell.Navigator.GoBack();
+    }
+}
+```
+
+## IMainThread Interface
+
+Thread-marshalling abstraction used internally by `ShellNavigator` and `ShellDialogs`. Prefer this over `Microsoft.Maui.ApplicationModel.MainThread` inside Shiny Shell code because the default implementation (`MauiMainThread`) transparently works around platforms where MAUI's `MainThread.InvokeOnMainThreadAsync` is broken — currently macOS and Linux, where the implementation executes the delegate inline instead of dispatching it.
+
+```csharp
+public interface IMainThread
+{
+    Task InvokeOnMainThreadAsync(Action action);
+    Task InvokeOnMainThreadAsync(Func<Task> func);
+    Task<T> InvokeOnMainThreadAsync<T>(Func<Task<T>> func);
+    void BeginInvokeOnMainThread(Action action);
+}
+```
+
+Registered as a singleton by `UseShinyShell()` with the default `MauiMainThread` implementation.
+
 ## Extension Method
 
 ### UseShinyShell
@@ -432,7 +488,9 @@ public static MauiAppBuilder UseShinyShell(
 
 Registers:
 - `INavigator` as singleton
-- `IDialogs` as singleton
+- `IDialogs` as singleton (default `ShellDialogs`, replaceable via `UseDialogs<>()`)
+- `IMainThread` as singleton (default `MauiMainThread`)
+- `ShellServices` as singleton (aggregate of `INavigator`, `IDialogs`, `IMainThread`)
 - `IMauiInitializeService` for lifecycle hooks
 - `ShinyAppBuilder` as singleton
 - All mapped Pages and ViewModels as transient
