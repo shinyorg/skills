@@ -1,0 +1,15 @@
+{
+  "name": "shiny-maui",
+  "version": "1.0.0",
+  "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, scheduler/calendar views, TableView settings pages, contact store access, and Mermaid diagram rendering",
+  "author": {
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
+    "url": "https://shinylib.net"
+  },
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/",
+  "license": "MIT",
+  "keywords": ["maui", "shell", "navigation", "scheduler", "calendar", "tableview", "settings-page", "contacts", "mermaid", "diagrams", "xaml", "mvvm", "mobile", "cross-platform"],
+  "skills": "./skills/"
+}

@@ -1,4 +1,4 @@
---
+---
 name: shiny-music
 description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, filtering, playback, and file copy
 auto_invoke: true

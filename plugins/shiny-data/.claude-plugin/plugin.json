@@ -1,0 +1,15 @@
+{
+  "name": "shiny-data",
+  "version": "1.0.0",
+  "description": "Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial database with R*Tree indexing",
+  "author": {
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
+    "url": "https://shinylib.net"
+  },
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/",
+  "license": "MIT",
+  "keywords": ["document-store", "sqlite", "json-document", "spatial", "geospatial", "rtree", "linq", "aot"],
+  "skills": "./skills/"
+}

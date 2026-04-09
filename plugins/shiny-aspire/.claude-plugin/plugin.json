@@ -1,0 +1,15 @@
+{
+  "name": "shiny-aspire",
+  "version": "1.0.0",
+  "description": "Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing",
+  "author": {
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
+    "url": "https://shinylib.net"
+  },
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/",
+  "license": "MIT",
+  "keywords": ["aspire", "orleans", "clustering", "grain-storage", "gluetun", "vpn"],
+  "skills": "./skills/"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "shiny-extensions",
+  "version": "1.0.0",
+  "description": "Source generators and utilities — DI registration, key/value stores, reflection, localization, MAUI hosting modules, and ASP.NET Core web hosting modules",
+  "author": {
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
+    "url": "https://shinylib.net"
+  },
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/",
+  "license": "MIT",
+  "keywords": ["dependency-injection", "source-generators", "key-value-store", "reflection", "localization", "resx", "maui-hosting", "web-hosting", "aot"],
+  "skills": "./skills/"
+}

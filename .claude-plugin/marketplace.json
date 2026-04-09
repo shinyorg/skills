@@ -1,14 +1,39 @@
 {
-  "name": "shiny-plugins",
+  "name": "shiny",
   "owner": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz"
   },
   "plugins": [
     {
-      "name": "shiny",
-      "source": "./",
-      "description": "Claude Code plugin for Shiny Libraries — mediator, DI, stores, hosting, MAUI Shell, notifications, push, BLE, locations, jobs, HTTP transfers, spatial, DocumentDB, Aspire, and more for .NET, MAUI, Blazor, and ASP.NET Core"
+      "name": "shiny-client",
+      "source": "./plugins/shiny-client",
+      "description": "Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more for .NET MAUI, iOS, and Android"
+    },
+    {
+      "name": "shiny-maui",
+      "source": "./plugins/shiny-maui",
+      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, scheduler/calendar views, TableView settings pages, contact store access, and Mermaid diagram rendering"
+    },
+    {
+      "name": "shiny-mediator",
+      "source": "./plugins/shiny-mediator",
+      "description": "Mediator/CQRS pattern for .NET — request/response, commands, events, streams, middleware, HTTP client generation, and project scaffolding"
+    },
+    {
+      "name": "shiny-data",
+      "source": "./plugins/shiny-data",
+      "description": "Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial database with R*Tree indexing"
+    },
+    {
+      "name": "shiny-aspire",
+      "source": "./plugins/shiny-aspire",
+      "description": "Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing"
+    },
+    {
+      "name": "shiny-extensions",
+      "source": "./plugins/shiny-extensions",
+      "description": "Source generators and utilities — DI registration, key/value stores, reflection, localization, MAUI hosting modules, and ASP.NET Core web hosting modules"
     }
   ]
 }
