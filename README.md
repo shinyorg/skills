@@ -2,96 +2,88 @@
 
 AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for mediator, DI, stores, hosting, MAUI Shell, notifications, push, BLE, locations, jobs, HTTP transfers, spatial, and more across .NET MAUI, Blazor, and ASP.NET Core.
 
-## Available Skills
+## Plugins & Skills
 
-| Skill | Description |
-|-------|-------------|
-| `shiny-core` | Core infrastructure, hosting, DI, key-value stores, lifecycle hooks |
-| `shiny-mediator` | Mediator / CQRS pattern with middleware and source generators |
-| `shiny-di` | Dependency injection patterns and registration |
-| `shiny-stores` | Persistent key-value and object stores |
-| `shiny-maui-shell` | MAUI Shell navigation, tabs, flyout, and routing |
-| `shiny-maui-hosting` | MAUI hosting model and module infrastructure |
-| `shiny-maui-scheduler` | MAUI background scheduling |
-| `shiny-notifications` | Local notifications |
-| `shiny-push` | Push notification providers (Firebase, Azure, etc.) |
-| `shiny-bluetoothle` | Bluetooth Low Energy client |
-| `shiny-ble-hosting` | Bluetooth Low Energy GATT server hosting |
-| `shiny-locations` | GPS, geofencing, and motion activity |
-| `shiny-jobs` | Background jobs and periodic tasks |
-| `shiny-http-transfers` | Background HTTP uploads and downloads |
-| `shiny-spatial` | Geospatial utilities, geofencing, R-tree |
-| `shiny-aspire` | .NET Aspire integration with Orleans |
-| `shiny-web-hosting` | ASP.NET Core web hosting modules |
-| `shiny-reflector` | Reflection utilities, property access, serialization |
-| `shiny-contactstore` | Device contact store access |
-| `shiny-obd` | OBD-II vehicle diagnostics over Bluetooth |
-| `shiny-tableview` | MAUI settings/table view pages |
-| `shiny-documentdb` | SQLite-backed JSON document store |
-| `shiny-firebase` | Firebase integration |
-| `shiny-music` | Music library and media playback |
-| `localizegen` | Localization source generator from .resx files |
+This marketplace is organized into **plugins**, each containing one or more **skills**. Install only the plugins relevant to your project.
+
+| Plugin | Description | Skills |
+|--------|-------------|--------|
+| `shiny-client` | Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more | `shiny-core`, `shiny-bluetoothle`, `shiny-ble-hosting`, `shiny-firebase`, `shiny-http-transfers`, `shiny-jobs`, `shiny-locations`, `shiny-music`, `shiny-notifications`, `shiny-obd`, `shiny-push` |
+| `shiny-maui` | Purpose-built .NET MAUI components — Shell navigation, scheduler/calendar, TableView, contacts, Mermaid diagrams | `shiny-contactstore`, `shiny-maui-mermaid-diagrams`, `shiny-maui-scheduler`, `shiny-maui-shell`, `shiny-tableview` |
+| `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response, commands, events, streams, middleware, HTTP client generation | `shiny-mediator` |
+| `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial R*Tree | `shiny-documentdb`, `shiny-spatial` |
+| `shiny-aspire` | .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire` |
+| `shiny-extensions` | Source generators and utilities — DI, key/value stores, reflection, localization, hosting modules | `localizegen`, `shiny-di`, `shiny-maui-hosting`, `shiny-reflector`, `shiny-stores`, `shiny-web-hosting` |
 
 ## Installation
 
-### Claude Code
+### Claude Code CLI
 
-Install the Shiny skills as a Claude Code plugin from the marketplace:
+**Install the entire marketplace** (all plugins):
 
 ```bash
-claude plugin add shinyorg/skills
+claude mcp add-marketplace shinyorg/skills
 ```
 
-Or add it manually by including the following in your project's `.claude/settings.json`:
+**Install a single plugin:**
+
+```bash
+claude plugin add shinyorg/skills/shiny-client
+claude plugin add shinyorg/skills/shiny-mediator
+```
+
+You can also add plugins manually in your project's `.claude/settings.json`:
 
 ```json
 {
-  "plugins": ["shinyorg/skills"]
-}
-```
-
-### GitHub Copilot
-
-To use the Shiny skills with GitHub Copilot, you can reference the skill files as custom instructions.
-
-**Option 1: Repository-level instructions**
-
-Create a `.github/copilot-instructions.md` file in your repository and reference the skill content you need. You can copy the relevant skill content from the `skills/` directory in this repo into your instructions file:
-
-```markdown
-<!-- .github/copilot-instructions.md -->
-<!-- Paste the content from the relevant SKILL.md files below -->
-```
-
-**Option 2: Use as a Copilot Extension (VS Code)**
-
-1. Clone or download this repository
-2. In VS Code, open Settings and search for `github.copilot.chat.codeGeneration.instructions`
-3. Add file references to the skills you need:
-
-```json
-{
-  "github.copilot.chat.codeGeneration.instructions": [
-    {
-      "file": "/path/to/skills/shiny-core/SKILL.md"
-    },
-    {
-      "file": "/path/to/skills/shiny-mediator/SKILL.md"
-    }
+  "plugins": [
+    "shinyorg/skills/shiny-client",
+    "shinyorg/skills/shiny-mediator"
   ]
 }
 ```
 
-**Option 3: Workspace-level instructions (`.github/copilot-instructions.md`)**
+### GitHub Copilot CLI
 
-For team-wide consistency, add a `.github/copilot-instructions.md` to your project repository with the Shiny skill content relevant to your project. This file is automatically picked up by Copilot for all contributors.
+GitHub Copilot does not have a native plugin/marketplace system, so you reference skill files directly as custom instructions.
 
-## Skill Structure
+**Option 1: VS Code settings**
 
-Each skill lives in `skills/<skill-name>/` and contains:
+Add file references to the skills you need in your VS Code `settings.json`:
 
-- `SKILL.md` — The main skill file with triggers, usage guidance, code generation instructions, and best practices
-- `reference/` — API reference docs and additional context files
+```json
+{
+  "github.copilot.chat.codeGeneration.instructions": [
+    { "file": "/path/to/skills/plugins/shiny-client/skills/shiny-bluetoothle/SKILL.md" },
+    { "file": "/path/to/skills/plugins/shiny-mediator/skills/shiny-mediator/SKILL.md" }
+  ]
+}
+```
+
+**Option 2: Workspace instructions**
+
+Create a `.github/copilot-instructions.md` file in your repository and paste the relevant skill content from the `plugins/<plugin>/skills/<skill>/SKILL.md` files.
+
+## Repository Layout
+
+```
+.claude-plugin/
+  marketplace.json          # Marketplace manifest — lists all plugins
+plugins/
+  <plugin-name>/
+    .claude-plugin/
+      plugin.json           # Plugin manifest — metadata, keywords, skill path
+    skills/
+      <skill-name>/
+        SKILL.md             # Skill definition — triggers, guidance, code gen rules
+        reference/           # API reference docs and additional context
+```
+
+### Key Files
+
+- **`marketplace.json`** — Top-level manifest that registers the marketplace and points to each plugin via relative paths.
+- **`plugin.json`** — Per-plugin manifest containing name, version, description, keywords, and the path to its skills directory.
+- **`SKILL.md`** — The skill itself: trigger conditions, usage guidance, code generation instructions, and best practices.
 
 ## License
 
