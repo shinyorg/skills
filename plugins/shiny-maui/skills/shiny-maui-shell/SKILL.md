@@ -29,6 +29,9 @@ triggers:
   - PopToRoot
   - SetRoot
   - SwitchShell
+  - CreateBuilder
+  - INavigationBuilder
+  - NavigationBuilder
   - Navigating
   - Navigated
   - IDialogs
@@ -51,6 +54,7 @@ Invoke this skill when the user wants to:
 - Set up or configure Shiny MAUI Shell in their application
 - Switch between different Shell instances at runtime (e.g., login shell vs main app shell)
 - Implement navigation between pages using `INavigator`
+- Build multi-segment navigation chains using `INavigationBuilder` (push multiple pages, pop-and-push)
 - Show dialogs (alert, confirm, prompt, action sheet) using `IDialogs`
 - Add ViewModel lifecycle hooks (appearing, disappearing, navigation confirmation)
 - Use source generation with `[ShellMap]` and `[ShellProperty]` attributes
@@ -69,6 +73,7 @@ Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - Page-to-ViewModel registration and automatic BindingContext assignment
 - A testable `INavigator` service for all navigation operations
 - A testable `IDialogs` service for alert, confirm, prompt, and action sheet dialogs
+- `INavigationBuilder` for multi-segment navigation (push multiple pages in one operation, pop-and-push)
 - Shell switching — swap the entire Shell at runtime (e.g., login → main app)
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
 - Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
@@ -259,13 +264,17 @@ Always use `INavigator` for navigation, never `Shell.Current.GoToAsync` directly
 
 ```csharp
 // Route-based navigation with args
-await navigator.NavigateTo("Detail", ("ItemId", "123"), ("PageIndex", 0));
+await navigator.NavigateTo("Detail", args: [("ItemId", "123"), ("PageIndex", 0)]);
 
 // ViewModel-based navigation with strongly-typed configuration
 await navigator.NavigateTo<DetailViewModel>(vm => vm.ItemId = "123");
 
 // Source-generated strongly-typed method (preferred)
 await navigator.NavigateToDetail("123", pageIndex: 0);
+
+// Absolute navigation (navigates to root route "//Detail")
+await navigator.NavigateTo("Detail", relativeNavigation: false);
+await navigator.NavigateTo<DetailViewModel>(relativeNavigation: false);
 
 // Go back with result parameters
 await navigator.GoBack(("Result", selectedItem));
@@ -276,15 +285,44 @@ await navigator.GoBack(backCount: 2);
 // Pop to root
 await navigator.PopToRoot();
 
-// Set new root page
-await navigator.SetRoot<MainViewModel>();
-
 // Switch to a different Shell instance
 await navigator.SwitchShell(new MainAppShell());
 
 // Switch to a Shell resolved from DI
 await navigator.SwitchShell<MainAppShell>();
 ```
+
+### 5a. Navigation Builder
+
+Use `INavigationBuilder` for multi-segment navigation (pushing multiple pages in a single operation):
+
+```csharp
+// Push a chain of pages: One > Another > Two
+await navigator
+    .CreateBuilder()
+    .Add<OneViewModel>(x => x.Text = "First")
+    .Add<AnotherViewModel>(x => x.Arg = "Middle")
+    .Add<TwoViewModel>(x => x.Text = "Last")
+    .Navigate();
+
+// Pop back 2 pages, then push a new page
+await navigator
+    .CreateBuilder()
+    .PopBack(2)
+    .Add<OneViewModel>(x => x.Text = "Replaced")
+    .Navigate();
+
+// Add by route name (no configure callback)
+await navigator
+    .CreateBuilder()
+    .Add("Detail")
+    .Navigate();
+```
+
+**Important Shell constraints for the Navigation Builder:**
+- All pages used in a builder chain **must** be globally registered via `Routing.RegisterRoute` (i.e., `registerRoute: true`, which is the default). Pages declared as `ShellContent` in XAML cannot be used in multi-segment relative URIs.
+- `PopBack()` must be called before any `Add()` calls.
+- `fromRoot: true` on `CreateBuilder` only works when the target route is a shell-declared route (a `ShellContent` in XAML), not a globally registered route.
 
 ### 6. Dialogs
 

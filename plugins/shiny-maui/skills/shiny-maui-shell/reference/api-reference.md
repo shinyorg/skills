@@ -28,19 +28,19 @@ public interface INavigator
     // Fires after navigation completes - includes the destination ViewModel instance
     event EventHandler<NavigatedEventArgs>? Navigated;
 
+    // Create a fluent navigation builder for multi-segment navigation
+    // fromRoot: if true, builds an absolute URI ("//route"); only works for shell-declared routes
+    INavigationBuilder CreateBuilder(bool fromRoot = false);
+
     // Navigate to a registered route with key-value arguments
-    Task NavigateTo(string route, params IEnumerable<(string Key, object Value)> args);
+    // relativeNavigation: true (default) for relative push, false for absolute "//" navigation
+    Task NavigateTo(string route, bool relativeNavigation = true, params IEnumerable<(string Key, object Value)> args);
 
     // Navigate to the page associated with a ViewModel type
-    // configure: optional action to set ViewModel properties before navigation
+    // relativeNavigation: true (default) for relative push, false for absolute "//" navigation
     Task NavigateTo<TViewModel>(
         Action<TViewModel>? configure = null,
-        params IEnumerable<(string Key, object Value)> args
-    );
-
-    // Replace the root page with one associated with the ViewModel type
-    Task SetRoot<TViewModel>(
-        Action<TViewModel>? configure = null,
+        bool relativeNavigation = true,
         params IEnumerable<(string Key, object Value)> args
     );
 
@@ -59,6 +59,55 @@ public interface INavigator
     // Switch to a Shell resolved from the DI container
     Task SwitchShell<TShell>() where TShell : Shell;
 }
+```
+
+## INavigationBuilder Interface
+
+A fluent builder for constructing multi-segment navigation URIs. Created via `INavigator.CreateBuilder()`.
+
+```csharp
+public interface INavigationBuilder
+{
+    // Pop back one or more pages before pushing new segments. Must be called before any Add calls.
+    INavigationBuilder PopBack(int count = 1);
+
+    // Add a navigation segment for the specified ViewModel type
+    INavigationBuilder Add<TViewModel>() where TViewModel : class;
+
+    // Add a segment with a configure callback invoked on the ViewModel when the page is created
+    INavigationBuilder Add<TViewModel>(Action<TViewModel> configure) where TViewModel : class;
+
+    // Add a segment using a raw route string
+    INavigationBuilder Add(string routeName);
+
+    // Execute the navigation
+    Task Navigate();
+}
+```
+
+### Navigation Builder Constraints
+
+- **All pages in a chain must be globally registered** (`registerRoute: true`, the default). Pages declared as `ShellContent` in XAML cannot be used in multi-segment relative URIs — Shell throws "Relative routing to shell elements is currently not supported".
+- **`PopBack()` must be called before `Add()`** — you cannot interleave pops and pushes.
+- **`fromRoot: true`** generates a `//` prefix and only works when navigating to shell-declared routes. Global routes cannot be the only page on the stack.
+
+### Usage Examples
+
+```csharp
+// Push a chain of pages
+await navigator
+    .CreateBuilder()
+    .Add<OneViewModel>(x => x.Text = "First")
+    .Add<AnotherViewModel>(x => x.Arg = "Middle")
+    .Add<TwoViewModel>(x => x.Text = "Last")
+    .Navigate();
+
+// Pop back 2, then push
+await navigator
+    .CreateBuilder()
+    .PopBack(2)
+    .Add<OneViewModel>(x => x.Text = "Replaced")
+    .Navigate();
 ```
 
 ## IDialogs Interface
@@ -186,10 +235,14 @@ navigator.Navigated += (sender, args) =>
 public class MyViewModel(INavigator navigator)
 {
     // Route-based navigation
-    await navigator.NavigateTo("Detail", ("ItemId", "abc"), ("Mode", "edit"));
+    await navigator.NavigateTo("Detail", args: [("ItemId", "abc"), ("Mode", "edit")]);
 
     // ViewModel-based navigation
     await navigator.NavigateTo<DetailViewModel>(vm => vm.ItemId = "abc");
+
+    // Absolute navigation (navigates to root route "//Detail")
+    await navigator.NavigateTo("Detail", relativeNavigation: false);
+    await navigator.NavigateTo<DetailViewModel>(relativeNavigation: false);
 
     // Go back with result
     await navigator.GoBack(("Result", selectedValue));
@@ -200,14 +253,18 @@ public class MyViewModel(INavigator navigator)
     // Pop entire stack to root
     await navigator.PopToRoot();
 
-    // Replace root
-    await navigator.SetRoot<DashboardViewModel>();
-
     // Switch to a different Shell instance
     await navigator.SwitchShell(new MainAppShell());
 
     // Switch to a Shell resolved from DI
     await navigator.SwitchShell<MainAppShell>();
+
+    // Multi-segment navigation via builder
+    await navigator
+        .CreateBuilder()
+        .Add<OneViewModel>(x => x.Text = "First")
+        .Add<TwoViewModel>(x => x.Text = "Last")
+        .Navigate();
 }
 ```
 
