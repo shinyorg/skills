@@ -201,6 +201,38 @@ public partial class {Name}ViewModel(INavigator navigator) : ObservableObject,
 }
 ```
 
+## Navigation Builder Usage Template
+
+Pages used in builder chains must be globally registered (`registerRoute: true`, the default). Do NOT use `registerRoute: false` or declare them as `ShellContent` in XAML.
+
+### ViewModel with Builder Navigation
+```csharp
+[ShellMap<{Name}Page>("{route}")]
+public partial class {Name}ViewModel(INavigator navigator) : ObservableObject
+{
+    [ShellProperty(true)]
+    public string Text { get; set; }
+
+    [RelayCommand]
+    Task PushChain() => navigator
+        .CreateBuilder()
+        .Add<FirstViewModel>(x => x.Text = "Page 1")
+        .Add<SecondViewModel>(x => x.Arg = "Page 2")
+        .Add<ThirdViewModel>(x => x.Text = "Page 3")
+        .Navigate();
+
+    [RelayCommand]
+    Task PopAndPush() => navigator
+        .CreateBuilder()
+        .PopBack(2)
+        .Add<FirstViewModel>(x => x.Text = "Replaced")
+        .Navigate();
+
+    [RelayCommand]
+    Task GoBack() => navigator.GoBack();
+}
+```
+
 ## Root/Home Page Template (No Route Registration)
 
 For pages declared in AppShell.xaml, use `registerRoute: false`:
