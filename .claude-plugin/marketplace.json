@@ -13,7 +13,12 @@
     {
       "name": "shiny-maui",
       "source": "./plugins/shiny-maui",
-      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, contact store access, and a rich controls library (TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, Markdown)"
+      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes and contact store access"
+    },
+    {
+      "name": "controls",
+      "source": "./plugins/controls",
+      "description": "Shiny Controls — a shared UI control surface for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls): TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, and Markdown"
     },
     {
       "name": "shiny-mediator",

@@ -1,7 +1,7 @@
 {
   "name": "shiny-maui",
   "version": "1.0.0",
-  "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, contact store access, and a rich controls library (TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, Markdown)",
+  "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes and contact store access",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/",
   "license": "MIT",
-  "keywords": ["maui", "shell", "navigation", "controls", "tableview", "settings-page", "bottomsheet", "pill", "badge", "imageviewer", "securitypin", "fab", "scheduler", "calendar", "markdown", "contacts", "xaml", "mvvm", "mobile", "cross-platform"],
+  "keywords": ["maui", "shell", "navigation", "contacts", "contactstore", "xaml", "mvvm", "mobile", "cross-platform"],
   "skills": "./skills/"
 }
