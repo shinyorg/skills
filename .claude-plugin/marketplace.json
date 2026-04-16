@@ -13,7 +13,7 @@
     {
       "name": "shiny-maui",
       "source": "./plugins/shiny-maui",
-      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, scheduler/calendar views, TableView settings pages, contact store access, and Mermaid diagram rendering"
+      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes, contact store access, and a rich controls library (TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, Markdown)"
     },
     {
       "name": "shiny-mediator",

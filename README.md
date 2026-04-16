@@ -9,7 +9,7 @@ This marketplace is organized into **plugins**, each containing one or more **sk
 | Plugin | Description | Skills |
 |--------|-------------|--------|
 | `shiny-client` | Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more | `shiny-core`, `shiny-bluetoothle`, `shiny-ble-hosting`, `shiny-firebase`, `shiny-http-transfers`, `shiny-jobs`, `shiny-locations`, `shiny-music`, `shiny-notifications`, `shiny-obd`, `shiny-push` |
-| `shiny-maui` | Purpose-built .NET MAUI components — Shell navigation, scheduler/calendar, TableView, contacts, Mermaid diagrams | `shiny-contactstore`, `shiny-maui-mermaid-diagrams`, `shiny-maui-scheduler`, `shiny-maui-shell`, `shiny-tableview` |
+| `shiny-maui` | Purpose-built .NET MAUI components — Shell navigation, contacts, and a rich controls library (TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab, Scheduler, Markdown) | `shiny-contactstore`, `shiny-controls`, `shiny-maui-shell` |
 | `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response, commands, events, streams, middleware, HTTP client generation | `shiny-mediator` |
 | `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial R*Tree | `shiny-documentdb`, `shiny-spatial` |
 | `shiny-aspire` | .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire` |
