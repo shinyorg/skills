@@ -233,6 +233,85 @@ public partial class {Name}ViewModel(INavigator navigator) : ObservableObject
 }
 ```
 
+## Tab Badge Template
+
+Use tab badges only for routes that already exist as tabs in the active Shell.
+
+```csharp
+// ViewModels/{Name}ViewModel.cs
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Shiny;
+
+namespace {Namespace}.ViewModels;
+
+[ShellMap<{Name}Page>(registerRoute: false)]
+public partial class {Name}ViewModel(INavigator navigator) : ObservableObject
+{
+    [RelayCommand]
+    Task ShowBadge() => navigator.SetTabBadge("Inbox", 3);
+
+    [RelayCommand]
+    Task ClearBadge() => navigator.ClearTabBadge("Inbox");
+}
+```
+
+If the tab maps to a ViewModel, prefer the strongly-typed overloads:
+
+```csharp
+[RelayCommand]
+Task ShowInboxBadge() => navigator.SetTabBadge<InboxViewModel>(7);
+
+[RelayCommand]
+Task ClearInboxBadge() => navigator.ClearTabBadge<InboxViewModel>();
+```
+
+> Supported platforms: Android, iOS, Mac Catalyst, Windows. Unsupported platforms throw `PlatformNotSupportedException`.
+
+## XAML Navigation Template
+
+Use `Navigate.*` attached properties for simple route-based navigation directly from XAML.
+
+### Single Parameter
+
+```xml
+<!-- Views/{Name}Page.xaml -->
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:shiny="clr-namespace:Shiny;assembly=Shiny.Maui.Shell"
+             x:Class="{Namespace}.Views.{Name}Page">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Home"
+                     shiny:Navigate.Route="MainPage"
+                     shiny:Navigate.RelativeNavigation="False" />
+    </ContentPage.ToolbarItems>
+
+    <VerticalStackLayout Padding="16" Spacing="12">
+        <Button Text="Open Detail"
+                shiny:Navigate.Route="Detail"
+                shiny:Navigate.ParameterKey="ItemId"
+                shiny:Navigate.ParameterValue="{Binding SelectedId}" />
+    </VerticalStackLayout>
+</ContentPage>
+```
+
+### Multiple Parameters
+
+```xml
+<Button Text="Open Modal"
+        shiny:Navigate.Route="Modal">
+    <shiny:Navigate.Parameters>
+        <shiny:NavigationParameters>
+            <shiny:NavigationParameter Key="Arg1" Value="{Binding NavArg}" />
+            <shiny:NavigationParameter Key="Arg2" Value="5" />
+        </shiny:NavigationParameters>
+    </shiny:Navigate.Parameters>
+</Button>
+```
+
+`Navigate.Route` currently supports `Button`, `MenuItem`, and `ToolbarItem`.
+
 ## Root/Home Page Template (No Route Registration)
 
 For pages declared in AppShell.xaml, use `registerRoute: false`:

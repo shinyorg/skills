@@ -58,6 +58,18 @@ public interface INavigator
 
     // Switch to a Shell resolved from the DI container
     Task SwitchShell<TShell>() where TShell : Shell;
+
+    // Set a numeric badge on a tab route in the active Shell
+    Task SetTabBadge(string route, int value);
+
+    // Set a numeric badge using the route mapped to a ViewModel
+    Task SetTabBadge<TViewModel>(int value);
+
+    // Clear a badge from a tab route in the active Shell
+    Task ClearTabBadge(string route);
+
+    // Clear a badge using the route mapped to a ViewModel
+    Task ClearTabBadge<TViewModel>();
 }
 ```
 
@@ -256,17 +268,29 @@ public class MyViewModel(INavigator navigator)
     // Switch to a different Shell instance
     await navigator.SwitchShell(new MainAppShell());
 
-    // Switch to a Shell resolved from DI
-    await navigator.SwitchShell<MainAppShell>();
+// Switch to a Shell resolved from DI
+await navigator.SwitchShell<MainAppShell>();
 
-    // Multi-segment navigation via builder
-    await navigator
-        .CreateBuilder()
+// Set or clear a numeric badge on an existing tab
+await navigator.SetTabBadge("Inbox", 3);
+await navigator.SetTabBadge<InboxViewModel>(7);
+await navigator.ClearTabBadge("Inbox");
+await navigator.ClearTabBadge<InboxViewModel>();
+
+// Multi-segment navigation via builder
+await navigator
+    .CreateBuilder()
         .Add<OneViewModel>(x => x.Text = "First")
         .Add<TwoViewModel>(x => x.Text = "Last")
         .Navigate();
 }
 ```
+
+### Tab Badge Constraints
+
+- Badge APIs only work for routes already present as tabs in the active Shell
+- Supported platforms: Android, iOS, Mac Catalyst, Windows
+- Unsupported platforms throw `PlatformNotSupportedException`
 
 ## IPageLifecycleAware Interface
 
@@ -488,6 +512,84 @@ public partial class AppShell : ShinyShell
 </shiny:ShinyShell>
 ```
 
+## XAML Navigation Types
+
+Use `Navigate` attached properties for route-based navigation directly from XAML.
+
+```csharp
+public static class Navigate
+{
+    public static readonly BindableProperty RouteProperty;
+    public static readonly BindableProperty RelativeNavigationProperty;
+    public static readonly BindableProperty ParameterKeyProperty;
+    public static readonly BindableProperty ParameterValueProperty;
+    public static readonly BindableProperty ParametersProperty;
+
+    public static string? GetRoute(BindableObject bindable);
+    public static void SetRoute(BindableObject bindable, string? value);
+    public static bool GetRelativeNavigation(BindableObject bindable);
+    public static void SetRelativeNavigation(BindableObject bindable, bool value);
+    public static string? GetParameterKey(BindableObject bindable);
+    public static void SetParameterKey(BindableObject bindable, string? value);
+    public static object? GetParameterValue(BindableObject bindable);
+    public static void SetParameterValue(BindableObject bindable, object? value);
+    public static NavigationParameters? GetParameters(BindableObject bindable);
+    public static void SetParameters(BindableObject bindable, NavigationParameters? value);
+}
+
+public sealed class NavigationParameters : List<NavigationParameter>
+{
+}
+
+public sealed class NavigationParameter : BindableObject
+{
+    public string? Key { get; set; }
+    public object? Value { get; set; }
+}
+```
+
+### XAML Navigation Usage
+
+```xml
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:shiny="clr-namespace:Shiny;assembly=Shiny.Maui.Shell">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Home"
+                     shiny:Navigate.Route="MainPage"
+                     shiny:Navigate.RelativeNavigation="False" />
+    </ContentPage.ToolbarItems>
+
+    <Button Text="Open Detail"
+            shiny:Navigate.Route="Detail"
+            shiny:Navigate.ParameterKey="ItemId"
+            shiny:Navigate.ParameterValue="{Binding SelectedId}" />
+</ContentPage>
+```
+
+For multiple parameters:
+
+```xml
+<Button Text="Open Modal"
+        shiny:Navigate.Route="Modal">
+    <shiny:Navigate.Parameters>
+        <shiny:NavigationParameters>
+            <shiny:NavigationParameter Key="Arg1" Value="{Binding NavArg}" />
+            <shiny:NavigationParameter Key="Arg2" Value="5" />
+        </shiny:NavigationParameters>
+    </shiny:Navigate.Parameters>
+</Button>
+```
+
+### XAML Navigation Constraints
+
+- Supported controls: `Button`, `MenuItem`, `ToolbarItem`
+- `Navigate.Route` must be set before click execution
+- Parameter items require a non-empty `Key`
+- The implementation resolves `INavigator` from MAUI services and delegates to `NavigateTo(route, relativeNavigation, args...)`
+- Keep XAML navigation generic; strongly-typed generated navigation remains a C# feature
+
 ## ShellServices Record
 
 A convenience aggregate that bundles the three shell services together, so a single constructor parameter is enough when a class needs most of them.
@@ -584,6 +686,16 @@ When implemented on a ViewModel, `Dispose()` is called when the page is permanen
 - Pages in AppShell.xaml should use `registerRoute: false`
 - Pages not in AppShell.xaml need route registration (default behavior)
 - Verify the route string matches exactly
+
+### Tab badge not showing
+- Ensure the route already exists as a tab in the active Shell
+- Badge APIs do not create tabs or attach to non-tab pages
+- Verify the current platform is Android, iOS, Mac Catalyst, or Windows
+
+### XAML navigation not firing
+- `Navigate.Route` only works on `Button`, `MenuItem`, and `ToolbarItem`
+- Ensure the page has MAUI services available through the handler/app service provider
+- If using `Navigate.Parameters`, every `NavigationParameter` needs a non-empty `Key`
 
 ### Source generator not producing output
 - ViewModel class must be `partial`

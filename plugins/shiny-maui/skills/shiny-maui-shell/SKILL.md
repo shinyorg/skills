@@ -5,6 +5,10 @@ auto_invoke: true
 triggers:
   - maui shell
   - shell navigation
+  - xaml navigation
+  - attached navigation
+  - tab badge
+  - badge
   - shell switch
   - switch shell
   - maui navigation
@@ -28,6 +32,8 @@ triggers:
   - GoBack
   - PopToRoot
   - SetRoot
+  - SetTabBadge
+  - ClearTabBadge
   - SwitchShell
   - CreateBuilder
   - INavigationBuilder
@@ -41,11 +47,18 @@ triggers:
   - ActionSheet
   - NavigationEventArgs
   - NavigatedEventArgs
+  - Navigate.Route
+  - Navigate.RelativeNavigation
+  - Navigate.ParameterKey
+  - Navigate.ParameterValue
+  - Navigate.Parameters
+  - NavigationParameters
+  - NavigationParameter
 ---
 
 # Shiny MAUI Shell Skill
 
-You are an expert in Shiny MAUI Shell, a library that enhances .NET MAUI Shell with ViewModel lifecycle management, navigation services, and source generation.
+You are an expert in Shiny MAUI Shell, a library that enhances .NET MAUI Shell with ViewModel lifecycle management, navigation services, source generation, tab badges, and XAML-triggered navigation.
 
 ## When to Use This Skill
 
@@ -54,6 +67,8 @@ Invoke this skill when the user wants to:
 - Set up or configure Shiny MAUI Shell in their application
 - Switch between different Shell instances at runtime (e.g., login shell vs main app shell)
 - Implement navigation between pages using `INavigator`
+- Set or clear tab badge values on tabs in the active Shell
+- Add route-based XAML navigation with `Navigate.*` attached properties
 - Build multi-segment navigation chains using `INavigationBuilder` (push multiple pages, pop-and-push)
 - Show dialogs (alert, confirm, prompt, action sheet) using `IDialogs`
 - Add ViewModel lifecycle hooks (appearing, disappearing, navigation confirmation)
@@ -74,6 +89,8 @@ Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - A testable `INavigator` service for all navigation operations
 - A testable `IDialogs` service for alert, confirm, prompt, and action sheet dialogs
 - `INavigationBuilder` for multi-segment navigation (push multiple pages in one operation, pop-and-push)
+- Native numeric tab badges via `INavigator.SetTabBadge*` / `ClearTabBadge*`
+- Attached-property XAML navigation via `Navigate.Route`, `Navigate.RelativeNavigation`, and parameter helpers
 - Shell switching — swap the entire Shell at runtime (e.g., login → main app)
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
 - Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
@@ -324,6 +341,64 @@ await navigator
 - `PopBack()` must be called before any `Add()` calls.
 - `fromRoot: true` on `CreateBuilder` only works when the target route is a shell-declared route (a `ShellContent` in XAML), not a globally registered route.
 
+### 5b. Tab Badges
+
+Use the badge APIs when a route already exists as a tab in the active Shell:
+
+```csharp
+// Route-based badge updates
+await navigator.SetTabBadge("Inbox", 3);
+await navigator.ClearTabBadge("Inbox");
+
+// ViewModel-based badge updates
+await navigator.SetTabBadge<InboxViewModel>(7);
+await navigator.ClearTabBadge<InboxViewModel>();
+```
+
+- Badge APIs target existing tabs in the active Shell, not arbitrary pushed pages
+- Supported platforms: Android, iOS, Mac Catalyst, Windows
+- Unsupported platforms currently throw `PlatformNotSupportedException` (neutral target, Linux, macOS AppKit)
+
+### 5c. XAML Navigation
+
+Use `Navigate.*` attached properties for simple route-based navigation directly from XAML:
+
+```xml
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:shiny="clr-namespace:Shiny;assembly=Shiny.Maui.Shell">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Home"
+                     shiny:Navigate.Route="MainPage"
+                     shiny:Navigate.RelativeNavigation="False" />
+    </ContentPage.ToolbarItems>
+
+    <Button Text="Open Detail"
+            shiny:Navigate.Route="Detail"
+            shiny:Navigate.ParameterKey="ItemId"
+            shiny:Navigate.ParameterValue="{Binding SelectedId}" />
+</ContentPage>
+```
+
+For multiple parameters:
+
+```xml
+<Button Text="Open Modal"
+        shiny:Navigate.Route="Modal">
+    <shiny:Navigate.Parameters>
+        <shiny:NavigationParameters>
+            <shiny:NavigationParameter Key="Arg1" Value="{Binding NavArg}" />
+            <shiny:NavigationParameter Key="Arg2" Value="5" />
+        </shiny:NavigationParameters>
+    </shiny:Navigate.Parameters>
+</Button>
+```
+
+- Supported controls: `Button`, `MenuItem`, `ToolbarItem`
+- `Navigate.Route` accepts the route string passed to `INavigator.NavigateTo(...)`
+- Keep XAML navigation generic; strongly-typed helpers belong in generated C# extensions, not XAML attached properties
+
 ### 6. Dialogs
 
 Always use `IDialogs` for user-facing dialogs. Inject it via the primary constructor:
@@ -556,6 +631,8 @@ public partial class DetailViewModel(INavigator navigator, IDialogs dialogs) : O
 8. **Use CanNavigate for guards** - Protect unsaved changes with `INavigationConfirmation`
 9. **Mark ViewModel partial** - Required when using `[ShellMap]` source generation and CommunityToolkit attributes
 10. **Pass results via GoBack args** - Return data to the previous page through navigation parameters
+11. **Use tab badges only on shell tabs** - Badge APIs resolve existing tab routes in the active Shell
+12. **Use `Navigate.*` for lightweight XAML wiring** - Prefer ViewModel commands when navigation needs branching logic or validation
 
 ## Reference Files
 
