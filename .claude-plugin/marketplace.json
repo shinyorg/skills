@@ -8,27 +8,27 @@
     {
       "name": "shiny-client",
       "source": "./plugins/shiny-client",
-      "description": "Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more for .NET MAUI, iOS, and Android"
+      "description": "Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting), GPS tracking, geofencing, background jobs, local & push notifications (APNs/FCM/Azure), HTTP background transfers, OBD-II vehicle diagnostics, music library access, health data (HealthKit/Health Connect), and core infrastructure with DI and lifecycle hooks"
     },
     {
       "name": "shiny-maui",
       "source": "./plugins/shiny-maui",
-      "description": "Purpose-built .NET MAUI components — Shell navigation with source-generated routes and contact store access"
+      "description": ".NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, and cross-platform device contact store with CRUD, LINQ queries, and permissions"
     },
     {
       "name": "controls",
       "source": "./plugins/controls",
-      "description": "Shiny Controls — a shared UI control surface for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls): TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, and Markdown"
+      "description": "Shiny Controls — shared UI components for .NET MAUI and Blazor: TableView (14 cell types), FloatingPanel/OverlayHost (bottom/top sheets with detents), ChatView, ImageViewer with zoom, ImageEditor (crop/rotate/draw/text), AutoCompleteEntry, CountryPicker, AddressEntry with geocoding, PillView badges, SecurityPin, Fab/FabMenu, Scheduler/calendar views, Markdown renderer and editor, and haptic feedback"
     },
     {
       "name": "shiny-mediator",
       "source": "./plugins/shiny-mediator",
-      "description": "Mediator/CQRS pattern for .NET — request/response, commands, events, streams, middleware, HTTP client generation, and project scaffolding"
+      "description": "Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams, middleware pipelines, source-generated HTTP client proxies, and project scaffolding with code generation"
     },
     {
       "name": "shiny-data",
       "source": "./plugins/shiny-data",
-      "description": "Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial database with R*Tree indexing"
+      "description": "Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, MySQL, SQL Server, PostgreSQL) with LINQ queries, and Spatial geospatial database with SQLite R*Tree indexing and custom geometry algorithms"
     },
     {
       "name": "shiny-aspire",
@@ -38,7 +38,7 @@
     {
       "name": "shiny-extensions",
       "source": "./plugins/shiny-extensions",
-      "description": "Source generators and utilities — DI registration, key/value stores, reflection, localization, MAUI hosting modules, and ASP.NET Core web hosting modules"
+      "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM), AOT-compliant reflection via source generation, strongly-typed .resx localization generator, modular MAUI hosting with IMauiModule, and modular ASP.NET Core web hosting with IWebModule"
     }
   ]
 }

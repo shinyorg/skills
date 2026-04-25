@@ -1,7 +1,7 @@
 {
   "name": "controls",
-  "version": "1.0.0",
-  "description": "Shiny Controls — a shared UI control surface for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls): TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, and Markdown",
+  "version": "1.1.0",
+  "description": "Shiny Controls — shared UI components for .NET MAUI and Blazor: TableView (14 cell types), FloatingPanel/OverlayHost (bottom/top sheets with detents), ChatView, ImageViewer with zoom, ImageEditor (crop/rotate/draw/text), AutoCompleteEntry, CountryPicker, AddressEntry with geocoding, PillView badges, SecurityPin, Fab/FabMenu, Scheduler/calendar views, Markdown renderer and editor, and haptic feedback",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/",
   "license": "MIT",
-  "keywords": ["maui", "blazor", "controls", "tableview", "settings-page", "bottomsheet", "pill", "badge", "imageviewer", "securitypin", "fab", "scheduler", "calendar", "markdown", "mermaid", "xaml", "razor", "mvvm", "cross-platform"],
+  "keywords": ["maui", "blazor", "controls", "tableview", "settings-page", "floatingpanel", "overlayhost", "chatview", "pill", "badge", "imageviewer", "imageeditor", "autocomplete", "countrypicker", "addressentry", "securitypin", "fab", "scheduler", "calendar", "markdown", "mermaid", "haptics", "xaml", "razor", "mvvm", "cross-platform"],
   "skills": "./skills/"
 }

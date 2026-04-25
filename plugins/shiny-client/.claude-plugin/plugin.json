@@ -1,7 +1,7 @@
 {
   "name": "shiny-client",
-  "version": "1.0.0",
-  "description": "Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more for .NET MAUI, iOS, and Android",
+  "version": "1.1.0",
+  "description": "Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting), GPS tracking, geofencing, background jobs, local & push notifications (APNs/FCM/Azure), HTTP background transfers, OBD-II vehicle diagnostics, music library access, health data (HealthKit/Health Connect), and core infrastructure with DI and lifecycle hooks",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/",
   "license": "MIT",
-  "keywords": ["bluetooth", "ble", "gps", "geofence", "jobs", "notifications", "push", "http-transfers", "locations", "maui", "mobile", "cross-platform", "obd", "music", "ios", "android", "firebase", "fcm"],
+  "keywords": ["bluetooth", "ble", "ble-hosting", "gps", "geofence", "jobs", "notifications", "push", "http-transfers", "locations", "maui", "mobile", "cross-platform", "obd", "music", "health", "healthkit", "health-connect", "ios", "android", "firebase", "fcm", "azure-notification-hubs"],
   "skills": "./skills/"
 }

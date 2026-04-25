@@ -1,6 +1,6 @@
 {
   "name": "shiny-aspire",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing",
   "author": {
     "name": "Allan Ritchie",
