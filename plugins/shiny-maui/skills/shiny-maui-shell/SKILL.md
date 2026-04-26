@@ -231,25 +231,19 @@ Use `[ShellProperty]` on ViewModel properties that should be passed as navigatio
 
 ```csharp
 [ShellMap<DetailPage>("Detail")]
-public partial class DetailViewModel : ObservableObject, IQueryAttributable
+public partial class DetailViewModel : ObservableObject
 {
     [ShellProperty]
     public string ItemId { get; set; }
 
     [ShellProperty(required: false)]
     public int PageIndex { get; set; }
-
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        if (query.TryGetValue(nameof(ItemId), out var id))
-            ItemId = id?.ToString();
-    }
 }
 ```
 
 - Properties marked `[ShellProperty]` are required by default
 - Use `[ShellProperty(required: false)]` for optional parameters
-- The ViewModel must implement `IQueryAttributable` to receive the parameters
+- `[ShellProperty]` properties are set directly by the source-generated navigation methods — no `IQueryAttributable` needed
 - Source generator creates strongly-typed extension methods on `INavigator`
 
 ### 3. Lifecycle Interfaces
@@ -261,7 +255,7 @@ Implement these interfaces on ViewModels as needed:
 | `IPageLifecycleAware` | `OnAppearing()` / `OnDisappearing()` hooks |
 | `INavigationConfirmation` | `Task<bool> CanNavigate()` - confirm before leaving |
 | `INavigationAware` | `OnNavigatingFrom(IDictionary<string, object>)` - mutate args before leaving |
-| `IQueryAttributable` | `ApplyQueryAttributes(IDictionary<string, object>)` - receive navigation args |
+| `IQueryAttributable` | `ApplyQueryAttributes(IDictionary<string, object>)` - receive navigation args (only needed for string-based `NavigateTo(route, args)` — not needed when using `[ShellProperty]`) |
 | `IDisposable` | Cleanup when page is removed from navigation stack |
 
 ### 4. Navigation Events
@@ -416,24 +410,16 @@ Shiny MAUI Shell generates AI-compatible route metadata and navigation methods f
 **Describe routes for AI** — Add `description` to `[ShellMap]` and `[ShellProperty]`:
 
 ```csharp
+public enum WorkOrderPriority { Low, Medium, High, Urgent }
+
 [ShellMap<WorkOrderPage>(description: "Use when the user reports something broken or needing repair")]
-public partial class WorkOrderViewModel : ObservableObject, IQueryAttributable
+public partial class WorkOrderViewModel : ObservableObject
 {
     [ShellProperty("Summarize what is broken based on what the user said", required: true)]
     public string Description { get; set; } = string.Empty;
 
     [ShellProperty("Infer urgency from tone. Must be: Low, Medium, High, or Urgent", required: true)]
-    public string Priority { get; set; } = "Medium";
-
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        if (query.TryGetValue("Description", out var desc))
-            Description = desc?.ToString() ?? string.Empty;
-        if (query.TryGetValue("Priority", out var p))
-            Priority = p?.ToString() ?? "Medium";
-        OnPropertyChanged(nameof(Description));
-        OnPropertyChanged(nameof(Priority));
-    }
+    public WorkOrderPriority Priority { get; set; } = WorkOrderPriority.Medium;
 }
 ```
 
@@ -441,9 +427,9 @@ public partial class WorkOrderViewModel : ObservableObject, IQueryAttributable
 
 - `GetGeneratedRouteInfo()` — returns all routes with parameter metadata (name, description, CLR type, required/optional)
 - `GetAiToolApplicableGeneratedRoutes()` — returns only routes that have a description AND at least one parameter (routes an AI can meaningfully act on)
-- `NavigateToRoute(route, args)` — AI-friendly navigation using switch dispatch to `NavigateTo<TViewModel>` with direct property setters. Returns `Task<string>` with a confirmation message
+- `NavigateToRoute(route, args)` — AI-friendly navigation using switch dispatch to `NavigateTo<TViewModel>` with direct property setters and automatic type conversion (`int`, `bool`, `double`, enums, `DateTime`, etc.). Returns `Task<string>` with a confirmation message
 - `GetAiTools()` — returns ready-to-use `IList<AITool>` instances for route discovery and navigation
-- `AiRoutePrompt` — pre-formatted string describing all AI-applicable routes for seeding AI system messages
+- `AiRoutePrompt()` — extension method on `INavigator` returning a pre-formatted string describing all AI-applicable routes for seeding AI system messages
 
 **Wire up AI tools (requires `ShinyMauiShell_GenerateAiExtensions=true` and `Microsoft.Extensions.AI`):**
 
@@ -456,7 +442,8 @@ var options = new ChatOptions { Tools = [.. tools] };
 - Route descriptions should describe **user intent signals**, not just the page name — e.g. "Use when the user reports something broken" not "Work order page"
 - Property descriptions should tell the AI to **infer values** from natural language — e.g. "Infer urgency from tone" not "The priority level"
 - Use `GetAiToolApplicableGeneratedRoutes` (not `GetGeneratedRouteInfo`) to keep the AI focused on actionable routes
-- ViewModels must implement `IQueryAttributable` to receive the `NavigateToRoute` args
+- Properties can be `string`, `int`, `bool`, `double`, enums, `DateTime`, `Guid`, etc. — the generated `NavigateToRoute` handles type conversion automatically
+- Enums are especially AI-friendly — the model outputs the member name as a string and the generator parses it case-insensitively
 
 ### 6. Dialogs
 
@@ -623,7 +610,6 @@ namespace MyApp.ViewModels;
 
 [ShellMap<DetailPage>("Detail")]
 public partial class DetailViewModel(INavigator navigator, IDialogs dialogs) : ObservableObject,
-    IQueryAttributable,
     IPageLifecycleAware,
     INavigationConfirmation,
     INavigationAware,
@@ -637,13 +623,6 @@ public partial class DetailViewModel(INavigator navigator, IDialogs dialogs) : O
     string title;
 
     bool hasUnsavedChanges;
-
-    // Receive navigation parameters
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        if (query.TryGetValue(nameof(ItemId), out var id))
-            ItemId = id?.ToString();
-    }
 
     // Page appeared
     public void OnAppearing()
@@ -699,7 +678,7 @@ public partial class DetailViewModel(INavigator navigator, IDialogs dialogs) : O
 2. **Inject INavigator** - Never use `Shell.Current.GoToAsync` directly; use `INavigator` for testability
 3. **Inject IDialogs** - Never use `Shell.Current.DisplayAlert` directly; use `IDialogs` for testability
 4. **Use primary constructors** - Inject dependencies via primary constructor parameters
-5. **Implement IQueryAttributable** - Required to receive navigation parameters on the target ViewModel
+5. **Use `[ShellProperty]`** - Properties are set directly by generated navigation methods — no `IQueryAttributable` needed
 6. **Use ObservableObject** - From CommunityToolkit.Mvvm as the ViewModel base class
 7. **Implement IDisposable** - Clean up event handlers and subscriptions to prevent memory leaks
 8. **Use CanNavigate for guards** - Protect unsaved changes with `INavigationConfirmation`
