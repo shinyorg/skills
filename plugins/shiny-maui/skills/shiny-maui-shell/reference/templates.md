@@ -60,7 +60,6 @@ namespace {Namespace}.ViewModels;
 
 [ShellMap<{Name}Page>("{route}")]
 public partial class {Name}ViewModel(INavigator navigator) : ObservableObject,
-    IQueryAttributable,
     IPageLifecycleAware,
     INavigationConfirmation,
     INavigationAware,
@@ -68,11 +67,6 @@ public partial class {Name}ViewModel(INavigator navigator) : ObservableObject,
 {
     [ObservableProperty]
     string title = "{Page Title}";
-
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        // Receive navigation parameters
-    }
 
     public void OnAppearing()
     {
@@ -114,8 +108,7 @@ using Shiny;
 namespace {Namespace}.ViewModels;
 
 [ShellMap<{Name}Page>("{route}")]
-public partial class {Name}ViewModel(INavigator navigator) : ObservableObject,
-    IQueryAttributable
+public partial class {Name}ViewModel(INavigator navigator) : ObservableObject
 {
     // Required parameter - source generator will make this a required method parameter
     [ShellProperty]
@@ -326,20 +319,10 @@ namespace {Namespace}.ViewModels;
 
 [ShellMap<MainPage>(registerRoute: false)]
 public partial class MainViewModel(INavigator navigator) : ObservableObject,
-    IQueryAttributable,
     IPageLifecycleAware
 {
     [ObservableProperty]
     string title = "Home";
-
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        // Receive results from pages that navigated back
-        if (query.TryGetValue("Result", out var result))
-        {
-            // Handle result
-        }
-    }
 
     public void OnAppearing() { }
     public void OnDisappearing() { }
@@ -357,7 +340,7 @@ public partial class MainViewModel(INavigator navigator) : ObservableObject,
 For ViewModels that should be discoverable and navigable by an AI chat agent. The key differences from a standard ViewModel:
 - `[ShellMap]` includes a `description` that explains **user intent signals** (not just the page name)
 - `[ShellProperty]` descriptions tell the AI how to **infer values** from natural language
-- All properties implement `IQueryAttributable` to receive `NavigateToRoute` args
+- `IQueryAttributable` is **not** needed — `NavigateToRoute` sets `[ShellProperty]` properties directly
 
 ### ViewModel
 ```csharp
@@ -369,7 +352,7 @@ using Shiny;
 namespace {Namespace}.ViewModels;
 
 [ShellMap<{Name}Page>(description: "{Describe when this page should be used based on user intent}")]
-public partial class {Name}ViewModel(INavigator navigator) : ObservableObject, IQueryAttributable
+public partial class {Name}ViewModel(INavigator navigator) : ObservableObject
 {
     [ShellProperty("{Tell AI how to infer this value from what the user said}", required: true)]
     public string {RequiredField} { get; set; } = string.Empty;
@@ -418,7 +401,6 @@ var options = new ChatOptions
 ```csharp
 [ShellMap<ItemListPage>(registerRoute: false)]
 public partial class ItemListViewModel(INavigator navigator) : ObservableObject,
-    IQueryAttributable,
     IPageLifecycleAware
 {
     [ObservableProperty]
@@ -426,12 +408,6 @@ public partial class ItemListViewModel(INavigator navigator) : ObservableObject,
 
     [ObservableProperty]
     ItemModel selectedItem;
-
-    public void ApplyQueryAttributes(IDictionary<string, object> query)
-    {
-        if (query.TryGetValue("Refresh", out _))
-            LoadItems();
-    }
 
     public void OnAppearing() => LoadItems();
     public void OnDisappearing() { }
@@ -454,7 +430,6 @@ public partial class ItemListViewModel(INavigator navigator) : ObservableObject,
 ```csharp
 [ShellMap<ItemDetailPage>("ItemDetail")]
 public partial class ItemDetailViewModel(INavigator navigator, IDialogs dialogs, IItemService itemService) : ObservableObject,
-    IQueryAttributable,
     IPageLifecycleAware,
     INavigationConfirmation,
     IDisposable
