@@ -441,19 +441,15 @@ public partial class WorkOrderViewModel : ObservableObject, IQueryAttributable
 
 - `GetGeneratedRouteInfo()` — returns all routes with parameter metadata (name, description, CLR type, required/optional)
 - `GetAiToolApplicableGeneratedRoutes()` — returns only routes that have a description AND at least one parameter (routes an AI can meaningfully act on)
-- `NavigateToRoute(route, args, relativeNavigation)` — AI-friendly navigation accepting `Dictionary<string, string>` instead of tuples
+- `NavigateToRoute(route, args)` — AI-friendly navigation using switch dispatch to `NavigateTo<TViewModel>` with direct property setters. Returns `Task<string>` with a confirmation message
+- `GetAiTools()` — returns ready-to-use `IList<AITool>` instances for route discovery and navigation
+- `AiRoutePrompt` — pre-formatted string describing all AI-applicable routes for seeding AI system messages
 
-**Wire up two AI tools:**
+**Wire up AI tools (requires `ShinyMauiShell_GenerateAiExtensions=true` and `Microsoft.Extensions.AI`):**
 
 ```csharp
-var options = new ChatOptions
-{
-    Tools =
-    [
-        AIFunctionFactory.Create(navigator.GetAiToolApplicableGeneratedRoutes),
-        AIFunctionFactory.Create(navigator.NavigateToRoute)
-    ]
-};
+var tools = navigator.GetAiTools();
+var options = new ChatOptions { Tools = [.. tools] };
 ```
 
 **Key conventions for AI-friendly ViewModels:**
@@ -597,10 +593,10 @@ Disable individual generated files via MSBuild properties in `.csproj`:
     <!-- Disable NavigationExtensions.g.cs -->
     <ShinyMauiShell_GenerateNavExtensions>false</ShinyMauiShell_GenerateNavExtensions>
 
-    <!-- Disable AI extensions (GetAiToolApplicableGeneratedRoutes, NavigateToRoute) -->
-    <ShinyMauiShell_GenerateAiExtensions>false</ShinyMauiShell_GenerateAiExtensions>
+    <!-- Enable AI extensions (disabled by default, requires Microsoft.Extensions.AI) -->
+    <ShinyMauiShell_GenerateAiExtensions>true</ShinyMauiShell_GenerateAiExtensions>
 
-    <!-- Customize the generated class name (default: GeneratedRouteInfoExtensions) -->
+    <!-- Customize the generated class name (default: AiExtensions) -->
     <ShinyMauiShell_AiExtensionsClassName>MyAppRouteExtensions</ShinyMauiShell_AiExtensionsClassName>
 
     <!-- Customize the AI navigate method name (default: NavigateToRoute) -->
@@ -612,8 +608,8 @@ Disable individual generated files via MSBuild properties in `.csproj`:
 |---|---|---|
 | `ShinyMauiShell_GenerateRouteConstants` | `true` | `Routes.g.cs` |
 | `ShinyMauiShell_GenerateNavExtensions` | `true` | All navigation extensions and `AddGeneratedMaps` |
-| `ShinyMauiShell_GenerateAiExtensions` | `true` | `GetAiToolApplicableGeneratedRoutes` and `NavigateToRoute` methods |
-| `ShinyMauiShell_AiExtensionsClassName` | `GeneratedRouteInfoExtensions` | Class name for the route info/AI extensions class |
+| `ShinyMauiShell_GenerateAiExtensions` | `false` | `GetAiToolApplicableGeneratedRoutes`, `NavigateToRoute`, `GetAiTools()`, and `AiRoutePrompt`. Requires `Microsoft.Extensions.AI` (**SHINY003** error if missing) |
+| `ShinyMauiShell_AiExtensionsClassName` | `AiExtensions` | Class name for the route info/AI extensions class |
 | `ShinyMauiShell_AiNavigateMethodName` | `NavigateToRoute` | Method name for the AI-friendly navigate method |
 
 ## Complete ViewModel Example

@@ -468,29 +468,35 @@ public static class NavigationBuilderExtensions
 }
 ```
 
-### GeneratedRouteInfoExtensions.g.cs (AI Integration)
+### AiExtensions.g.cs (AI Integration)
 
-The source generator also produces AI-compatible route metadata and navigation extensions:
+When AI extensions are enabled (`ShinyMauiShell_GenerateAiExtensions=true`, requires `Microsoft.Extensions.AI`), the source generator also produces:
 
 ```csharp
-public static class GeneratedRouteInfoExtensions
+public static class AiExtensions
 {
-    // Returns all routes with full parameter metadata
+    // Always generated (not AI-specific)
     [Description("This provides a list of routes throughout the application")]
     public static GeneratedRouteInfo[] GetGeneratedRouteInfo(this INavigator navigator);
 
-    // Returns only routes that have a description AND at least one parameter
-    // These are routes an AI can meaningfully discover and navigate to
+    // AI extensions below only generated when opted in:
+
+    // Returns only routes with a description AND at least one parameter
     [Description("This provides a list of AI tool applicable routes")]
     public static GeneratedRouteInfo[] GetAiToolApplicableGeneratedRoutes(this INavigator navigator);
 
-    // AI-friendly navigation using Dictionary<string, string> instead of tuples
-    [Description("Navigate to a route in the application, passing parameters as key-value pairs")]
-    public static Task NavigateToRoute(
+    // Pre-formatted prompt string for seeding AI system messages
+    public static string AiRoutePrompt { get; }
+
+    // AI-friendly navigation using switch dispatch to NavigateTo<TViewModel>
+    [Description("Navigate to a route in the application, passing parameters as key-value pairs. Returns a confirmation message.")]
+    public static Task<string> NavigateToRoute(
         this INavigator navigator,
         [Description("The route name to navigate to")] string route,
-        [Description("Route parameters as key-value pairs")] Dictionary<string, string>? args = null,
-        [Description("Navigate from the current page if true, otherwise reset the navigation stack")] bool relativeNavigation = true);
+        [Description("Route parameters as key-value pairs")] Dictionary<string, string>? args = null);
+
+    // Ready-to-use AITool instances for ChatOptions.Tools
+    public static IList<AITool> GetAiTools(this INavigator navigator);
 }
 ```
 
@@ -522,9 +528,9 @@ Disable individual generated files via MSBuild properties:
 | Property | Default | Controls |
 |---|---|---|
 | `ShinyMauiShell_GenerateRouteConstants` | `true` | `Routes.g.cs` |
-| `ShinyMauiShell_GenerateNavExtensions` | `true` | `NavigationExtensions.g.cs`, `GeneratedRouteInfoExtensions.g.cs`, and all builder extensions |
-| `ShinyMauiShell_GenerateAiExtensions` | `true` | `GetAiToolApplicableGeneratedRoutes` and `NavigateToRoute` methods in `GeneratedRouteInfoExtensions.g.cs` |
-| `ShinyMauiShell_AiExtensionsClassName` | `GeneratedRouteInfoExtensions` | Class name for the route info/AI extensions class |
+| `ShinyMauiShell_GenerateNavExtensions` | `true` | `NavigationExtensions.g.cs`, `AiExtensions.g.cs`, and all builder extensions |
+| `ShinyMauiShell_GenerateAiExtensions` | `false` | `GetAiToolApplicableGeneratedRoutes`, `NavigateToRoute`, `GetAiTools()`, and `AiRoutePrompt`. Requires `Microsoft.Extensions.AI` (**SHINY003** error if missing) |
+| `ShinyMauiShell_AiExtensionsClassName` | `AiExtensions` | Class name for the route info/AI extensions class |
 | `ShinyMauiShell_AiNavigateMethodName` | `NavigateToRoute` | Method name for the AI-friendly navigate method |
 
 `NavigationBuilderExtensions.g.cs` is always generated.
@@ -755,7 +761,8 @@ When implemented on a ViewModel, `Dispose()` is called when the page is permanen
 - Check that `[ShellMap<TPage>]` attribute is applied to the class
 - Route names must be valid C# identifiers — check for **SHINY001** errors
 - Route constants and nav extensions can be disabled via `ShinyMauiShell_GenerateRouteConstants` and `ShinyMauiShell_GenerateNavExtensions` MSBuild properties
-- AI extensions can be disabled via `ShinyMauiShell_GenerateAiExtensions`, or customized via `ShinyMauiShell_AiExtensionsClassName` and `ShinyMauiShell_AiNavigateMethodName`
+- AI extensions are disabled by default — set `ShinyMauiShell_GenerateAiExtensions` to `true` and install `Microsoft.Extensions.AI`. Missing the package produces **SHINY003**
+- Customize AI class/method names via `ShinyMauiShell_AiExtensionsClassName` and `ShinyMauiShell_AiNavigateMethodName`
 - Clean and rebuild the project
 
 ### OnAppearing/OnDisappearing not firing
