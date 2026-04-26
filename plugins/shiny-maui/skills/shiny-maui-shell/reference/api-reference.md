@@ -396,7 +396,8 @@ Marks a ViewModel class for source generation. Applied to the ViewModel class.
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ShellMapAttribute<TPage>(
     string? route = null,         // Route name — must be a valid C# identifier; used as generated constant and method name
-    bool registerRoute = true     // Set false for AppShell.xaml pages
+    bool registerRoute = true,    // Set false for AppShell.xaml pages
+    string? description = null    // Description for AI tool metadata — used in GetGeneratedRouteInfo and [Description] attributes
 ) : Attribute;
 ```
 
@@ -413,6 +414,7 @@ Marks a ViewModel property as a navigation parameter for source generation.
 ```csharp
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public sealed class ShellPropertyAttribute(
+    string? description = null,   // Description for AI tool metadata and [Description] attributes
     bool required = true          // Whether this parameter is required in generated methods
 ) : Attribute;
 ```
@@ -466,6 +468,53 @@ public static class NavigationBuilderExtensions
 }
 ```
 
+### GeneratedRouteInfoExtensions.g.cs (AI Integration)
+
+The source generator also produces AI-compatible route metadata and navigation extensions:
+
+```csharp
+public static class GeneratedRouteInfoExtensions
+{
+    // Returns all routes with full parameter metadata
+    [Description("This provides a list of routes throughout the application")]
+    public static GeneratedRouteInfo[] GetGeneratedRouteInfo(this INavigator navigator);
+
+    // Returns only routes that have a description AND at least one parameter
+    // These are routes an AI can meaningfully discover and navigate to
+    [Description("This provides a list of AI tool applicable routes")]
+    public static GeneratedRouteInfo[] GetAiToolApplicableGeneratedRoutes(this INavigator navigator);
+
+    // AI-friendly navigation using Dictionary<string, string> instead of tuples
+    [Description("Navigate to a route in the application, passing parameters as key-value pairs")]
+    public static Task NavigateToRoute(
+        this INavigator navigator,
+        [Description("The route name to navigate to")] string route,
+        [Description("Route parameters as key-value pairs")] Dictionary<string, string>? args = null,
+        [Description("Navigate from the current page if true, otherwise reset the navigation stack")] bool relativeNavigation = true);
+}
+```
+
+### GeneratedRouteInfo / GeneratedRouteParameter
+
+Route metadata records used by the generated AI extensions:
+
+```csharp
+namespace Shiny.Infrastructure;
+
+public record GeneratedRouteInfo(
+    string Route,                        // Route name from [ShellMap]
+    string Description,                  // Description from [ShellMap] (empty if not provided)
+    GeneratedRouteParameter[] Parameters // All [ShellProperty] properties
+);
+
+public record GeneratedRouteParameter(
+    string ParameterName,                // Property name (used as key in NavigateToRoute args)
+    string Description,                  // From [ShellProperty("...")] (empty if not provided)
+    string TypeName,                     // CLR type name: "string", "int", "bool", etc.
+    bool IsRequired                      // From [ShellProperty(required: ...)]
+);
+```
+
 ### Configuring Source Generation
 
 Disable individual generated files via MSBuild properties:
@@ -473,7 +522,10 @@ Disable individual generated files via MSBuild properties:
 | Property | Default | Controls |
 |---|---|---|
 | `ShinyMauiShell_GenerateRouteConstants` | `true` | `Routes.g.cs` |
-| `ShinyMauiShell_GenerateNavExtensions` | `true` | `NavigationExtensions.g.cs` |
+| `ShinyMauiShell_GenerateNavExtensions` | `true` | `NavigationExtensions.g.cs`, `GeneratedRouteInfoExtensions.g.cs`, and all builder extensions |
+| `ShinyMauiShell_GenerateAiExtensions` | `true` | `GetAiToolApplicableGeneratedRoutes` and `NavigateToRoute` methods in `GeneratedRouteInfoExtensions.g.cs` |
+| `ShinyMauiShell_AiExtensionsClassName` | `GeneratedRouteInfoExtensions` | Class name for the route info/AI extensions class |
+| `ShinyMauiShell_AiNavigateMethodName` | `NavigateToRoute` | Method name for the AI-friendly navigate method |
 
 `NavigationBuilderExtensions.g.cs` is always generated.
 
@@ -703,6 +755,7 @@ When implemented on a ViewModel, `Dispose()` is called when the page is permanen
 - Check that `[ShellMap<TPage>]` attribute is applied to the class
 - Route names must be valid C# identifiers — check for **SHINY001** errors
 - Route constants and nav extensions can be disabled via `ShinyMauiShell_GenerateRouteConstants` and `ShinyMauiShell_GenerateNavExtensions` MSBuild properties
+- AI extensions can be disabled via `ShinyMauiShell_GenerateAiExtensions`, or customized via `ShinyMauiShell_AiExtensionsClassName` and `ShinyMauiShell_AiNavigateMethodName`
 - Clean and rebuild the project
 
 ### OnAppearing/OnDisappearing not firing

@@ -352,6 +352,66 @@ public partial class MainViewModel(INavigator navigator) : ObservableObject,
 }
 ```
 
+## AI-Compatible ViewModel Template
+
+For ViewModels that should be discoverable and navigable by an AI chat agent. The key differences from a standard ViewModel:
+- `[ShellMap]` includes a `description` that explains **user intent signals** (not just the page name)
+- `[ShellProperty]` descriptions tell the AI how to **infer values** from natural language
+- All properties implement `IQueryAttributable` to receive `NavigateToRoute` args
+
+### ViewModel
+```csharp
+// ViewModels/{Name}ViewModel.cs
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Shiny;
+
+namespace {Namespace}.ViewModels;
+
+[ShellMap<{Name}Page>(description: "{Describe when this page should be used based on user intent}")]
+public partial class {Name}ViewModel(INavigator navigator) : ObservableObject, IQueryAttributable
+{
+    [ShellProperty("{Tell AI how to infer this value from what the user said}", required: true)]
+    public string {RequiredField} { get; set; } = string.Empty;
+
+    [ShellProperty("{Tell AI how to infer this value, or leave empty}", required: false)]
+    public string {OptionalField} { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    bool isSubmitted;
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue(nameof({RequiredField}), out var val1))
+            {RequiredField} = val1?.ToString() ?? string.Empty;
+
+        if (query.TryGetValue(nameof({OptionalField}), out var val2))
+            {OptionalField} = val2?.ToString() ?? string.Empty;
+
+        OnPropertyChanged(nameof({RequiredField}));
+        OnPropertyChanged(nameof({OptionalField}));
+    }
+
+    [RelayCommand]
+    void Submit() => IsSubmitted = true;
+
+    [RelayCommand]
+    Task GoBack() => navigator.GoBack();
+}
+```
+
+### Wiring AI Tools (in a chat ViewModel)
+```csharp
+var options = new ChatOptions
+{
+    Tools =
+    [
+        AIFunctionFactory.Create(navigator.GetAiToolApplicableGeneratedRoutes),
+        AIFunctionFactory.Create(navigator.NavigateToRoute)
+    ]
+};
+```
+
 ## List-Detail Navigation Template
 
 ### List ViewModel
