@@ -54,6 +54,14 @@ triggers:
   - Navigate.Parameters
   - NavigationParameters
   - NavigationParameter
+  - GetGeneratedRouteInfo
+  - GetAiToolApplicableGeneratedRoutes
+  - NavigateToRoute
+  - GeneratedRouteInfo
+  - GeneratedRouteParameter
+  - AI navigation
+  - AI tool
+  - chat navigation
 ---
 
 # Shiny MAUI Shell Skill
@@ -76,6 +84,8 @@ Invoke this skill when the user wants to:
 - Pass parameters between pages during navigation
 - Create modal pages or tab navigation
 - Migrate from vanilla MAUI Shell or Prism navigation to Shiny MAUI Shell
+- Set up AI-driven navigation using `Microsoft.Extensions.AI` with route discovery and `NavigateToRoute`
+- Create AI-compatible ViewModels with descriptive `[ShellMap]` and `[ShellProperty]` attributes
 
 ## Library Overview
 
@@ -93,7 +103,7 @@ Shiny MAUI Shell wraps .NET MAUI Shell to provide:
 - Attached-property XAML navigation via `Navigate.Route`, `Navigate.RelativeNavigation`, and parameter helpers
 - Shell switching — swap the entire Shell at runtime (e.g., login → main app)
 - ViewModel lifecycle interfaces (appearing, disappearing, dispose, navigation confirmation)
-- Source generators that eliminate boilerplate route registration and produce strongly-typed navigation methods
+- Source generators that eliminate boilerplate route registration, produce strongly-typed navigation methods, and generate AI tool metadata
 - `ShinyShell` base class for deterministic initial-page BindingContext assignment
 - `ShellServices` record that aggregates `INavigator`, `IDialogs`, and `IMainThread` for convenient single-parameter injection
 - `IMainThread` abstraction with built-in workarounds for macOS and Linux where `MainThread.InvokeOnMainThreadAsync` can deadlock / fail
@@ -399,6 +409,59 @@ For multiple parameters:
 - `Navigate.Route` accepts the route string passed to `INavigator.NavigateTo(...)`
 - Keep XAML navigation generic; strongly-typed helpers belong in generated C# extensions, not XAML attached properties
 
+### 5d. AI Tool Navigation
+
+Shiny MAUI Shell generates AI-compatible route metadata and navigation methods for use with `Microsoft.Extensions.AI`. An AI chat client can discover routes, understand their purpose, and navigate with parameters extracted from natural language.
+
+**Describe routes for AI** — Add `description` to `[ShellMap]` and `[ShellProperty]`:
+
+```csharp
+[ShellMap<WorkOrderPage>(description: "Use when the user reports something broken or needing repair")]
+public partial class WorkOrderViewModel : ObservableObject, IQueryAttributable
+{
+    [ShellProperty("Summarize what is broken based on what the user said", required: true)]
+    public string Description { get; set; } = string.Empty;
+
+    [ShellProperty("Infer urgency from tone. Must be: Low, Medium, High, or Urgent", required: true)]
+    public string Priority { get; set; } = "Medium";
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("Description", out var desc))
+            Description = desc?.ToString() ?? string.Empty;
+        if (query.TryGetValue("Priority", out var p))
+            Priority = p?.ToString() ?? "Medium";
+        OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(Priority));
+    }
+}
+```
+
+**Generated AI extensions:**
+
+- `GetGeneratedRouteInfo()` — returns all routes with parameter metadata (name, description, CLR type, required/optional)
+- `GetAiToolApplicableGeneratedRoutes()` — returns only routes that have a description AND at least one parameter (routes an AI can meaningfully act on)
+- `NavigateToRoute(route, args, relativeNavigation)` — AI-friendly navigation accepting `Dictionary<string, string>` instead of tuples
+
+**Wire up two AI tools:**
+
+```csharp
+var options = new ChatOptions
+{
+    Tools =
+    [
+        AIFunctionFactory.Create(navigator.GetAiToolApplicableGeneratedRoutes),
+        AIFunctionFactory.Create(navigator.NavigateToRoute)
+    ]
+};
+```
+
+**Key conventions for AI-friendly ViewModels:**
+- Route descriptions should describe **user intent signals**, not just the page name — e.g. "Use when the user reports something broken" not "Work order page"
+- Property descriptions should tell the AI to **infer values** from natural language — e.g. "Infer urgency from tone" not "The priority level"
+- Use `GetAiToolApplicableGeneratedRoutes` (not `GetGeneratedRouteInfo`) to keep the AI focused on actionable routes
+- ViewModels must implement `IQueryAttributable` to receive the `NavigateToRoute` args
+
 ### 6. Dialogs
 
 Always use `IDialogs` for user-facing dialogs. Inject it via the primary constructor:
@@ -533,10 +596,25 @@ Disable individual generated files via MSBuild properties in `.csproj`:
 
     <!-- Disable NavigationExtensions.g.cs -->
     <ShinyMauiShell_GenerateNavExtensions>false</ShinyMauiShell_GenerateNavExtensions>
+
+    <!-- Disable AI extensions (GetAiToolApplicableGeneratedRoutes, NavigateToRoute) -->
+    <ShinyMauiShell_GenerateAiExtensions>false</ShinyMauiShell_GenerateAiExtensions>
+
+    <!-- Customize the generated class name (default: GeneratedRouteInfoExtensions) -->
+    <ShinyMauiShell_AiExtensionsClassName>MyAppRouteExtensions</ShinyMauiShell_AiExtensionsClassName>
+
+    <!-- Customize the AI navigate method name (default: NavigateToRoute) -->
+    <ShinyMauiShell_AiNavigateMethodName>GoToPage</ShinyMauiShell_AiNavigateMethodName>
 </PropertyGroup>
 ```
 
-`NavigationBuilderExtensions.g.cs` (`AddGeneratedMaps()`) is always generated — even when no `[ShellMap]` attributes exist yet — so you can wire up `MauiProgram.cs` immediately.
+| Property | Default | Controls |
+|---|---|---|
+| `ShinyMauiShell_GenerateRouteConstants` | `true` | `Routes.g.cs` |
+| `ShinyMauiShell_GenerateNavExtensions` | `true` | All navigation extensions and `AddGeneratedMaps` |
+| `ShinyMauiShell_GenerateAiExtensions` | `true` | `GetAiToolApplicableGeneratedRoutes` and `NavigateToRoute` methods |
+| `ShinyMauiShell_AiExtensionsClassName` | `GeneratedRouteInfoExtensions` | Class name for the route info/AI extensions class |
+| `ShinyMauiShell_AiNavigateMethodName` | `NavigateToRoute` | Method name for the AI-friendly navigate method |
 
 ## Complete ViewModel Example
 
