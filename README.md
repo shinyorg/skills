@@ -1,6 +1,6 @@
 # Shiny AI Skills
 
-AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for mediator, DI, stores, hosting, MAUI Shell, notifications, push, BLE, locations, jobs, HTTP transfers, spatial, and more across .NET MAUI, Blazor, and ASP.NET Core.
+AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, GPS, geofencing, background jobs, push notifications, HTTP transfers, OBD-II diagnostics, music, health data, MAUI Shell navigation, contact store, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
 
 ## Plugins & Skills
 
@@ -8,13 +8,13 @@ This marketplace is organized into **plugins**, each containing one or more **sk
 
 | Plugin | Description | Skills |
 |--------|-------------|--------|
-| `shiny-client` | Cross-platform mobile framework — BLE, GPS, geofencing, jobs, notifications, push, HTTP transfers, OBD, music, and more | `shiny-core`, `shiny-bluetoothle`, `shiny-ble-hosting`, `shiny-firebase`, `shiny-http-transfers`, `shiny-jobs`, `shiny-locations`, `shiny-music`, `shiny-notifications`, `shiny-obd`, `shiny-push` |
-| `shiny-maui` | Purpose-built .NET MAUI components — Shell navigation with source-generated routes and contact store access | `shiny-contactstore`, `shiny-maui-shell` |
-| `controls` | Shiny Controls — a shared UI control surface for .NET MAUI and Blazor (TableView, BottomSheet, Pill, ImageViewer, SecurityPin, Fab/FabMenu, Scheduler, Markdown) | `shiny-controls` |
-| `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response, commands, events, streams, middleware, HTTP client generation | `shiny-mediator` |
-| `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB JSON document store and Spatial geospatial R*Tree | `shiny-documentdb`, `shiny-spatial` |
-| `shiny-aspire` | .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire` |
-| `shiny-extensions` | Source generators and utilities — DI, key/value stores, reflection, localization, hosting modules | `localizegen`, `shiny-di`, `shiny-maui-hosting`, `shiny-reflector`, `shiny-stores`, `shiny-web-hosting` |
+| `shiny-client` | Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting), GPS tracking, geofencing, background jobs, local & push notifications (APNs/FCM/Azure), HTTP background transfers, OBD-II vehicle diagnostics, music library access, health data (HealthKit/Health Connect), and core infrastructure with DI and lifecycle hooks | `shiny-core`, `shiny-bluetoothle`, `shiny-ble-hosting`, `shiny-firebase`, `shiny-health`, `shiny-http-transfers`, `shiny-jobs`, `shiny-locations`, `shiny-music`, `shiny-notifications`, `shiny-obd`, `shiny-push` |
+| `shiny-maui` | .NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, and cross-platform device contact store with CRUD, LINQ queries, and permissions | `shiny-contactstore`, `shiny-maui-shell` |
+| `controls` | Shiny Controls — shared UI components for .NET MAUI and Blazor: TableView (14 cell types), FloatingPanel/OverlayHost (bottom/top sheets with detents), ChatView, ImageViewer with zoom, ImageEditor (crop/rotate/draw/text), AutoCompleteEntry, CountryPicker, AddressEntry with geocoding, PillView badges, SecurityPin, Fab/FabMenu, Scheduler/calendar views, Markdown renderer and editor, and haptic feedback | `shiny-controls` |
+| `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams, middleware pipelines, source-generated HTTP client proxies, and project scaffolding with code generation | `shiny-mediator` |
+| `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, MySQL, SQL Server, PostgreSQL) with LINQ queries, and Spatial geospatial database with SQLite R*Tree indexing and custom geometry algorithms | `shiny-documentdb`, `shiny-spatial` |
+| `shiny-aspire` | Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire` |
+| `shiny-extensions` | Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM), AOT-compliant reflection via source generation, strongly-typed .resx localization generator, modular MAUI hosting with IMauiModule, and modular ASP.NET Core web hosting with IWebModule | `localizegen`, `shiny-di`, `shiny-maui-hosting`, `shiny-reflector`, `shiny-stores`, `shiny-web-hosting` |
 
 ## Installation
 

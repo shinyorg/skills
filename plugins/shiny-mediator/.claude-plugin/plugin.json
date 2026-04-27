@@ -1,6 +1,6 @@
 {
   "name": "shiny-mediator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams, middleware pipelines, source-generated HTTP client proxies, and project scaffolding with code generation",
   "author": {
     "name": "Allan Ritchie",
