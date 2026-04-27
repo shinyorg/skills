@@ -50,6 +50,15 @@ triggers:
   - music metadata
   - READ_MEDIA_AUDIO
   - NSAppleMusicUsageDescription
+  - IMusicIdentifier
+  - MusicIdentificationResult
+  - song identification
+  - identify song
+  - ShazamKit
+  - shazam
+  - music recognition
+  - listen identify
+  - NSMicrophoneUsageDescription
 ---
 
 # Shiny Music Skill
@@ -74,6 +83,7 @@ Invoke this skill when the user wants to:
 - Retrieve album artwork for a track
 - Copy music files from the device library to app storage
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
+- Identify songs by listening to audio through the device microphone (iOS via ShazamKit)
 - Configure Android manifest permissions or iOS Info.plist for music access
 
 ## Library Overview
@@ -130,6 +140,13 @@ public static class MauiProgram
 ```
 
 **This key is mandatory.** The app will crash on launch without it. No special entitlements are required.
+
+For song identification via `IMusicIdentifier`, also add:
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Used to identify songs playing nearby.</string>
+```
 
 ## Core API Reference
 
@@ -308,6 +325,50 @@ Gets or sets the playback volume. Value ranges from 0.0 (silent) to 1.0 (full vo
 |-------|-------------|
 | `StateChanged` | Raised on state transitions (e.g., Playing -> Paused) |
 | `PlaybackCompleted` | Raised when a track finishes naturally (not via `Stop()`) |
+
+### IMusicIdentifier
+
+Identifies songs by listening to audio through the device microphone. On iOS, uses ShazamKit. Android does not currently have an implementation.
+
+#### ListenAsync
+
+```csharp
+Task<MusicIdentificationResult?> ListenAsync(CancellationToken cancellationToken = default);
+```
+
+Begins listening through the device microphone and attempts to identify the currently playing song. Records approximately 5 seconds of audio, generates an audio signature, and matches it against the Shazam catalog.
+
+- Automatically requests microphone permission on iOS via `AVAudioApplication.RequestRecordPermissionAsync`
+- Configures the audio session for recording and deactivates it after matching
+- Returns `null` if no match is found
+- Throws `InvalidOperationException` if microphone permission is denied
+- Throws `OperationCanceledException` if the cancellation token is triggered
+
+**Important**: Stop any active playback via `IMusicPlayer.Stop()` before calling `ListenAsync` so the microphone picks up external audio instead of the device's own output.
+
+### MusicIdentificationResult
+
+```csharp
+public record MusicIdentificationResult(
+    string Title,
+    string? Artist,
+    string? Album,
+    string? Genre,
+    string? ArtworkUrl,
+    string? MusicUrl,
+    string? Isrc
+);
+```
+
+| Property | Description |
+|----------|-------------|
+| `Title` | The title of the identified track. |
+| `Artist` | The artist or performer, or `null` if not available. |
+| `Album` | The album name, or `null` if not available. |
+| `Genre` | The genre, or `null` if not available. |
+| `ArtworkUrl` | A URL pointing to album or track artwork, or `null` if not available. |
+| `MusicUrl` | A URL to the track on a music streaming service (e.g. Apple Music on iOS), or `null` if not available. Platform-neutral name — the actual URL depends on the identification backend. |
+| `Isrc` | The International Standard Recording Code for the track, or `null` if not available. ISRC is a cross-platform standard useful for cross-referencing tracks across services. |
 
 ### ILyricsProvider
 
@@ -490,6 +551,9 @@ On Android, this always returns `false`.
 12. **Use `GetAlbumArtPathAsync`** — retrieve album artwork as a cached file path for display in the UI.
 13. **Use `ILyricsProvider.GetLyricsAsync`** — fetch lyrics for a track. Check `SyncedLyrics` for timed LRC format, fall back to `PlainLyrics` for plain text.
 14. **Use `Volume` on `IMusicPlayer`** — control playback volume programmatically (0.0 to 1.0).
+15. **Stop playback before identifying** — call `IMusicPlayer.Stop()` before `IMusicIdentifier.ListenAsync()` so the microphone captures external audio.
+16. **`IMusicIdentifier` is iOS-only** — only registered via DI on iOS. On Android, the service is not available. Guard with platform checks or conditional DI resolution.
+17. **Add `NSMicrophoneUsageDescription`** — required in `Info.plist` for `IMusicIdentifier` to work. The library requests permission automatically, but the plist key must be present or the app will crash.
 
 ## Lyrics Examples
 
@@ -522,6 +586,39 @@ if (artPath != null)
 {
     // Use as image source in MAUI
     var imageSource = ImageSource.FromFile(artPath);
+}
+```
+
+## Song Identification Examples
+
+```csharp
+// Identify a song playing nearby (iOS only)
+var result = await _identifier.ListenAsync();
+if (result != null)
+{
+    Console.WriteLine($"{result.Title} by {result.Artist}");
+    Console.WriteLine($"Album: {result.Album}");
+    
+    if (result.ArtworkUrl != null)
+        Console.WriteLine($"Artwork: {result.ArtworkUrl}");
+    
+    if (result.MusicUrl != null)
+        await Launcher.Default.OpenAsync(new Uri(result.MusicUrl));
+}
+
+// Stop playback first, then identify
+_player.Stop();
+var identified = await _identifier.ListenAsync();
+
+// Cancel identification early
+var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+try
+{
+    var match = await _identifier.ListenAsync(cts.Token);
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Cancelled");
 }
 ```
 
