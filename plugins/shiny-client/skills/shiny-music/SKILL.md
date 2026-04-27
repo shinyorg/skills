@@ -59,6 +59,24 @@ triggers:
   - music recognition
   - listen identify
   - NSMicrophoneUsageDescription
+  - IMusicManager
+  - music manager
+  - custom playlist
+  - custom playlists
+  - play count
+  - play counts
+  - AddPlayCount
+  - GetPlayCount
+  - GetAllPlayCounts
+  - GetAllPlaylists
+  - CreatePlaylist
+  - RemovePlaylist
+  - AddTrackToPlaylist
+  - PlayCountDoc
+  - PlaylistDoc
+  - Shiny.Music.Sqlite
+  - AddMusicManagementSqlite
+  - DocumentDb music
 ---
 
 # Shiny Music Skill
@@ -85,6 +103,11 @@ Invoke this skill when the user wants to:
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
 - Identify songs by listening to audio through the device microphone (iOS via ShazamKit)
 - Configure Android manifest permissions or iOS Info.plist for music access
+- Track how many times songs have been played (play counts) via `IMusicManager`
+- Create, remove, and manage custom playlists via `IMusicManager`
+- Add tracks to custom playlists
+- Browse custom playlists and their tracks
+- Set up the SQLite-backed music manager via `AddMusicManagementSqlite()`
 
 ## Library Overview
 
@@ -109,6 +132,9 @@ public static class MauiProgram
         builder.UseMauiApp<App>();
 
         builder.Services.AddShinyMusic();
+
+        // Optional: custom playlist management & play counts (SQLite-backed)
+        builder.Services.AddMusicManagementSqlite();
 
         return builder.Build();
     }
@@ -452,6 +478,85 @@ public record PlaylistInfo(string Id, string Name, int SongCount);
 | `Name` | The display name of the playlist. |
 | `SongCount` | The number of tracks in the playlist. |
 
+### IMusicManager
+
+Custom playlist management and play count tracking, backed by SQLite via `Shiny.DocumentDb`. Registered via `AddMusicManagementSqlite()`. Requires the `Shiny.Music.Sqlite` NuGet package.
+
+#### AddPlayCount
+
+```csharp
+Task AddPlayCount(string trackId);
+```
+
+Increments the play count for the specified track by one. If no record exists for the track, creates one with count 1.
+
+#### GetPlayCount
+
+```csharp
+Task<int> GetPlayCount(string trackId);
+```
+
+Returns the current play count for the track, or 0 if never played.
+
+#### GetAllPlayCounts
+
+```csharp
+Task<IReadOnlyList<PlayCount>> GetAllPlayCounts();
+```
+
+Returns all recorded play counts across all tracks.
+
+#### GetAllPlaylists
+
+```csharp
+Task<IReadOnlyList<PlaylistInfo>> GetAllPlaylists();
+```
+
+Returns all custom playlists with their track counts.
+
+#### CreatePlaylist
+
+```csharp
+Task CreatePlaylist(string playlistId, string name);
+```
+
+Creates a new playlist or updates the name of an existing one. The `playlistId` must be provided (e.g., `Guid.NewGuid().ToString()`).
+
+#### RemovePlaylist
+
+```csharp
+Task RemovePlaylist(string playlistId);
+```
+
+Removes a playlist and all of its associated tracks.
+
+#### AddTrackToPlaylist
+
+```csharp
+Task AddTrackToPlaylist(string playlistId, MusicMetadata metadata);
+```
+
+Adds a track to a playlist. If the track already exists in the playlist, this is a no-op.
+
+#### GetPlaylistTracks
+
+```csharp
+Task<MusicMetadata[]> GetPlaylistTracks(string playlistId);
+```
+
+Returns all tracks belonging to the specified playlist.
+
+### PlayCount
+
+```csharp
+public record PlayCount(string TrackId, int Count);
+```
+
+| Property | Description |
+|----------|-------------|
+| `TrackId` | The platform-specific unique identifier for the track. |
+| `Count` | The total number of times the track has been played. |
+
 ### MusicFilter
 
 Defines optional criteria for filtering music tracks. All specified properties are combined with AND logic. Used with `GetTracksAsync`, `GetGenresAsync`, `GetYearsAsync`, and `GetDecadesAsync`.
@@ -554,6 +659,39 @@ On Android, this always returns `false`.
 15. **Stop playback before identifying** — call `IMusicPlayer.Stop()` before `IMusicIdentifier.ListenAsync()` so the microphone captures external audio.
 16. **`IMusicIdentifier` is iOS-only** — only registered via DI on iOS. On Android, the service is not available. Guard with platform checks or conditional DI resolution.
 17. **Add `NSMicrophoneUsageDescription`** — required in `Info.plist` for `IMusicIdentifier` to work. The library requests permission automatically, but the plist key must be present or the app will crash.
+18. **Register `AddMusicManagementSqlite()` for `IMusicManager`** — this is a separate registration from `AddShinyMusic()`. Only add it when the user needs custom playlists or play counts.
+19. **`IMusicManager` playlists are separate from device playlists** — `GetPlaylistsAsync()` on `IMediaLibrary` returns device/OS playlists; `GetAllPlaylists()` on `IMusicManager` returns app-managed custom playlists stored in SQLite.
+20. **Provide your own playlist IDs** ��� `CreatePlaylist` requires a caller-supplied ID (e.g., `Guid.NewGuid().ToString()`). String IDs are not auto-generated.
+
+## Music Manager Examples
+
+```csharp
+// Track play counts
+await _manager.AddPlayCount(track.Id);
+var count = await _manager.GetPlayCount(track.Id);
+Console.WriteLine($"Played {count} times");
+
+// Get all play counts
+var allCounts = await _manager.GetAllPlayCounts();
+foreach (var pc in allCounts)
+    Console.WriteLine($"Track {pc.TrackId}: {pc.Count} plays");
+
+// Create a custom playlist and add tracks
+var playlistId = Guid.NewGuid().ToString();
+await _manager.CreatePlaylist(playlistId, "My Favorites");
+await _manager.AddTrackToPlaylist(playlistId, track);
+
+// Browse all custom playlists
+var playlists = await _manager.GetAllPlaylists();
+foreach (var p in playlists)
+    Console.WriteLine($"{p.Name} ({p.SongCount} songs)");
+
+// Get tracks in a custom playlist
+var tracks = await _manager.GetPlaylistTracks(playlistId);
+
+// Remove a playlist (also removes all track associations)
+await _manager.RemovePlaylist(playlistId);
+```
 
 ## Lyrics Examples
 
