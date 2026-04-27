@@ -1,6 +1,6 @@
----
+--
 name: shiny-music
-description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, filtering, playback, and file copy
+description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, filtering, playback, lyrics, album art, and file copy
 auto_invoke: true
 triggers:
   - music library
@@ -8,6 +8,8 @@ triggers:
   - device music
   - IMediaLibrary
   - IMusicPlayer
+  - ILyricsProvider
+  - LyricsResult
   - MusicMetadata
   - MusicFilter
   - GroupedCount
@@ -35,15 +37,33 @@ triggers:
   - GetTracksAsync
   - GetPlaylistsAsync
   - GetPlaylistTracksAsync
+  - GetAlbumArtPathAsync
+  - GetLyricsAsync
+  - album art
+  - album artwork
+  - lyrics
+  - synced lyrics
+  - LRC
+  - LRCLIB
+  - volume
   - Shiny.Music
   - music metadata
   - READ_MEDIA_AUDIO
   - NSAppleMusicUsageDescription
+  - IMusicIdentifier
+  - MusicIdentificationResult
+  - song identification
+  - identify song
+  - ShazamKit
+  - shazam
+  - music recognition
+  - listen identify
+  - NSMicrophoneUsageDescription
 ---
 
 # Shiny Music Skill
 
-You are an expert in Shiny.Music, a .NET library that provides a unified API for accessing the device music library on Android and iOS. It supports permission management, querying track metadata, playing music files, and copying tracks (where platform restrictions allow).
+You are an expert in Shiny.Music, a .NET library that provides a unified API for accessing the device music library on Android and iOS. It supports permission management, querying track metadata, playing music files, fetching lyrics, retrieving album artwork, and copying tracks (where platform restrictions allow).
 
 ## When to Use This Skill
 
@@ -56,10 +76,14 @@ Invoke this skill when the user wants to:
 - Filter tracks by genre, year, decade, and/or search text using `MusicFilter`
 - Cross-query: get genres within a decade, years within a genre, etc.
 - Play, pause, resume, stop, or seek within music tracks
+- Control playback volume
 - Play Apple Music subscription (DRM) tracks via `StoreId` and `MPMusicPlayerController` on iOS
 - Check for an active streaming subscription via `HasStreamingSubscriptionAsync()`
+- Fetch lyrics for a track (plain text or synced LRC format)
+- Retrieve album artwork for a track
 - Copy music files from the device library to app storage
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
+- Identify songs by listening to audio through the device microphone (iOS via ShazamKit)
 - Configure Android manifest permissions or iOS Info.plist for music access
 
 ## Library Overview
@@ -116,6 +140,13 @@ public static class MauiProgram
 ```
 
 **This key is mandatory.** The app will crash on launch without it. No special entitlements are required.
+
+For song identification via `IMusicIdentifier`, also add:
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Used to identify songs playing nearby.</string>
+```
 
 ## Core API Reference
 
@@ -205,6 +236,14 @@ Task<IReadOnlyList<MusicMetadata>> GetPlaylistTracksAsync(string playlistId);
 
 Returns all tracks in the specified playlist, in playlist order. The `playlistId` is the platform-specific identifier returned by `GetPlaylistsAsync`. On Android, queries `MediaStore.Audio.Playlists.Members`. On iOS, retrieves tracks from the `MPMediaPlaylist` with the matching persistent ID.
 
+#### GetAlbumArtPathAsync
+
+```csharp
+Task<string?> GetAlbumArtPathAsync(string trackId);
+```
+
+Returns a file path or content URI to the album artwork image for the specified track. On Android, returns the content URI for the album art from MediaStore. On iOS, exports the `MPMediaItem.Artwork` image to a cached JPEG file and returns its path. Returns `null` if no artwork is available.
+
 #### CopyTrackAsync
 
 ```csharp
@@ -262,6 +301,14 @@ void Seek(TimeSpan position);
 
 Seeks to the specified position. Android uses millisecond precision; iOS uses second precision.
 
+#### Volume
+
+```csharp
+float Volume { get; set; }
+```
+
+Gets or sets the playback volume. Value ranges from 0.0 (silent) to 1.0 (full volume). Default is 1.0. The value is automatically clamped to the valid range.
+
 #### Properties
 
 | Property | Type | Description |
@@ -270,13 +317,96 @@ Seeks to the specified position. Android uses millisecond precision; iOS uses se
 | `CurrentTrack` | `MusicMetadata?` | Currently loaded track, or `null` if stopped |
 | `Position` | `TimeSpan` | Current playback position (`TimeSpan.Zero` if no track) |
 | `Duration` | `TimeSpan` | Total duration of current track (`TimeSpan.Zero` if no track) |
+| `Volume` | `float` | Playback volume from 0.0 to 1.0 (default 1.0) |
 
 #### Events
 
 | Event | Description |
 |-------|-------------|
-| `StateChanged` | Raised on state transitions (e.g., Playing → Paused) |
+| `StateChanged` | Raised on state transitions (e.g., Playing -> Paused) |
 | `PlaybackCompleted` | Raised when a track finishes naturally (not via `Stop()`) |
+
+### IMusicIdentifier
+
+Identifies songs by listening to audio through the device microphone. On iOS, uses ShazamKit. Android does not currently have an implementation.
+
+#### ListenAsync
+
+```csharp
+Task<MusicIdentificationResult?> ListenAsync(CancellationToken cancellationToken = default);
+```
+
+Begins listening through the device microphone and attempts to identify the currently playing song. Records approximately 5 seconds of audio, generates an audio signature, and matches it against the Shazam catalog.
+
+- Automatically requests microphone permission on iOS via `AVAudioApplication.RequestRecordPermissionAsync`
+- Configures the audio session for recording and deactivates it after matching
+- Returns `null` if no match is found
+- Throws `InvalidOperationException` if microphone permission is denied
+- Throws `OperationCanceledException` if the cancellation token is triggered
+
+**Important**: Stop any active playback via `IMusicPlayer.Stop()` before calling `ListenAsync` so the microphone picks up external audio instead of the device's own output.
+
+### MusicIdentificationResult
+
+```csharp
+public record MusicIdentificationResult(
+    string Title,
+    string? Artist,
+    string? Album,
+    string? Genre,
+    string? ArtworkUrl,
+    string? MusicUrl,
+    string? Isrc
+);
+```
+
+| Property | Description |
+|----------|-------------|
+| `Title` | The title of the identified track. |
+| `Artist` | The artist or performer, or `null` if not available. |
+| `Album` | The album name, or `null` if not available. |
+| `Genre` | The genre, or `null` if not available. |
+| `ArtworkUrl` | A URL pointing to album or track artwork, or `null` if not available. |
+| `MusicUrl` | A URL to the track on a music streaming service (e.g. Apple Music on iOS), or `null` if not available. Platform-neutral name — the actual URL depends on the identification backend. |
+| `Isrc` | The International Standard Recording Code for the track, or `null` if not available. ISRC is a cross-platform standard useful for cross-referencing tracks across services. |
+
+### ILyricsProvider
+
+Provides lyrics for music tracks.
+
+#### GetLyricsAsync
+
+```csharp
+Task<LyricsResult?> GetLyricsAsync(MusicMetadata track);
+```
+
+Returns lyrics for the specified track, or `null` if no lyrics are available. The result may contain plain text lyrics, synchronized lyrics in LRC format, or both.
+
+- **Default implementation**: Uses the [LRCLIB](https://lrclib.net) service to fetch lyrics by artist name, track title, and duration. No API key required.
+- **iOS**: Also supports reading lyrics from `MPMediaItem.Lyrics` for tracks in the local library (via the `IMediaLibrary` implementation which also implements `ILyricsProvider`).
+
+### LyricsResult
+
+```csharp
+public record LyricsResult(string? PlainLyrics, string? SyncedLyrics);
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `PlainLyrics` | `string?` | Plain text (unsynchronized) lyrics, or `null` if unavailable |
+| `SyncedLyrics` | `string?` | Synchronized lyrics in LRC format with timestamps, or `null` if unavailable |
+
+#### LRC Format
+
+Synced lyrics use the standard LRC format with timestamps:
+
+```
+[00:12.00]First line of lyrics
+[00:17.50]Second line of lyrics
+[00:23.10]Third line of lyrics
+```
+
+Each line is prefixed with `[mm:ss.xx]` indicating when the line should be displayed during playback.
 
 ### MusicMetadata
 
@@ -384,11 +514,11 @@ However, if the track has a `StoreId` (Apple Music catalog ID), it **can** be pl
 
 | Track Source | ContentUri | StoreId | Playable | Copyable |
 |---|---|---|---|---|
-| iTunes purchases (DRM-free) | ✅ populated | ⚠️ may exist | ✅ (AVAudioPlayer) | ✅ |
-| Locally synced from computer | ✅ populated | ❌ | ✅ (AVAudioPlayer) | ✅ |
-| Apple Music subscription | ❌ empty | ✅ populated | ✅ (SystemMusicPlayer) | ❌ |
-| iTunes Match (cloud) | ⚠️ only if downloaded | ⚠️ may exist | ⚠️ | ⚠️ |
-| Android local files | ✅ always populated | ❌ | ✅ | ✅ |
+| iTunes purchases (DRM-free) | populated | may exist | AVAudioPlayer | yes |
+| Locally synced from computer | populated | no | AVAudioPlayer | yes |
+| Apple Music subscription | empty | populated | SystemMusicPlayer | no |
+| iTunes Match (cloud) | only if downloaded | may exist | depends | depends |
+| Android local files | always populated | no | yes | yes |
 
 ## Streaming Subscription Check
 
@@ -418,6 +548,79 @@ On Android, this always returns `false`.
 9. **Use `MusicFilter` for combined queries** — filter tracks by genre + year/decade in a single call rather than filtering in memory.
 10. **Use grouping methods with filters for cross-queries** — e.g., `GetGenresAsync(new MusicFilter { Decade = 1990 })` to find genres represented in the 90s.
 11. **Use `GetPlaylistsAsync` and `GetPlaylistTracksAsync`** — browse playlists and retrieve their contents in playlist order.
+12. **Use `GetAlbumArtPathAsync`** — retrieve album artwork as a cached file path for display in the UI.
+13. **Use `ILyricsProvider.GetLyricsAsync`** — fetch lyrics for a track. Check `SyncedLyrics` for timed LRC format, fall back to `PlainLyrics` for plain text.
+14. **Use `Volume` on `IMusicPlayer`** — control playback volume programmatically (0.0 to 1.0).
+15. **Stop playback before identifying** — call `IMusicPlayer.Stop()` before `IMusicIdentifier.ListenAsync()` so the microphone captures external audio.
+16. **`IMusicIdentifier` is iOS-only** — only registered via DI on iOS. On Android, the service is not available. Guard with platform checks or conditional DI resolution.
+17. **Add `NSMicrophoneUsageDescription`** — required in `Info.plist` for `IMusicIdentifier` to work. The library requests permission automatically, but the plist key must be present or the app will crash.
+
+## Lyrics Examples
+
+```csharp
+// Fetch lyrics for a track
+var lyrics = await _lyricsProvider.GetLyricsAsync(track);
+if (lyrics != null)
+{
+    if (!string.IsNullOrEmpty(lyrics.SyncedLyrics))
+    {
+        // Parse LRC format for synced display
+        // Format: [mm:ss.xx]Line of lyrics
+        foreach (var line in lyrics.SyncedLyrics.Split('\n'))
+            Console.WriteLine(line);
+    }
+    else if (!string.IsNullOrEmpty(lyrics.PlainLyrics))
+    {
+        // Display plain text lyrics
+        Console.WriteLine(lyrics.PlainLyrics);
+    }
+}
+```
+
+## Album Art Examples
+
+```csharp
+// Get album artwork path
+var artPath = await _library.GetAlbumArtPathAsync(track.Id);
+if (artPath != null)
+{
+    // Use as image source in MAUI
+    var imageSource = ImageSource.FromFile(artPath);
+}
+```
+
+## Song Identification Examples
+
+```csharp
+// Identify a song playing nearby (iOS only)
+var result = await _identifier.ListenAsync();
+if (result != null)
+{
+    Console.WriteLine($"{result.Title} by {result.Artist}");
+    Console.WriteLine($"Album: {result.Album}");
+    
+    if (result.ArtworkUrl != null)
+        Console.WriteLine($"Artwork: {result.ArtworkUrl}");
+    
+    if (result.MusicUrl != null)
+        await Launcher.Default.OpenAsync(new Uri(result.MusicUrl));
+}
+
+// Stop playback first, then identify
+_player.Stop();
+var identified = await _identifier.ListenAsync();
+
+// Cancel identification early
+var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+try
+{
+    var match = await _identifier.ListenAsync(cts.Token);
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Cancelled");
+}
+```
 
 ## Filtering Examples
 
