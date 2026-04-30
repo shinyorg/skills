@@ -1,7 +1,7 @@
 {
   "name": "shiny-mediator",
-  "version": "1.2.0",
-  "description": "Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams, middleware pipelines, source-generated HTTP client proxies, and project scaffolding with code generation",
+  "version": "1.3.0",
+  "description": "Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams (EventStream/WaitForSingleEvent/Subscribe), middleware pipelines (cache, resilient, sample, throttle, validate, main thread, timer refresh), source-generated HTTP client proxies, OpenAPI client generation, SSE endpoint auto-generation, AI tools integration via Microsoft.Extensions.AI, and project scaffolding with code generation",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
