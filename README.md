@@ -13,7 +13,7 @@ This marketplace is organized into **plugins**, each containing one or more **sk
 | `controls` | Shiny Controls — shared UI components for .NET MAUI and Blazor: TableView (14 cell types), FloatingPanel/OverlayHost (bottom/top sheets with detents), ChatView, ImageViewer with zoom, ImageEditor (crop/rotate/draw/text), AutoCompleteEntry, CountryPicker, AddressEntry with geocoding, PillView badges, SecurityPin, Fab/FabMenu, Scheduler/calendar views, Markdown renderer and editor, and haptic feedback | `shiny-controls` |
 | `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams, middleware pipelines, source-generated HTTP client proxies, and project scaffolding with code generation | `shiny-mediator` |
 | `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, MySQL, SQL Server, PostgreSQL) with LINQ queries, and Spatial geospatial database with SQLite R*Tree indexing and custom geometry algorithms | `shiny-documentdb`, `shiny-spatial` |
-| `shiny-aspire` | Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire` |
+| `shiny-aspire` | Shiny .NET Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing | `shiny-aspire-orleans` |
 | `shiny-extensions` | Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM), AOT-compliant reflection via source generation, strongly-typed .resx localization generator, modular MAUI hosting with IMauiModule, and modular ASP.NET Core web hosting with IWebModule | `localizegen`, `shiny-di`, `shiny-maui-hosting`, `shiny-reflector`, `shiny-stores`, `shiny-web-hosting` |
 
 ## Installation
@@ -44,26 +44,17 @@ You can also add plugins manually in your project's `.claude/settings.json`:
 }
 ```
 
-### GitHub Copilot CLI
+### GitHub Copilot
 
-GitHub Copilot does not have a native plugin/marketplace system, so you reference skill files directly as custom instructions.
+GitHub Copilot supports **Agent Skills** directly. The skill directories in this repository now use Copilot-compatible `SKILL.md` front matter, so you can reuse them as standard skills instead of pasting them into custom instructions.
 
-**Option 1: VS Code settings**
+**Option 1: Copy the skill directories into your project**
 
-Add file references to the skills you need in your VS Code `settings.json`:
+Copy the skill folders you want into `.github/skills/`, `.agents/skills/`, or another standard Agent Skills location. Keep the folder name the same as the `name` in `SKILL.md`.
 
-```json
-{
-  "github.copilot.chat.codeGeneration.instructions": [
-    { "file": "/path/to/skills/plugins/shiny-client/skills/shiny-bluetoothle/SKILL.md" },
-    { "file": "/path/to/skills/plugins/shiny-mediator/skills/shiny-mediator/SKILL.md" }
-  ]
-}
-```
+**Option 2: Point Copilot at this repository's skill folders**
 
-**Option 2: Workspace instructions**
-
-Create a `.github/copilot-instructions.md` file in your repository and paste the relevant skill content from the `plugins/<plugin>/skills/<skill>/SKILL.md` files.
+Configure additional skill locations with `chat.agentSkillsLocations` and point it at one or more `plugins/<plugin>/skills/` directories from this repository.
 
 ## Repository Layout
 
@@ -76,7 +67,7 @@ plugins/
       plugin.json           # Plugin manifest — metadata, keywords, skill path
     skills/
       <skill-name>/
-        SKILL.md             # Skill definition — triggers, guidance, code gen rules
+        SKILL.md             # Agent skill definition — metadata, guidance, code gen rules
         reference/           # API reference docs and additional context
 ```
 

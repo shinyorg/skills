@@ -1,41 +1,41 @@
 ---
 name: shiny-aspire-orleans
 description: Generate code using Shiny Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing
-auto_invoke: true
-triggers:
-  - aspire orleans
-  - orleans aspire
-  - WithDatabaseSetup
-  - UseAdoNet
-  - UseAdoNetClient
-  - orleans database setup
-  - orleans schema
-  - orleans clustering
-  - orleans grain storage
-  - orleans reminders
-  - OrleansFeature
-  - Shiny.Aspire.Orleans
-  - aspire orleans hosting
-  - aspire orleans server
-  - aspire orleans client
-  - orleans adonet
-  - orleans ado.net
-  - gluetun
-  - gluetun vpn
-  - AddGluetun
-  - WithRoutedContainer
-  - WithVpnProvider
-  - WithWireGuard
-  - WithOpenVpn
-  - vpn container
-  - aspire vpn
-  - Shiny.Aspire.Hosting.Gluetun
-  - GluetunResource
-  - network_mode
-  - vpn routing
 ---
 
 # Shiny Aspire Skill
+
+## Triggers
+- aspire orleans
+- orleans aspire
+- WithDatabaseSetup
+- UseAdoNet
+- UseAdoNetClient
+- orleans database setup
+- orleans schema
+- orleans clustering
+- orleans grain storage
+- orleans reminders
+- OrleansFeature
+- Shiny.Aspire.Orleans
+- aspire orleans hosting
+- aspire orleans server
+- aspire orleans client
+- orleans adonet
+- orleans ado.net
+- gluetun
+- gluetun vpn
+- AddGluetun
+- WithRoutedContainer
+- WithVpnProvider
+- WithWireGuard
+- WithOpenVpn
+- vpn container
+- aspire vpn
+- Shiny.Aspire.Hosting.Gluetun
+- GluetunResource
+- network_mode
+- vpn routing
 
 You are an expert in Shiny's .NET Aspire integrations:
 

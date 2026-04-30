@@ -1,24 +1,24 @@
 ---
 name: shiny-jobs
 description: Background job scheduling and execution for .NET MAUI, iOS, and Android using Shiny.Jobs
-auto_invoke: true
-triggers:
-  - background job
-  - job manager
-  - scheduled job
-  - periodic job
-  - background task
-  - job registration
-  - IJobManager
-  - IJob
-  - JobInfo
-  - Shiny.Jobs
-  - foreground job
-  - job constraints
-  - job scheduling
 ---
 
 # Shiny Jobs
+
+## Triggers
+- background job
+- job manager
+- scheduled job
+- periodic job
+- background task
+- job registration
+- IJobManager
+- IJob
+- JobInfo
+- Shiny.Jobs
+- foreground job
+- job constraints
+- job scheduling
 
 Shiny.Jobs provides cross-platform background job scheduling and execution for .NET MAUI applications targeting iOS and Android. Jobs run periodically in the background with support for constraints such as network availability, charging status, and battery level.
 

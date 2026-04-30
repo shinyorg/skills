@@ -1,16 +1,16 @@
 ---
 name: shiny-web-hosting
 description: Generate and configure Shiny Web Hosting for .NET - modular ASP.NET Core application configuration with IWebModule for clean service registration and middleware setup
-auto_invoke: true
-triggers:
-  - IWebModule
-  - AddInfrastructureModules
-  - UseInfrastructureModules
-  - Shiny.Extensions.WebHosting
-  - WebExtensions
 ---
 
 # Shiny Web Hosting Skill
+
+## Triggers
+- IWebModule
+- AddInfrastructureModules
+- UseInfrastructureModules
+- Shiny.Extensions.WebHosting
+- WebExtensions
 
 You are an expert in Shiny Extensions Web Hosting, a .NET library providing modular ASP.NET Core application configuration via `IWebModule`.
 

@@ -91,6 +91,9 @@ public sealed class SkillService
             }
         }
 
+        if (triggers.Count == 0)
+            triggers = ExtractMarkdownListSection(content, "Triggers", "Keywords");
+
         return new SkillInfo
         {
             Name = name,
@@ -99,5 +102,40 @@ public sealed class SkillService
             Content = content,
             References = []
         };
+    }
+
+    private static List<string> ExtractMarkdownListSection(string content, params string[] sectionNames)
+    {
+        var results = new List<string>();
+        var inSection = false;
+
+        foreach (var line in content.Split('\n'))
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith('#'))
+            {
+                var heading = trimmed.TrimStart('#').Trim();
+                if (inSection)
+                    break;
+
+                inSection = sectionNames.Any(x => heading.Equals(x, StringComparison.OrdinalIgnoreCase));
+                continue;
+            }
+
+            if (!inSection)
+                continue;
+
+            if (trimmed.StartsWith("- "))
+            {
+                results.Add(trimmed[2..].Trim());
+                continue;
+            }
+
+            if (results.Count > 0 && !String.IsNullOrWhiteSpace(trimmed))
+                break;
+        }
+
+        return results;
     }
 }

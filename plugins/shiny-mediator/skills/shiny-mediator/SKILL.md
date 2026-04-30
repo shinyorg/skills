@@ -1,41 +1,41 @@
 ---
 name: shiny-mediator
 description: Generate Shiny Mediator handlers, contracts, middleware, and scaffold projects for .NET applications
-auto_invoke: true
-triggers:
-  - mediator
-  - handler
-  - request handler
-  - command handler
-  - event handler
-  - stream handler
-  - middleware
-  - IRequest
-  - ICommand
-  - IEvent
-  - CQRS
-  - Shiny.Mediator
-  - server sent events
-  - SSE
-  - EventStream
-  - WaitForSingleEvent
-  - IAsyncEnumerable
-  - IStreamRequest
-  - IServerSentEventsStream
-  - OpenAPI
-  - HTTP client
-  - MediatorHttp
-  - swagger
-  - contract-first
-  - strongly typed HTTP
-  - AI tools
-  - AITool
-  - Microsoft.Extensions.AI
-  - AddGeneratedAITools
-  - ShinyMediatorGenerateAITools
 ---
 
 # Shiny Mediator Skill
+
+## Triggers
+- mediator
+- handler
+- request handler
+- command handler
+- event handler
+- stream handler
+- middleware
+- IRequest
+- ICommand
+- IEvent
+- CQRS
+- Shiny.Mediator
+- server sent events
+- SSE
+- EventStream
+- WaitForSingleEvent
+- IAsyncEnumerable
+- IStreamRequest
+- IServerSentEventsStream
+- OpenAPI
+- HTTP client
+- MediatorHttp
+- swagger
+- contract-first
+- strongly typed HTTP
+- AI tools
+- AITool
+- Microsoft.Extensions.AI
+- AddGeneratedAITools
+- ShinyMediatorGenerateAITools
 
 You are an expert in Shiny Mediator, a mediator pattern library for .NET applications.
 

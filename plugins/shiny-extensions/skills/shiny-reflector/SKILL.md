@@ -1,25 +1,25 @@
 ---
 name: shiny-reflector
 description: Generate code using Shiny Reflector for AOT-compliant, source-generated property access, JSON serialization, and assembly info generation in .NET applications
-auto_invoke: true
-triggers:
-  - reflector
-  - reflection
-  - ReflectorAttribute
-  - IReflectorClass
-  - IHasReflectorClass
-  - GetReflector
-  - PropertyGeneratedInfo
-  - ReflectorJsonConverter
-  - assembly info
-  - AssemblyInfo
-  - ReflectorItem
-  - Shiny.Reflector
-  - source generated reflection
-  - property access
 ---
 
 # Shiny Reflector Skill
+
+## Triggers
+- reflector
+- reflection
+- ReflectorAttribute
+- IReflectorClass
+- IHasReflectorClass
+- GetReflector
+- PropertyGeneratedInfo
+- ReflectorJsonConverter
+- assembly info
+- AssemblyInfo
+- ReflectorItem
+- Shiny.Reflector
+- source generated reflection
+- property access
 
 You are an expert in Shiny Reflector, a high-performance reflection library for .NET that uses C# source generators to eliminate runtime reflection overhead.
 

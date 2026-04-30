@@ -1,63 +1,63 @@
 ---
 name: shiny-health
 description: Generate cross-platform health data queries, write health data, and observe real-time health changes using Shiny Health for Apple HealthKit and Android Health Connect
-auto_invoke: true
-triggers:
-  - health data
-  - health kit
-  - healthkit
-  - health connect
-  - step count
-  - heart rate
-  - calories
-  - distance
-  - weight
-  - height
-  - body fat
-  - blood pressure
-  - oxygen saturation
-  - sleep duration
-  - hydration
-  - resting heart rate
-  - health metrics
-  - health permissions
-  - IHealthService
-  - DataType
-  - NumericHealthResult
-  - BloodPressureResult
-  - HealthResult
-  - GetStepCounts
-  - GetCalories
-  - GetDistances
-  - GetAverageHeartRate
-  - GetWeight
-  - GetHeight
-  - GetBodyFatPercentage
-  - GetRestingHeartRate
-  - GetBloodPressure
-  - GetOxygenSaturation
-  - GetSleepDuration
-  - GetHydration
-  - RequestPermissions
-  - PermissionType
-  - write health
-  - write steps
-  - write weight
-  - write calories
-  - log health
-  - save health
-  - record health
-  - Observe
-  - observe health
-  - monitor health
-  - watch health
-  - real-time health
-  - health changes
-  - AddHealthIntegration
-  - Shiny.Health
 ---
 
 # Shiny Health Skill
+
+## Triggers
+- health data
+- health kit
+- healthkit
+- health connect
+- step count
+- heart rate
+- calories
+- distance
+- weight
+- height
+- body fat
+- blood pressure
+- oxygen saturation
+- sleep duration
+- hydration
+- resting heart rate
+- health metrics
+- health permissions
+- IHealthService
+- DataType
+- NumericHealthResult
+- BloodPressureResult
+- HealthResult
+- GetStepCounts
+- GetCalories
+- GetDistances
+- GetAverageHeartRate
+- GetWeight
+- GetHeight
+- GetBodyFatPercentage
+- GetRestingHeartRate
+- GetBloodPressure
+- GetOxygenSaturation
+- GetSleepDuration
+- GetHydration
+- RequestPermissions
+- PermissionType
+- write health
+- write steps
+- write weight
+- write calories
+- log health
+- save health
+- record health
+- Observe
+- observe health
+- monitor health
+- watch health
+- real-time health
+- health changes
+- AddHealthIntegration
+- Shiny.Health
 
 You are an expert in Shiny Health, a .NET MAUI library that provides a unified API for reading and writing health data from Apple HealthKit (iOS) and Android Health Connect.
 

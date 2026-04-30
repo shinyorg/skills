@@ -1,6 +1,6 @@
 {
   "name": "shiny-client",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting), GPS tracking, geofencing (native + GPS-direct), background jobs, local & push notifications (APNs/FCM/Firebase Messaging/Azure), HTTP background transfers (with Azure Blob Storage uploads), OBD-II vehicle diagnostics (ELM327/OBDLink auto-detection, custom commands, pluggable transports), music library access (ShazamKit identification, custom playlists, play counts, synced lyrics, Apple Music streaming), health data (HealthKit/Health Connect) with read/write and real-time observation, and core infrastructure with DI, lifecycle hooks, and native hosting",
   "author": {
     "name": "Allan Ritchie",

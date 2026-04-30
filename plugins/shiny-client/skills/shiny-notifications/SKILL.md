@@ -1,27 +1,27 @@
 ---
 name: shiny-notifications
 description: Cross-platform local notification management for .NET MAUI apps using Shiny, supporting scheduled, repeating, and geofence-triggered notifications with channels, badges, and interactive actions.
-auto_invoke: true
-triggers:
-  - local notifications
-  - notification manager
-  - notification channel
-  - notification delegate
-  - push notification
-  - scheduled notification
-  - geofence notification
-  - repeating notification
-  - badge count
-  - notification actions
-  - Shiny.Notifications
-  - INotificationManager
-  - INotificationDelegate
-  - notification permission
-  - notification sound
-  - channel importance
 ---
 
 # Shiny Notifications
+
+## Triggers
+- local notifications
+- notification manager
+- notification channel
+- notification delegate
+- push notification
+- scheduled notification
+- geofence notification
+- repeating notification
+- badge count
+- notification actions
+- Shiny.Notifications
+- INotificationManager
+- INotificationDelegate
+- notification permission
+- notification sound
+- channel importance
 
 ## When to Use This Skill
 

@@ -1,56 +1,56 @@
---
+---
 name: shiny-documentdb
 description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, MySQL, SQL Server, and PostgreSQL with LINQ queries and AOT support
-auto_invoke: true
-triggers:
-  - document store
-  - document db
-  - DocumentStore
-  - SqliteDocumentStore
-  - IDocumentStore
-  - IDocumentQuery
-  - IDatabaseProvider
-  - json document
-  - schema-free
-  - sqlite document
-  - document database
-  - json store
-  - Shiny.DocumentDb
-  - Shiny.DocumentDb
-  - SqliteDatabaseProvider
-  - SqlCipherDatabaseProvider
-  - SqlCipherDocumentStore
-  - AddSqlCipherDocumentStore
-  - sqlcipher
-  - encrypted sqlite
-  - MySqlDatabaseProvider
-  - SqlServerDatabaseProvider
-  - PostgreSqlDatabaseProvider
-  - json_extract
-  - document query
-  - fluent query
-  - paginate
-  - MapTypeToTable
-  - table per type
-  - GetDiff
-  - JsonPatchDocument
-  - document diff
-  - BatchInsert
-  - batch insert
-  - AddDocumentStore
-  - Shiny.DocumentDb.Extensions.DependencyInjection
-  - Shiny.DocumentDb.Extensions.AI
-  - DocumentStoreAITools
-  - DocumentAICapabilities
-  - AddDocumentStoreAITools
-  - IDocumentAIToolBuilder
-  - AI tool
-  - ai tools
-  - LLM tool
-  - function calling
 ---
 
 # Shiny DocumentDb Skill
+
+## Triggers
+- document store
+- document db
+- DocumentStore
+- SqliteDocumentStore
+- IDocumentStore
+- IDocumentQuery
+- IDatabaseProvider
+- json document
+- schema-free
+- sqlite document
+- document database
+- json store
+- Shiny.DocumentDb
+- Shiny.DocumentDb
+- SqliteDatabaseProvider
+- SqlCipherDatabaseProvider
+- SqlCipherDocumentStore
+- AddSqlCipherDocumentStore
+- sqlcipher
+- encrypted sqlite
+- MySqlDatabaseProvider
+- SqlServerDatabaseProvider
+- PostgreSqlDatabaseProvider
+- json_extract
+- document query
+- fluent query
+- paginate
+- MapTypeToTable
+- table per type
+- GetDiff
+- JsonPatchDocument
+- document diff
+- BatchInsert
+- batch insert
+- AddDocumentStore
+- Shiny.DocumentDb.Extensions.DependencyInjection
+- Shiny.DocumentDb.Extensions.AI
+- DocumentStoreAITools
+- DocumentAICapabilities
+- AddDocumentStoreAITools
+- IDocumentAIToolBuilder
+- AI tool
+- ai tools
+- LLM tool
+- function calling
 
 You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **MySQL**, **SQL Server**, and **PostgreSQL**.
 

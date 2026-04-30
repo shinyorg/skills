@@ -1,20 +1,20 @@
 ---
 name: shiny-di
 description: Generate and configure Shiny DI for .NET - attribute-driven service registration with source generators, keyed services, categories, and multi-interface support
-auto_invoke: true
-triggers:
-  - ServiceAttribute
-  - SingletonAttribute
-  - ScopedAttribute
-  - TransientAttribute
-  - AddShinyServiceRegistry
-  - AddGeneratedServices
-  - AddSingletonAsImplementedInterfaces
-  - AddScopedAsImplementedInterfaces
-  - Shiny.Extensions.DependencyInjection
 ---
 
 # Shiny Dependency Injection Skill
+
+## Triggers
+- ServiceAttribute
+- SingletonAttribute
+- ScopedAttribute
+- TransientAttribute
+- AddShinyServiceRegistry
+- AddGeneratedServices
+- AddSingletonAsImplementedInterfaces
+- AddScopedAsImplementedInterfaces
+- Shiny.Extensions.DependencyInjection
 
 You are an expert in Shiny Extensions Dependency Injection, a .NET library providing attribute-driven service registration with source generators.
 

@@ -1,32 +1,32 @@
 ---
 name: shiny-locations
 description: GPS tracking and geofence monitoring for .NET MAUI, iOS, and Android using Shiny.Locations
-auto_invoke: true
-triggers:
-  - gps
-  - geofence
-  - geofencing
-  - location
-  - position
-  - coordinates
-  - latitude
-  - longitude
-  - distance
-  - tracking
-  - background location
-  - foreground location
-  - GPS delegate
-  - geofence delegate
-  - GpsReading
-  - GpsRequest
-  - GeofenceRegion
-  - IGpsManager
-  - IGeofenceManager
-  - AddGps
-  - AddGeofencing
 ---
 
 # Shiny Locations
+
+## Triggers
+- gps
+- geofence
+- geofencing
+- location
+- position
+- coordinates
+- latitude
+- longitude
+- distance
+- tracking
+- background location
+- foreground location
+- GPS delegate
+- geofence delegate
+- GpsReading
+- GpsRequest
+- GeofenceRegion
+- IGpsManager
+- IGeofenceManager
+- AddGps
+- AddGeofencing
 
 GPS tracking and geofence monitoring for .NET MAUI, iOS, and Android applications with full foreground and background support.
 

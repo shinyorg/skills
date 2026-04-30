@@ -1,85 +1,85 @@
---
+---
 name: shiny-music
 description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android and iOS with permissions, metadata querying, filtering, playback, lyrics, album art, and file copy
-auto_invoke: true
-triggers:
-  - music library
-  - music player
-  - device music
-  - IMediaLibrary
-  - IMusicPlayer
-  - ILyricsProvider
-  - LyricsResult
-  - MusicMetadata
-  - MusicFilter
-  - GroupedCount
-  - PlaylistInfo
-  - media library
-  - music permission
-  - music playback
-  - play music
-  - copy track
-  - audio library
-  - MediaStore audio
-  - MPMediaQuery
-  - music genre
-  - genre query
-  - music year
-  - music decade
-  - year query
-  - decade query
-  - filter tracks
-  - playlist
-  - playlists
-  - GetGenresAsync
-  - GetYearsAsync
-  - GetDecadesAsync
-  - GetTracksAsync
-  - GetPlaylistsAsync
-  - GetPlaylistTracksAsync
-  - GetAlbumArtPathAsync
-  - GetLyricsAsync
-  - album art
-  - album artwork
-  - lyrics
-  - synced lyrics
-  - LRC
-  - LRCLIB
-  - volume
-  - Shiny.Music
-  - music metadata
-  - READ_MEDIA_AUDIO
-  - NSAppleMusicUsageDescription
-  - IMusicIdentifier
-  - MusicIdentificationResult
-  - song identification
-  - identify song
-  - ShazamKit
-  - shazam
-  - music recognition
-  - listen identify
-  - NSMicrophoneUsageDescription
-  - IMusicManager
-  - music manager
-  - custom playlist
-  - custom playlists
-  - play count
-  - play counts
-  - AddPlayCount
-  - GetPlayCount
-  - GetAllPlayCounts
-  - GetAllPlaylists
-  - CreatePlaylist
-  - RemovePlaylist
-  - AddTrackToPlaylist
-  - PlayCountDoc
-  - PlaylistDoc
-  - Shiny.Music.Sqlite
-  - AddMusicManagementSqlite
-  - DocumentDb music
 ---
 
 # Shiny Music Skill
+
+## Triggers
+- music library
+- music player
+- device music
+- IMediaLibrary
+- IMusicPlayer
+- ILyricsProvider
+- LyricsResult
+- MusicMetadata
+- MusicFilter
+- GroupedCount
+- PlaylistInfo
+- media library
+- music permission
+- music playback
+- play music
+- copy track
+- audio library
+- MediaStore audio
+- MPMediaQuery
+- music genre
+- genre query
+- music year
+- music decade
+- year query
+- decade query
+- filter tracks
+- playlist
+- playlists
+- GetGenresAsync
+- GetYearsAsync
+- GetDecadesAsync
+- GetTracksAsync
+- GetPlaylistsAsync
+- GetPlaylistTracksAsync
+- GetAlbumArtPathAsync
+- GetLyricsAsync
+- album art
+- album artwork
+- lyrics
+- synced lyrics
+- LRC
+- LRCLIB
+- volume
+- Shiny.Music
+- music metadata
+- READ_MEDIA_AUDIO
+- NSAppleMusicUsageDescription
+- IMusicIdentifier
+- MusicIdentificationResult
+- song identification
+- identify song
+- ShazamKit
+- shazam
+- music recognition
+- listen identify
+- NSMicrophoneUsageDescription
+- IMusicManager
+- music manager
+- custom playlist
+- custom playlists
+- play count
+- play counts
+- AddPlayCount
+- GetPlayCount
+- GetAllPlayCounts
+- GetAllPlaylists
+- CreatePlaylist
+- RemovePlaylist
+- AddTrackToPlaylist
+- PlayCountDoc
+- PlaylistDoc
+- Shiny.Music.Sqlite
+- AddMusicManagementSqlite
+- DocumentDb music
 
 You are an expert in Shiny.Music, a .NET library that provides a unified API for accessing the device music library on Android and iOS. It supports permission management, querying track metadata, playing music files, fetching lyrics, retrieving album artwork, and copying tracks (where platform restrictions allow).
 

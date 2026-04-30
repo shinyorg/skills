@@ -1,117 +1,117 @@
 ---
 name: shiny-controls
 description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, TextToSpeechButton for speaking text aloud with cancel/resume, and haptic feedback support across all interactive controls
-auto_invoke: true
-triggers:
-  - tableview
-  - table view
-  - settings page
-  - settings view
-  - settingsview
-  - sheet view
-  - sheetview
-  - bottom sheet
-  - bottomsheet
-  - floating panel
-  - floatingpanel
-  - overlay host
-  - overlayhost
-  - shiny content page
-  - shinycontentpage
-  - pill
-  - badge
-  - status badge
-  - scheduler
-  - calendar
-  - agenda
-  - event list
-  - calendar view
-  - timeline
-  - image viewer
-  - imageviewer
-  - image zoom
-  - pinch to zoom
-  - photo viewer
-  - image editor
-  - imageeditor
-  - image editing
-  - crop image
-  - draw on image
-  - annotate image
-  - image annotation
-  - photo editor
-  - markdown
-  - markdown view
-  - markdown editor
-  - markdown preview
-  - rich text
-  - security pin
-  - securitypin
-  - pin code
-  - pin entry
-  - otp
-  - one time password
-  - pin control
-  - fab
-  - floating action button
-  - floating button
-  - fab menu
-  - fabmenu
-  - speed dial
-  - action menu
-  - action button
-  - shiny blazor controls
-  - blazor tableview
-  - blazor sheetview
-  - blazor bottomsheet
-  - blazor floating panel
-  - blazor fab
-  - blazor pillview
-  - blazor imageviewer
-  - blazor imageeditor
-  - blazor securitypin
-  - blazor scheduler
-  - blazor markdown
-  - blazor mermaid
-  - autocomplete
-  - auto complete
-  - autocompleteentry
-  - auto complete entry
-  - search input
-  - typeahead
-  - type ahead
-  - country picker
-  - countrypicker
-  - country selector
-  - country search
-  - address entry
-  - addressentry
-  - address search
-  - address lookup
-  - geocoding
-  - geocode
-  - blazor autocomplete
-  - blazor country picker
-  - blazor address entry
-  - chat
-  - chatview
-  - chat view
-  - chat bubbles
-  - messaging
-  - chat control
-  - typing indicator
-  - blazor chatview
-  - text to speech
-  - texttospeech
-  - texttospeechbutton
-  - tts button
-  - tts
-  - speak text
-  - speech button
-  - blazor texttospeech
 ---
 
 # Shiny Controls Skill
+
+## Triggers
+- tableview
+- table view
+- settings page
+- settings view
+- settingsview
+- sheet view
+- sheetview
+- bottom sheet
+- bottomsheet
+- floating panel
+- floatingpanel
+- overlay host
+- overlayhost
+- shiny content page
+- shinycontentpage
+- pill
+- badge
+- status badge
+- scheduler
+- calendar
+- agenda
+- event list
+- calendar view
+- timeline
+- image viewer
+- imageviewer
+- image zoom
+- pinch to zoom
+- photo viewer
+- image editor
+- imageeditor
+- image editing
+- crop image
+- draw on image
+- annotate image
+- image annotation
+- photo editor
+- markdown
+- markdown view
+- markdown editor
+- markdown preview
+- rich text
+- security pin
+- securitypin
+- pin code
+- pin entry
+- otp
+- one time password
+- pin control
+- fab
+- floating action button
+- floating button
+- fab menu
+- fabmenu
+- speed dial
+- action menu
+- action button
+- shiny blazor controls
+- blazor tableview
+- blazor sheetview
+- blazor bottomsheet
+- blazor floating panel
+- blazor fab
+- blazor pillview
+- blazor imageviewer
+- blazor imageeditor
+- blazor securitypin
+- blazor scheduler
+- blazor markdown
+- blazor mermaid
+- autocomplete
+- auto complete
+- autocompleteentry
+- auto complete entry
+- search input
+- typeahead
+- type ahead
+- country picker
+- countrypicker
+- country selector
+- country search
+- address entry
+- addressentry
+- address search
+- address lookup
+- geocoding
+- geocode
+- blazor autocomplete
+- blazor country picker
+- blazor address entry
+- chat
+- chatview
+- chat view
+- chat bubbles
+- messaging
+- chat control
+- typing indicator
+- blazor chatview
+- text to speech
+- texttospeech
+- texttospeechbutton
+- tts button
+- tts
+- speak text
+- speech button
+- blazor texttospeech
 
 You are an expert in the Shiny Controls library, which ships a single shared control surface across two hosts:
 - **.NET MAUI** — `Shiny.Maui.Controls` (plus `Shiny.Maui.Controls.Markdown`, `Shiny.Maui.Controls.MermaidDiagrams`)

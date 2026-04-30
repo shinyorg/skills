@@ -1,72 +1,72 @@
 ---
 name: shiny-maui-shell
 description: Generate .NET MAUI Shell pages, ViewModels, navigation, and source-generated routes using Shiny MAUI Shell
-auto_invoke: true
-triggers:
-  - maui shell
-  - shell navigation
-  - xaml navigation
-  - attached navigation
-  - tab badge
-  - badge
-  - shell switch
-  - switch shell
-  - maui navigation
-  - maui page
-  - maui viewmodel
-  - INavigator
-  - IDialogs
-  - ShellMap
-  - ShellProperty
-  - UseShinyShell
-  - UseDialogs
-  - ShinyShell
-  - ShellServices
-  - ShinyAppBuilder
-  - IMainThread
-  - Shiny.Maui.Shell
-  - IPageLifecycleAware
-  - INavigationConfirmation
-  - INavigationAware
-  - NavigateTo
-  - GoBack
-  - PopToRoot
-  - SetRoot
-  - SetTabBadge
-  - ClearTabBadge
-  - SwitchShell
-  - CreateBuilder
-  - INavigationBuilder
-  - NavigationBuilder
-  - Navigating
-  - Navigated
-  - IDialogs
-  - Alert
-  - Confirm
-  - Prompt
-  - ActionSheet
-  - NavigationEventArgs
-  - NavigatedEventArgs
-  - Navigate.Route
-  - Navigate.RelativeNavigation
-  - Navigate.ParameterKey
-  - Navigate.ParameterValue
-  - Navigate.Parameters
-  - NavigationParameters
-  - NavigationParameter
-  - GetGeneratedRouteInfo
-  - GetAiToolApplicableGeneratedRoutes
-  - NavigateToRoute
-  - GeneratedRouteInfo
-  - GeneratedRouteParameter
-  - AI navigation
-  - AI tool
-  - chat navigation
-  - AiMauiShellTools
-  - AddAiTools
 ---
 
 # Shiny MAUI Shell Skill
+
+## Triggers
+- maui shell
+- shell navigation
+- xaml navigation
+- attached navigation
+- tab badge
+- badge
+- shell switch
+- switch shell
+- maui navigation
+- maui page
+- maui viewmodel
+- INavigator
+- IDialogs
+- ShellMap
+- ShellProperty
+- UseShinyShell
+- UseDialogs
+- ShinyShell
+- ShellServices
+- ShinyAppBuilder
+- IMainThread
+- Shiny.Maui.Shell
+- IPageLifecycleAware
+- INavigationConfirmation
+- INavigationAware
+- NavigateTo
+- GoBack
+- PopToRoot
+- SetRoot
+- SetTabBadge
+- ClearTabBadge
+- SwitchShell
+- CreateBuilder
+- INavigationBuilder
+- NavigationBuilder
+- Navigating
+- Navigated
+- IDialogs
+- Alert
+- Confirm
+- Prompt
+- ActionSheet
+- NavigationEventArgs
+- NavigatedEventArgs
+- Navigate.Route
+- Navigate.RelativeNavigation
+- Navigate.ParameterKey
+- Navigate.ParameterValue
+- Navigate.Parameters
+- NavigationParameters
+- NavigationParameter
+- GetGeneratedRouteInfo
+- GetAiToolApplicableGeneratedRoutes
+- NavigateToRoute
+- GeneratedRouteInfo
+- GeneratedRouteParameter
+- AI navigation
+- AI tool
+- chat navigation
+- AiMauiShellTools
+- AddAiTools
 
 You are an expert in Shiny MAUI Shell, a library that enhances .NET MAUI Shell with ViewModel lifecycle management, navigation services, source generation, tab badges, and XAML-triggered navigation.
 

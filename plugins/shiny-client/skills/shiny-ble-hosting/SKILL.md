@@ -1,51 +1,51 @@
 ---
 name: shiny-ble-hosting
 description: Generate code using Shiny.BluetoothLE.Hosting, a BLE peripheral hosting library for .NET with GATT server, advertising, and managed characteristic patterns
-auto_invoke: true
-triggers:
-  - ble hosting
-  - ble peripheral
-  - ble advertise
-  - ble advertising
-  - gatt server
-  - gatt service
-  - gatt characteristic
-  - ble host
-  - bluetooth hosting
-  - bluetooth peripheral
-  - bluetooth advertise
-  - IBleHostingManager
-  - IGattService
-  - IGattServiceBuilder
-  - IGattCharacteristic
-  - IGattCharacteristicBuilder
-  - BleGattCharacteristic
-  - BleGattCharacteristicAttribute
-  - AddBluetoothLeHosting
-  - AddBleHostedCharacteristic
-  - StartAdvertising
-  - StopAdvertising
-  - AdvertiseBeacon
-  - AdvertisementOptions
-  - CharacteristicSubscription
-  - GattResult
-  - GattState
-  - WriteRequest
-  - ReadRequest
-  - WriteOptions
-  - NotificationOptions
-  - IPeripheral
-  - Shiny.BluetoothLE.Hosting
-  - AttachRegisteredServices
-  - DetachRegisteredServices
-  - ibeacon advertise
-  - ble notify
-  - ble indicate
-  - ble read characteristic
-  - ble write characteristic
 ---
 
 # Shiny.BluetoothLE.Hosting Skill
+
+## Triggers
+- ble hosting
+- ble peripheral
+- ble advertise
+- ble advertising
+- gatt server
+- gatt service
+- gatt characteristic
+- ble host
+- bluetooth hosting
+- bluetooth peripheral
+- bluetooth advertise
+- IBleHostingManager
+- IGattService
+- IGattServiceBuilder
+- IGattCharacteristic
+- IGattCharacteristicBuilder
+- BleGattCharacteristic
+- BleGattCharacteristicAttribute
+- AddBluetoothLeHosting
+- AddBleHostedCharacteristic
+- StartAdvertising
+- StopAdvertising
+- AdvertiseBeacon
+- AdvertisementOptions
+- CharacteristicSubscription
+- GattResult
+- GattState
+- WriteRequest
+- ReadRequest
+- WriteOptions
+- NotificationOptions
+- IPeripheral
+- Shiny.BluetoothLE.Hosting
+- AttachRegisteredServices
+- DetachRegisteredServices
+- ibeacon advertise
+- ble notify
+- ble indicate
+- ble read characteristic
+- ble write characteristic
 
 You are an expert in Shiny.BluetoothLE.Hosting, a .NET library for turning a mobile device into a BLE peripheral. It provides a GATT server, BLE advertising, iBeacon broadcasting, and a managed characteristic pattern using dependency injection and attribute-based registration.
 
