@@ -149,16 +149,38 @@ Opens native date picker dialog on tap.
 | `ValueTextColor` | `Color?` | `null` |
 
 ### TimePickerCell
-Opens native time picker dialog on tap.
+Opens native time picker dialog on tap. Supports 24-hour mode and minute intervals (iOS natively, other platforms snap to nearest interval).
 
 ```xml
-<shiny:TimePickerCell Title="Alarm" Time="{Binding AlarmTime, Mode=TwoWay}" Format="T" />
+<shiny:TimePickerCell Title="Alarm" Time="{Binding AlarmTime, Mode=TwoWay}" Format="T"
+                      Use24Hour="True" MinuteInterval="15" />
 ```
 
 | Property | Type | Default |
 |---|---|---|
 | `Time` | `TimeSpan` | `00:00:00` |
 | `Format` | `string` | `"t"` |
+| `Use24Hour` | `bool` | `false` |
+| `MinuteInterval` | `int` | `1` |
+| `ValueTextColor` | `Color?` | `null` |
+
+### DurationPickerCell
+Opens hour/minute pickers with hr/min labels in a FloatingPanel on tap. Requires `ShinyContentPage`.
+
+```xml
+<shiny:DurationPickerCell Title="Duration" Duration="{Binding Duration, Mode=TwoWay}"
+                          MinDuration="0:15:00" MaxDuration="4:00:00" />
+```
+
+| Property | Type | Default |
+|---|---|---|
+| `Duration` | `TimeSpan?` | `null` |
+| `MinDuration` | `TimeSpan` | `0:00:00` |
+| `MaxDuration` | `TimeSpan` | `24:00:00` |
+| `MinuteInterval` | `int` | `5` |
+| `Format` | `string` | `@"h\:mm"` |
+| `PickerTitle` | `string` | `"Select Duration"` |
+| `SelectedCommand` | `ICommand?` | `null` |
 | `ValueTextColor` | `Color?` | `null` |
 
 ### TextPickerCell
