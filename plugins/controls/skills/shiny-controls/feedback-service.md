@@ -18,22 +18,22 @@ builder.UseShinyControls(cfg =>
 ```csharp
 public interface IFeedbackService
 {
-    void OnRequested(Type controlType, string eventName, string? details = null);
+    void OnRequested(object control, string eventName, object? args = null);
 }
 ```
 
-- `controlType`: The control's `Type` (e.g. `typeof(ChatView)`)
+- `control`: The actual control instance (e.g. the `ChatView`, `SecurityPin`, `Button`, etc.) — use pattern matching like `control is ChatView` to identify the source
 - `eventName`: The interaction (e.g. `"MessageSent"`, `"Clicked"`, `"Opened"`)
-- `details`: Optional context — message text for ChatView, `"LongPress"` for SecurityPin completion
+- `args`: Optional context — for `ChatView`, this is the `ChatMessage` object; for standard MAUI controls, the native `EventArgs`; `"LongPress"` string for SecurityPin completion
 
 ## Default Implementation
 
 ```csharp
 public class HapticFeedbackService : IFeedbackService
 {
-    public void OnRequested(Type controlType, string eventName, string? details)
+    public void OnRequested(object control, string eventName, object? args)
     {
-        if (details?.Equals("LongPress") ?? false)
+        if (eventName.Equals("LongPress", StringComparison.OrdinalIgnoreCase))
             HapticFeedback.Default.Perform(HapticFeedbackType.LongPress);
         else
             HapticFeedback.Default.Perform(HapticFeedbackType.Click);
@@ -43,11 +43,11 @@ public class HapticFeedbackService : IFeedbackService
 
 ## Control Events
 
-| Control | Event | Details | Description |
+| Control | Event | Args | Description |
 |---|---|---|---|
-| `ChatView` | `MessageSent` | message text | User sent a message |
-| `ChatView` | `MessageReceived` | message text | External message arrived |
-| `ChatView` | `MessageTapped` | message text | Message bubble tapped |
+| `ChatView` | `MessageSent` | `ChatMessage` | User sent a message |
+| `ChatView` | `MessageReceived` | `ChatMessage` | External message arrived |
+| `ChatView` | `MessageTapped` | `ChatMessage` | Message bubble tapped |
 | `ChatView` | `AttachImage` | — | Attach button tapped |
 | `Fab` | `Clicked` | — | Fab tapped |
 | `FabMenu` | `Toggled` | — | Menu opened/closed |
@@ -76,7 +76,9 @@ public class HapticFeedbackService : IFeedbackService
 
 ## Standard MAUI Control Integration
 
-Opt-in integration that hooks feedback into standard MAUI controls (Button, Entry, Slider, etc.) without modifying those controls. Uses `Application.DescendantAdded`/`DescendantRemoved` to automatically bind/unbind events across the visual tree.
+Pluggable, AOT-compatible integration that hooks feedback into standard MAUI controls without modifying them. Uses `Application.DescendantAdded`/`DescendantRemoved` to automatically bind/unbind events across the visual tree.
+
+### With all defaults (Button, Entry, Slider, etc.)
 
 ```csharp
 builder.UseShinyControls(cfg =>
@@ -85,43 +87,70 @@ builder.UseShinyControls(cfg =>
 });
 ```
 
-### Integrated MAUI Controls
+### Defaults + custom hooks
 
-| Control | Event | Details |
+```csharp
+cfg.AddDefaultMauiControlFeedback(x =>
+{
+    // Add your own control hooks on top of the defaults
+    x.Hook<MyCustomControl>(nameof(MyCustomControl.Tapped),
+        (c, h) => c.Tapped += h,
+        (c, h) => c.Tapped -= h);
+});
+```
+
+### Custom hooks only (no defaults)
+
+```csharp
+cfg.AddMauiControlFeedback(x =>
+{
+    x.Hook<Button>(nameof(Button.Clicked),
+        (btn, h) => btn.Clicked += h,
+        (btn, h) => btn.Clicked -= h);
+
+    x.Hook<Slider, ValueChangedEventArgs>(nameof(Slider.ValueChanged),
+        (s, h) => s.ValueChanged += h,
+        (s, h) => s.ValueChanged -= h);
+});
+```
+
+Two `Hook` overloads:
+- `Hook<TControl>(eventName, subscribe, unsubscribe)` — for `EventHandler` events (args passed as `EventArgs`)
+- `Hook<TControl, TEventArgs>(eventName, subscribe, unsubscribe)` — for `EventHandler<TEventArgs>` events (typed args passed through)
+
+### Default MAUI Control Hooks
+
+| Control | Event | Args |
 |---|---|---|
-| `Button` | `Clicked` | — |
-| `Entry` | `TextChanged` | new text value |
-| `Slider` | `ValueChanged` | new value (F2) |
-| `Switch` | `Toggled` | value |
-| `CheckBox` | `CheckedChanged` | value |
-| `DatePicker` | `DateSelected` | new date |
-| `TimePicker` | `TimeChanged` | — |
-| `Picker` | `SelectedIndexChanged` | — |
-| `SearchBar` | `SearchButtonPressed` | — |
-| `Stepper` | `ValueChanged` | new value (F2) |
-| `Editor` | `TextChanged` | new text value |
-| `RadioButton` | `CheckedChanged` | value |
+| `Button` | `Clicked` | `EventArgs` |
+| `Entry` | `TextChanged` | `TextChangedEventArgs` |
+| `Slider` | `ValueChanged` | `ValueChangedEventArgs` |
+| `Switch` | `Toggled` | `ToggledEventArgs` |
+| `CheckBox` | `CheckedChanged` | `CheckedChangedEventArgs` |
+| `DatePicker` | `DateSelected` | `DateChangedEventArgs` |
+| `TimePicker` | `TimeChanged` | `PropertyChangedEventArgs` |
+| `Picker` | `SelectedIndexChanged` | `EventArgs` |
+| `SearchBar` | `SearchButtonPressed` | `EventArgs` |
+| `Stepper` | `ValueChanged` | `ValueChangedEventArgs` |
+| `Editor` | `TextChanged` | `TextChangedEventArgs` |
+| `RadioButton` | `CheckedChanged` | `CheckedChangedEventArgs` |
 
 ## ChatView + TTS Example
 
-ChatView passes message text as `details`, enabling text-to-speech for incoming messages:
+ChatView passes the `ChatMessage` object as `args`, enabling text-to-speech for incoming messages:
 
 ```csharp
-public class ChatTtsFeedbackService : IFeedbackService
+public class ChatTtsFeedbackService(ITextToSpeech tts) : HapticFeedbackService
 {
-    readonly ITextToSpeech tts;
-    public ChatTtsFeedbackService(ITextToSpeech tts) => this.tts = tts;
-
-    public async void OnRequested(Type controlType, string eventName, string? details)
+    public override async void OnRequested(object control, string eventName, object? args)
     {
-        if (controlType == typeof(ChatView) && eventName == "MessageReceived" && details is not null)
-        {
-            await tts.SpeakAsync(details);
-            return;
-        }
+        base.OnRequested(control, eventName, args);
 
-        try { HapticFeedback.Default.Perform(HapticFeedbackType.Click); }
-        catch { }
+        if (control is ChatView && eventName == "MessageReceived" && args is ChatMessage { IsFromMe: false } msg)
+        {
+            var say = $"Message from {msg.SenderId}. {msg.Text}";
+            await tts.SpeakAsync(say);
+        }
     }
 }
 ```
@@ -141,6 +170,7 @@ await toaster.ShowAsync("Silent", cfg => cfg.UseFeedback = false);
 ## Code Generation Guidance
 
 - Always check `UseFeedback` before calling `FeedbackHelper.Execute()`
+- Pass `this` (the control instance) as the first argument — never `typeof(...)`
 - Pass meaningful event names that match the control's public events (e.g. `nameof(Clicked)`, `nameof(Opened)`)
-- Pass contextual `details` when useful for TTS or analytics (message text, "LongPress")
+- Pass contextual `args` when useful for TTS or analytics (e.g. `ChatMessage` object, event args, `"LongPress"`)
 - `IFeedbackService` is registered as singleton — implementations must be thread-safe
