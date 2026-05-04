@@ -51,6 +51,12 @@ triggers:
   - Shiny.Speech.Azure
   - Shiny.Speech.ElevenLabs
   - PipeStream
+  - ListenWithWakeWord
+  - ListenForKeyword
+  - wake word
+  - keyword detection
+  - hey siri
+  - voice activation
   - blazor speech
   - blazor wasm speech
   - browser speech
@@ -80,6 +86,8 @@ Invoke this skill when the user wants to:
 - List available TTS voices
 - Implement continuous speech recognition with streaming results
 - Implement listen-until-silence dictation
+- Implement wake word detection ("Hey Siri" style activation)
+- Implement keyword listening (listen until a specific keyword is detected)
 - Add speech-to-text or text-to-speech to a Blazor WebAssembly app
 - Use the Web Speech API via Shiny.Speech in the browser
 
@@ -230,6 +238,45 @@ public class MyViewModel(ISpeechToTextService stt)
 }
 ```
 
+### Wake Word Listening ("Hey Siri" style)
+
+```csharp
+public class MyViewModel(ISpeechToTextService stt)
+{
+    async Task ListenForWakeWord(CancellationToken ct)
+    {
+        var access = await stt.RequestAccess();
+        if (access != AccessState.Available)
+            return;
+
+        // Continuously listens until wake phrase is detected,
+        // then captures everything spoken after it until silence.
+        // If user says wake phrase then pauses, it waits for the next utterance.
+        var command = await stt.ListenWithWakeWord("Hey Computer", cancellationToken: ct);
+        // "Hey Computer, what's the weather" → "what's the weather"
+        // "Hey Computer" [pause] "what's the weather" → "what's the weather"
+    }
+}
+```
+
+### Keyword Listening
+
+```csharp
+public class MyViewModel(ISpeechToTextService stt)
+{
+    async Task ListenForAnswer(CancellationToken ct)
+    {
+        var access = await stt.RequestAccess();
+        if (access != AccessState.Available)
+            return;
+
+        // Listens until one of the specified keywords is detected (case-insensitive, whole word)
+        var answer = await stt.ListenForKeyword(["Yes", "No", "Maybe"], cancellationToken: ct);
+        // User says "I think yes" → returns "Yes" (original casing from input list)
+    }
+}
+```
+
 ### 2. Text-to-Speech Usage
 
 ```csharp
@@ -328,6 +375,8 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 3. **Dispose audio resources** — `IAudioSource` and `IAudioPlayer` implement `IAsyncDisposable`
 4. **Prefer `ListenUntilSilence`** — For simple dictation scenarios, use this over `ContinuousRecognize`
 5. **Use `ContinuousRecognize`** — For real-time streaming transcription with partial results
+6. **Use `ListenWithWakeWord`** — For "Hey Siri" style activation where a wake phrase triggers command capture
+7. **Use `ListenForKeyword`** — For yes/no/choice scenarios where you need to detect a specific word from a set
 6. **Register platform services** — Cloud providers still need `AddAudioSource()` and `AddAudioPlayer()` for microphone/speaker access
 7. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
 8. **Use `IsSpeaking`/`IsPlaying`** — Check state before starting new speech/playback
