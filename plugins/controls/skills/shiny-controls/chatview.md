@@ -73,6 +73,10 @@ public class ChatParticipant
 | `TypingParticipants` | `IList<ChatParticipant>` | `null` | Currently typing participants (do not include "me") |
 | `ScrollToFirstUnread` | `bool` | `false` | Scroll to first unread message instead of end |
 | `FirstUnreadMessageId` | `string?` | `null` | ID of the first unread message |
+| `ToolItems` | `IList<FabMenuItem>` | `null` | Tool actions shown in a FabMenu on the left of the input bar (MAUI only). When set with items, a FabMenu button appears; when null/empty, the input bar renders normally |
+| `ToolsIcon` | `ImageSource` | `null` | Icon for the tools FabMenu button (MAUI only) |
+| `ToolsText` | `string?` | `null` | Text label for the tools FabMenu button (MAUI only) |
+| `ToolsFabBackgroundColor` | `Color` | `#007AFF` | Background color of the tools FabMenu button (MAUI only) |
 | `UseFeedback` | `bool` | `true` | Feedback on send (MAUI only) |
 
 ## Commands (MAUI ICommand) / Events (Blazor EventCallback)
@@ -103,6 +107,7 @@ public class ChatParticipant
 - **Image messages**: `ChatMessage.ImageUrl` renders as an image bubble (text and image are mutually exclusive)
 - **Virtualization**: MAUI uses `CollectionView` with `RemainingItemsThreshold` for automatic load-more
 - **Input bar**: `Entry` with Enter key + Send button; optional attach button (shown when `AttachImageCommand` is set)
+- **Tools menu**: Set `ToolItems` with `FabMenuItem` instances to show a FabMenu on the left side of the input bar. The menu expands upward with tool actions (e.g., camera, image picker). When `ToolItems` is null or empty, the input bar renders normally without the tools button (MAUI only)
 - **Hide input bar**: Set `IsInputBarVisible = false` for read-only chat display
 
 ## ViewModel Pattern
@@ -144,6 +149,72 @@ public partial class ChatViewModel : ObservableObject
     void LoadMore()
     {
         // Prepend older messages to the beginning of Messages
+    }
+}
+```
+
+## Tools Menu (MAUI only)
+
+Add tool actions (camera, image picker, etc.) to the left side of the input bar using `ToolItems`. The tools button uses a `FabMenu` that expands upward when tapped. When no items are set, the input bar renders normally.
+
+```xml
+<shiny:ChatView Messages="{Binding Messages}"
+                SendCommand="{Binding SendCommand}"
+                ToolsIcon="tools.png"
+                ToolsFabBackgroundColor="#007AFF">
+    <shiny:ChatView.ToolItems>
+        <shiny:FabMenuItem Text="Take Photo"
+                           Icon="camera.png"
+                           FabBackgroundColor="#4CAF50"
+                           Command="{Binding TakePhotoCommand}" />
+        <shiny:FabMenuItem Text="Pick Image"
+                           Icon="gallery.png"
+                           FabBackgroundColor="#FF9800"
+                           Command="{Binding PickImageCommand}" />
+    </shiny:ChatView.ToolItems>
+</shiny:ChatView>
+```
+
+```csharp
+[RelayCommand]
+async Task TakePhoto()
+{
+    var photo = await MediaPicker.Default.CapturePhotoAsync();
+    if (photo is not null)
+    {
+        var stream = await photo.OpenReadAsync();
+        var filePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
+        using (var fs = File.OpenWrite(filePath))
+            await stream.CopyToAsync(fs);
+
+        Messages.Add(new ChatMessage
+        {
+            ImageUrl = filePath,
+            SenderId = "me",
+            IsFromMe = true,
+            Timestamp = DateTimeOffset.Now
+        });
+    }
+}
+
+[RelayCommand]
+async Task PickImage()
+{
+    var photo = await MediaPicker.Default.PickPhotoAsync();
+    if (photo is not null)
+    {
+        var stream = await photo.OpenReadAsync();
+        var filePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
+        using (var fs = File.OpenWrite(filePath))
+            await stream.CopyToAsync(fs);
+
+        Messages.Add(new ChatMessage
+        {
+            ImageUrl = filePath,
+            SenderId = "me",
+            IsFromMe = true,
+            Timestamp = DateTimeOffset.Now
+        });
     }
 }
 ```
@@ -236,6 +307,7 @@ When neither is set, the default text/image rendering is used.
 - Always provide a `Participants` list for multi-person chats; each participant's `BubbleColor` is optional
 - `SendCommand` receives the text string — the control clears the input after sending
 - `AttachImageCommand` fires a signal; the user implements their own image picker and adds a `ChatMessage` with `ImageUrl`
+- For MAUI tool actions (camera, file picker), use `ToolItems` with `FabMenuItem` instances instead of `AttachImageCommand` — the FabMenu provides a richer multi-action experience
 - `LoadMoreCommand` fires when the user scrolls near the top; prepend older messages with `Insert(0, msg)`
 - `TypingParticipants` should never include the local user (the "you are typing" is excluded by design)
 - Set `IsInputBarVisible = false` for read-only chat views (e.g., chat history, support logs)
