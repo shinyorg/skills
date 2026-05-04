@@ -18,72 +18,7 @@ This repository is organized into **plugins**, each containing one or more **ski
 
 ## Installation
 
-### Claude Code
-
-**Install the entire marketplace** (all plugins at once):
-
-```bash
-claude mcp add-marketplace shinyorg/skills
-```
-
-**Install a single plugin** (only the skills you need):
-
-```bash
-claude plugin add shinyorg/skills/shiny-client
-claude plugin add shinyorg/skills/shiny-mediator
-```
-
-You can also add plugins manually in your project's `.claude/settings.json`:
-
-```json
-{
-  "plugins": [
-    "shinyorg/skills/shiny-client",
-    "shinyorg/skills/shiny-mediator"
-  ]
-}
-```
-
-Once installed, Claude Code automatically activates skills when it detects matching trigger keywords in your conversation (e.g. mentioning "BluetoothLE" or "IMediator" will load the relevant skill context).
-
-### GitHub Copilot
-
-Each skill in this repository uses a `SKILL.md` file with YAML front matter (`name`, `description`) and a `## Triggers` section, which is compatible with GitHub Copilot Agent Skills. There are two ways to use these skills with Copilot:
-
-**Option 1 — Copy skill directories into your project**
-
-Copy the skill folders you need into a Copilot skills location such as `.github/skills/` or `.agents/skills/`. Keep each folder name the same as the `name` field in its `SKILL.md`.
-
-```
-your-project/
-  .github/
-    skills/
-      shiny-bluetoothle/
-        SKILL.md
-        reference/
-          ...
-      shiny-mediator/
-        SKILL.md
-        reference/
-          ...
-```
-
-Copilot will discover them automatically and use the trigger keywords and instructions when relevant.
-
-**Option 2 — Point Copilot at this repository**
-
-If you don't want to copy files, configure `chat.agentSkillsLocations` in your VS Code settings to reference one or more plugin skill directories from this repository:
-
-```json
-{
-  "chat.agentSkillsLocations": [
-    "/path/to/shinyorg/skills/plugins/shiny-client/skills",
-    "/path/to/shinyorg/skills/plugins/shiny-mediator/skills"
-  ]
-}
-```
-
-This makes all skills within the referenced plugin directories available to Copilot without duplicating any files.
+All skills in this repository are hosted on [GitHub](https://github.com/shinyorg/skills). For full installation instructions for both **Claude Code** and **GitHub Copilot**, see the [AI Skills documentation](https://shinylib.net/foundation/ai-skills/).
 
 ## Repository Layout
 
