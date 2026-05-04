@@ -72,6 +72,48 @@ public class MyViewModel(ISpeechToTextService stt)
 }
 ```
 
+## SpeechToTextExtensions (Extension Methods)
+
+Extension methods on `ISpeechToTextService` for higher-level listening patterns.
+
+```csharp
+public static class SpeechToTextExtensions
+{
+    // "Hey Siri" style — continuously listens until wake phrase is detected,
+    // then captures everything spoken after it until silence.
+    // Returns only the text after the wake phrase.
+    // If user says wake phrase then pauses, waits for the next utterance.
+    static Task<string?> ListenWithWakeWord(
+        this ISpeechToTextService service,
+        string wakePhrase,
+        SpeechRecognitionOptions? options = null,
+        CancellationToken cancellationToken = default
+    );
+
+    // Listens until one of the specified keywords is detected.
+    // Matching is case-insensitive and whole-word only.
+    // Returns the matched keyword using the original casing from the input list.
+    static Task<string?> ListenForKeyword(
+        this ISpeechToTextService service,
+        IEnumerable<string> keywords,
+        SpeechRecognitionOptions? options = null,
+        CancellationToken cancellationToken = default
+    );
+}
+```
+
+### Usage
+
+```csharp
+// Wake word: captures command after activation phrase
+var command = await stt.ListenWithWakeWord("Hey Computer", cancellationToken: ct);
+// "Hey Computer, what's the weather" → "what's the weather"
+
+// Keyword: detects specific words
+var answer = await stt.ListenForKeyword(["Yes", "No", "Maybe"], cancellationToken: ct);
+// "I think yes" → "Yes"
+```
+
 ## ITextToSpeechService Interface
 
 Platform-native or cloud-backed text-to-speech service. Registered as singleton.
