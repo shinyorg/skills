@@ -84,6 +84,9 @@ In addition to the main-Fab pass-throughs (`Icon`, `Text`, `FabBackgroundColor`,
 |---|---|---|---|---|
 | `IsOpen` | `bool` | `false` | TwoWay | Opens/closes the menu with animation |
 | `Items` | `IList<FabMenuItem>` | empty | — | Content property; place items directly inside `<shiny:FabMenu>` |
+| `FabSize` | `double` | `56` | OneWay | Main FAB button size (diameter) |
+| `HasShadow` | `bool` | `true` | OneWay | Drop shadow on the main FAB |
+| `MenuAlignment` | `LayoutOptions` | `End` | OneWay | Horizontal alignment of the menu stack (`Start` for left-aligned, `End` for right-aligned) |
 | `HasBackdrop` | `bool` | `true` | OneWay | Show dim backdrop while open |
 | `BackdropColor` | `Color` | `Black` | OneWay | Backdrop color |
 | `BackdropOpacity` | `double` | `0.4` | OneWay | Backdrop peak opacity |
