@@ -1,6 +1,6 @@
 {
   "name": "shiny-extensions",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), AOT-compliant reflection via source generation (with AssemblyInfo generation and ReflectorJsonConverter), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, and modular ASP.NET Core web hosting with IWebModule",
   "author": {
     "name": "Allan Ritchie",
