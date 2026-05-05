@@ -23,14 +23,31 @@ A modern chat UI control with message bubbles, typing indicators, load-more pagi
 ```csharp
 public class ChatMessage
 {
-    public string Id { get; set; }                  // Auto-generated GUID
-    public string? Text { get; set; }               // null for image messages
-    public string? ImageUrl { get; set; }           // null for text messages
+    public string Id { get; set; }                          // Auto-generated GUID
+    public string? Text { get; set; }                       // null for image messages
+    public string? ImageUrl { get; set; }                   // null for text messages
     public string SenderId { get; set; }
     public DateTimeOffset Timestamp { get; set; }
     public bool IsFromMe { get; set; }
+    public string? Identifier { get; set; }                 // Optional user-defined identifier for post-send context
+    public bool IsSent { get; set; }                        // When false, bubble renders dimmed (user messages only)
+    public List<Acknowledgement>? Acknowledgements { get; set; } // Reactions displayed as badges below bubble
+    public IList<FabMenuItem>? ToolItems { get; set; }     // Per-message bubble tool overrides (MAUI only)
 }
 ```
+
+### Acknowledgement
+
+```csharp
+public class Acknowledgement
+{
+    public string? Glyph { get; set; }     // Emoji/character (e.g., 👍, ❤️, 💯)
+    public string UserId { get; set; }     // ID of the user who reacted
+    public DateTime Timestamp { get; set; } // When the reaction was added
+}
+```
+
+Acknowledgements are grouped by `Glyph` and rendered as small badge pills below the chat bubble. The count is displayed beside the glyph only when > 1.
 
 ### ChatParticipant
 
@@ -73,11 +90,16 @@ public class ChatParticipant
 | `TypingParticipants` | `IList<ChatParticipant>` | `null` | Currently typing participants (do not include "me") |
 | `ScrollToFirstUnread` | `bool` | `false` | Scroll to first unread message instead of end |
 | `FirstUnreadMessageId` | `string?` | `null` | ID of the first unread message |
-| `ToolItems` | `IList<FabMenuItem>` | `null` | Tool actions shown in a FabMenu on the left of the input bar (MAUI only). When set with items, a FabMenu button appears; when null/empty, the input bar renders normally |
+| `ToolItems` | `IList<ChatEntryTool>` | `null` | Input bar tools FAB menu items (MAUI only) |
 | `ToolsIcon` | `ImageSource` | `null` | Icon for the tools FabMenu button (MAUI only) |
 | `ToolsText` | `string?` | `null` | Text label for the tools FabMenu button (MAUI only) |
 | `ToolsFabBackgroundColor` | `Color` | `#007AFF` | Background color of the tools FabMenu button (MAUI only) |
-| `UseFeedback` | `bool` | `true` | Feedback on send (MAUI only) |
+| `BubbleToolItems` | `IList<ChatBubbleTool>` | `null` | Bubble tools for received (other user) messages (MAUI only) |
+| `MyBubbleToolItems` | `IList<ChatBubbleTool>` | `null` | Bubble tools for the local user's own messages (MAUI only) |
+| `MessageTappedCommand` | `ICommand` | `null` | Fired when a message bubble is tapped (MAUI only) |
+| `MessageTemplate` | `DataTemplate?` | `null` | Single template for all message content (MAUI only) |
+| `MessageTemplateSelector` | `DataTemplateSelector?` | `null` | Per-type template selector (MAUI only) |
+| `UseFeedback` | `bool` | `true` | Haptic feedback on interactions (MAUI only) |
 
 ## Commands (MAUI ICommand) / Events (Blazor EventCallback)
 
@@ -86,76 +108,142 @@ public class ChatParticipant
 | `SendCommand` | `EventCallback<string>` | text string | Fires when user sends a text message via Enter or Send button |
 | `AttachImageCommand` | `EventCallback` | -- | Fires when user taps attach button; user implements own image picker |
 | `LoadMoreCommand` | `EventCallback` | -- | Fires when user scrolls near top; prepend older messages to the list |
+| `MessageTappedCommand` | `EventCallback<ChatMessage>` | message | Fires when a message bubble is tapped |
 
-## Methods
+## Methods (MAUI only)
 
 | Method | Description |
 |---|---|
 | `ScrollToEnd(bool animate)` | Scroll to the latest message |
 | `ScrollToMessage(string messageId, bool animate)` | Scroll to a specific message by ID |
+| `SubmitEntry()` | Programmatically submit current input text |
+| `EntryText` (property) | Get/set the input field text |
 
-## Features
+## Tool Base Classes (MAUI only)
 
-- **Bubbles**: Left-aligned for others, right-aligned for "me", with rounded corners and a smaller tail radius on the last message in a group
-- **Grouping**: Consecutive messages from the same sender within the same minute are grouped visually (2px spacing within group, 12px between groups)
-- **Timestamps**: Last message in each group shows timestamp. Today = time only ("2:30 PM"); previous days = full date ("Apr 15, 2:30 PM")
-- **Multi-person**: First message in each group shows avatar (initials circle or image) and display name above the bubble
-- **Single-person**: Avatars and names hidden by default (set `ShowAvatarsInSingleChat` to override)
-- **Per-participant colors**: Each `ChatParticipant.BubbleColor` overrides `OtherBubbleColor` for that sender
-- **Typing indicator**: Animated bouncing dots with text: "{Name} is typing...", "{Name1}, {Name2} are typing", or "Multiple users are typing" (3+)
-- **Link detection**: URLs in text messages are auto-detected and rendered as tappable links
-- **Image messages**: `ChatMessage.ImageUrl` renders as an image bubble (text and image are mutually exclusive)
-- **Virtualization**: MAUI uses `CollectionView` with `RemainingItemsThreshold` for automatic load-more
-- **Input bar**: `Entry` with Enter key + Send button; optional attach button (shown when `AttachImageCommand` is set)
-- **Tools menu**: Set `ToolItems` with `FabMenuItem` instances to show a FabMenu on the left side of the input bar. The menu expands upward with tool actions (e.g., camera, image picker). When `ToolItems` is null or empty, the input bar renders normally without the tools button (MAUI only)
-- **Hide input bar**: Set `IsInputBarVisible = false` for read-only chat display
+### ChatEntryTool
 
-## ViewModel Pattern
+Non-abstract base class for input bar tools that need ChatView access. Can be used directly in XAML with a `Command` binding, or subclassed for self-contained tools.
 
 ```csharp
-public partial class ChatViewModel : ObservableObject
+public class ChatEntryTool : FabMenuItem
 {
-    [ObservableProperty] ObservableCollection<ChatMessage> messages = [];
-    [ObservableProperty] ObservableCollection<ChatParticipant> participants = [];
-    [ObservableProperty] ObservableCollection<ChatParticipant> typingParticipants = [];
-    [ObservableProperty] bool isMultiPerson = true;
+    protected ChatView? ChatView { get; private set; }
+    // Attach/Detach called automatically by ChatView
+}
+```
 
-    [RelayCommand]
-    void Send(string text)
+Use directly in XAML:
+```xml
+<shiny:ChatEntryTool Text="Camera" Icon="camera.png"
+                     FabBackgroundColor="#4CAF50"
+                     Command="{Binding TakePhotoCommand}" />
+```
+
+Or subclass for tools that need to read/write the input text or submit:
+
+```csharp
+public class MyCustomTool : ChatEntryTool
+{
+    public MyCustomTool()
     {
-        Messages.Add(new ChatMessage
-        {
-            Text = text,
-            SenderId = "me",
-            IsFromMe = true,
-            Timestamp = DateTimeOffset.Now
-        });
+        Text = "My Tool";
+        FabBackgroundColor = Colors.Purple;
+        Clicked += OnClicked;
     }
 
-    [RelayCommand]
-    void AttachImage()
+    void OnClicked(object? sender, EventArgs e)
     {
-        // User implements own image picker, then:
-        Messages.Add(new ChatMessage
-        {
-            ImageUrl = "https://example.com/photo.jpg",
-            SenderId = "me",
-            IsFromMe = true,
-            Timestamp = DateTimeOffset.Now
-        });
-    }
-
-    [RelayCommand]
-    void LoadMore()
-    {
-        // Prepend older messages to the beginning of Messages
+        if (ChatView is null) return;
+        ChatView.EntryText = "Hello!";
+        ChatView.SubmitEntry();
     }
 }
 ```
 
-## Tools Menu (MAUI only)
+### ChatBubbleTool
 
-Add tool actions (camera, image picker, etc.) to the left side of the input bar using `ToolItems`. The tools button uses a `FabMenu` that expands upward when tapped. When no items are set, the input bar renders normally.
+Non-abstract base class for bubble tools that act on a message. Can be used directly in XAML with a `Command` binding (receives `ChatMessage` via `CommandParameter`), or subclassed for self-contained tools.
+
+```csharp
+public class ChatBubbleTool : FabMenuItem
+{
+    protected ChatMessage? Message { get; } // Auto-populated via CommandParameter
+    protected void RequestRefresh();         // Triggers UI refresh after modifying message data
+}
+```
+
+Use directly in XAML:
+```xml
+<shiny:ChatBubbleTool Text="Translate" FabBackgroundColor="#9C27B0"
+                      Command="{Binding TranslateCommand}" />
+```
+
+Or subclass for tools that operate on the tapped message:
+
+```csharp
+public class MyBubbleTool : ChatBubbleTool
+{
+    public MyBubbleTool()
+    {
+        Text = "Translate";
+        FabBackgroundColor = Colors.Teal;
+        Clicked += OnClicked;
+    }
+
+    async void OnClicked(object? sender, EventArgs e)
+    {
+        if (Message is null) return;
+        // Do something with Message.Text
+    }
+}
+```
+
+### Built-in Tools
+
+| Tool | Base Class | Package | Description |
+|---|---|---|---|
+| `CopyBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Copies message text/ImageUrl to clipboard |
+| `TextToSpeechBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls.SpeechAddins` | Reads message text aloud |
+| `SpeechToTextTool` | `ChatEntryTool` | `Shiny.Maui.Controls.SpeechAddins` | Voice input for chat entry |
+| `PhotoGalleryEntryTool` | `ChatEntryTool` | `Shiny.Maui.Controls` | Opens device photo gallery via MAUI MediaPicker, fires `AttachImageCommand` with file path |
+| `TakePhotoEntryTool` | `ChatEntryTool` | `Shiny.Maui.Controls` | Opens device camera via MAUI MediaPicker, fires `AttachImageCommand` with file path |
+| `AcknowledgementBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Single-tap toggle for a specific reaction emoji. Set `Glyph` and optionally `UserId`. Bind `Command` to notify server (receives `AcknowledgementChangedContext`). |
+| `AcknowledgementSelectorBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Opens action sheet with 12 default emoji reactions. Customizable via `Glyphs` property. Bind `Command` to notify server (receives `AcknowledgementChangedContext`). |
+
+## Bubble Tools (MAUI only)
+
+Bubble tools are split by message ownership:
+- `BubbleToolItems` — shown on received (other user) messages
+- `MyBubbleToolItems` — shown on the local user's own messages
+
+The ⋮ button appears on each bubble that has applicable tools:
+
+```xml
+<shiny:ChatView Messages="{Binding Messages}"
+                SendCommand="{Binding SendCommand}">
+    <!-- Tools for received messages -->
+    <shiny:ChatView.BubbleToolItems>
+        <shiny:CopyBubbleTool />
+        <shiny:AcknowledgementBubbleTool Glyph="👍" Command="{Binding AckCommand}" />
+        <shiny:AcknowledgementBubbleTool Glyph="👎" Command="{Binding AckCommand}" />
+        <shiny:AcknowledgementSelectorBubbleTool Command="{Binding AckCommand}" />
+        <shiny:ChatBubbleTool Text="Reply" FabBackgroundColor="#2196F3"
+                              Command="{Binding ReplyCommand}" />
+    </shiny:ChatView.BubbleToolItems>
+
+    <!-- Tools for my own messages -->
+    <shiny:ChatView.MyBubbleToolItems>
+        <shiny:CopyBubbleTool />
+    </shiny:ChatView.MyBubbleToolItems>
+</shiny:ChatView>
+```
+
+- `ChatBubbleTool` with `Command`: `CommandParameter` is automatically set to the `ChatMessage`
+- `AcknowledgementBubbleTool` / `AcknowledgementSelectorBubbleTool` with `Command`: receives `AcknowledgementChangedContext` with `.Message` and `.Glyph`
+- Per-message override: set `ChatMessage.ToolItems` to replace the default tools for that message
+
+## Input Bar Tools (MAUI only)
 
 ```xml
 <shiny:ChatView Messages="{Binding Messages}"
@@ -163,83 +251,15 @@ Add tool actions (camera, image picker, etc.) to the left side of the input bar 
                 ToolsIcon="tools.png"
                 ToolsFabBackgroundColor="#007AFF">
     <shiny:ChatView.ToolItems>
-        <shiny:FabMenuItem Text="Take Photo"
-                           Icon="camera.png"
-                           FabBackgroundColor="#4CAF50"
-                           Command="{Binding TakePhotoCommand}" />
-        <shiny:FabMenuItem Text="Pick Image"
-                           Icon="gallery.png"
-                           FabBackgroundColor="#FF9800"
-                           Command="{Binding PickImageCommand}" />
+        <shiny:ChatEntryTool Text="Camera" Icon="camera.png"
+                             FabBackgroundColor="#4CAF50"
+                             Command="{Binding TakePhotoCommand}" />
+        <shiny:SpeechToTextTool AutoSend="False" SilenceTimeout="00:00:03" />
     </shiny:ChatView.ToolItems>
 </shiny:ChatView>
 ```
 
-```csharp
-[RelayCommand]
-async Task TakePhoto()
-{
-    var photo = await MediaPicker.Default.CapturePhotoAsync();
-    if (photo is not null)
-    {
-        var stream = await photo.OpenReadAsync();
-        var filePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
-        using (var fs = File.OpenWrite(filePath))
-            await stream.CopyToAsync(fs);
-
-        Messages.Add(new ChatMessage
-        {
-            ImageUrl = filePath,
-            SenderId = "me",
-            IsFromMe = true,
-            Timestamp = DateTimeOffset.Now
-        });
-    }
-}
-
-[RelayCommand]
-async Task PickImage()
-{
-    var photo = await MediaPicker.Default.PickPhotoAsync();
-    if (photo is not null)
-    {
-        var stream = await photo.OpenReadAsync();
-        var filePath = Path.Combine(FileSystem.CacheDirectory, photo.FileName);
-        using (var fs = File.OpenWrite(filePath))
-            await stream.CopyToAsync(fs);
-
-        Messages.Add(new ChatMessage
-        {
-            ImageUrl = filePath,
-            SenderId = "me",
-            IsFromMe = true,
-            Timestamp = DateTimeOffset.Now
-        });
-    }
-}
-```
-
-## Custom Message Templates
-
-Control how each message bubble's content is rendered using `MessageTemplate` or `MessageTemplateSelector`. The bubble chrome (avatar, name, timestamp, colors, corner radius, alignment) is still managed by ChatView — you only control what renders *inside* the bubble.
-
-### MessageTemplate (single template for all messages)
-
-```xml
-<shiny:ChatView Messages="{Binding Messages}">
-    <shiny:ChatView.MessageTemplate>
-        <DataTemplate x:DataType="shiny:ChatMessage">
-            <VerticalStackLayout Spacing="4">
-                <Label Text="{Binding Text}" />
-                <Button Text="Reply" Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MyViewModel}}, Path=ReplyCommand}"
-                        CommandParameter="{Binding .}" />
-            </VerticalStackLayout>
-        </DataTemplate>
-    </shiny:ChatView.MessageTemplate>
-</shiny:ChatView>
-```
-
-### MessageTemplateSelector (different templates per message type)
+## Custom Message Templates (MAUI only)
 
 Subclass `ChatMessage` for different message types, then use a `DataTemplateSelector`:
 
@@ -249,23 +269,16 @@ public class ActionChatMessage : ChatMessage
     public string ActionText { get; set; } = "Accept";
 }
 
-public class CardChatMessage : ChatMessage
-{
-    public string CardTitle { get; set; } = string.Empty;
-}
-
 public class ChatMessageTemplateSelector : DataTemplateSelector
 {
     public DataTemplate? TextTemplate { get; set; }
     public DataTemplate? ActionTemplate { get; set; }
-    public DataTemplate? CardTemplate { get; set; }
 
     protected override DataTemplate? OnSelectTemplate(object item, BindableObject container)
     {
         return item switch
         {
             ActionChatMessage => ActionTemplate,
-            CardChatMessage => CardTemplate,
             _ => TextTemplate
         };
     }
@@ -273,43 +286,39 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
 ```
 
 ```xml
-<shiny:ChatView Messages="{Binding Messages}">
-    <shiny:ChatView.MessageTemplateSelector>
-        <local:ChatMessageTemplateSelector>
-            <local:ChatMessageTemplateSelector.TextTemplate>
-                <DataTemplate x:DataType="shiny:ChatMessage">
+<shiny:ChatView.MessageTemplateSelector>
+    <local:ChatMessageTemplateSelector>
+        <local:ChatMessageTemplateSelector.TextTemplate>
+            <DataTemplate x:DataType="shiny:ChatMessage">
+                <Label Text="{Binding Text}" />
+            </DataTemplate>
+        </local:ChatMessageTemplateSelector.TextTemplate>
+        <local:ChatMessageTemplateSelector.ActionTemplate>
+            <DataTemplate x:DataType="local:ActionChatMessage">
+                <VerticalStackLayout Spacing="8">
                     <Label Text="{Binding Text}" />
-                </DataTemplate>
-            </local:ChatMessageTemplateSelector.TextTemplate>
-            <local:ChatMessageTemplateSelector.ActionTemplate>
-                <DataTemplate x:DataType="local:ActionChatMessage">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{Binding Text}" />
-                        <Button Text="{Binding ActionText}" />
-                    </VerticalStackLayout>
-                </DataTemplate>
-            </local:ChatMessageTemplateSelector.ActionTemplate>
-        </local:ChatMessageTemplateSelector>
-    </shiny:ChatView.MessageTemplateSelector>
-</shiny:ChatView>
+                    <Button Text="{Binding ActionText}"
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MyViewModel}}, Path=AcceptCommand}"
+                            CommandParameter="{Binding .}" />
+                </VerticalStackLayout>
+            </DataTemplate>
+        </local:ChatMessageTemplateSelector.ActionTemplate>
+    </local:ChatMessageTemplateSelector>
+</shiny:ChatView.MessageTemplateSelector>
 ```
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `MessageTemplate` | `DataTemplate?` | `null` | Single template for all message bubble content |
-| `MessageTemplateSelector` | `DataTemplateSelector?` | `null` | Per-message-type template selector (takes priority) |
-
-When neither is set, the default text/image rendering is used.
 
 ## Code Generation Guidance
 
 - Use `ChatView` for any chat/messaging/conversation UI — do not hand-build bubble layouts with `CollectionView`
+- Set `IsSent = false` on outgoing messages to dim the bubble until server confirmation arrives, then set `IsSent = true`
+- Use `Identifier` to associate server-side context (e.g., a server message ID) with a ChatMessage after sending
+- Add `Acknowledgement` items to `Acknowledgements` to show reaction badges (grouped by glyph, count shown when > 1)
 - Always provide a `Participants` list for multi-person chats; each participant's `BubbleColor` is optional
 - `SendCommand` receives the text string — the control clears the input after sending
 - `AttachImageCommand` fires a signal; the user implements their own image picker and adds a `ChatMessage` with `ImageUrl`
-- For MAUI tool actions (camera, file picker), use `ToolItems` with `FabMenuItem` instances instead of `AttachImageCommand` — the FabMenu provides a richer multi-action experience
+- For input bar tools, use `ChatEntryTool` directly with a `Command` binding, or subclass for self-contained tools. Never use `FabMenuItem` in `ToolItems`.
+- For bubble tools, use `ChatBubbleTool` directly with a `Command` binding, or subclass for self-contained tools. For acknowledgement reactions, use `AcknowledgementBubbleTool` or `AcknowledgementSelectorBubbleTool`.
 - `LoadMoreCommand` fires when the user scrolls near the top; prepend older messages with `Insert(0, msg)`
 - `TypingParticipants` should never include the local user (the "you are typing" is excluded by design)
 - Set `IsInputBarVisible = false` for read-only chat views (e.g., chat history, support logs)
-- Use `MessageTemplate` for simple customization (e.g., adding action buttons to every message)
-- Use `MessageTemplateSelector` when you have multiple message types (text, action buttons, cards, etc.) — subclass `ChatMessage` for each type
+- Use `MessageTemplate` for simple customization; use `MessageTemplateSelector` for multiple message types

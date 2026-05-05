@@ -1,6 +1,6 @@
 # TextEntry
 
-A Material Design-inspired text entry control with animated floating placeholder, customizable border, left/right tool slots, hint text for validation errors, and character count display. Available on both MAUI and Blazor.
+A text entry control with animated floating placeholder, customizable border, Bootstrap input-group style left/right tool slots (flush addon segments with background, shared borders, outer-only corner radius), hint text for validation errors, and character count display. Available on both MAUI and Blazor.
 
 ## MAUI
 
@@ -49,6 +49,8 @@ A Material Design-inspired text entry control with animated floating placeholder
 | ShowCharacterCount | bool | false | Show "N/MaxLength" counter |
 | LeftTools | IList<TextEntryTool> | [] | Tools on the left side |
 | RightTools | IList<TextEntryTool> | [] | Tools on the right side (ContentProperty) |
+| Mask | string? | null | Input mask pattern (`#` = digit slot, other chars are literals auto-inserted) |
+| FormattedText | string | "" | Read-only formatted display value when Mask is set |
 | TextChangedCommand | ICommand? | null | Fires on text change |
 | CompletedCommand | ICommand? | null | Fires on return key |
 
@@ -65,7 +67,27 @@ TextEntry supports left and right tool slots. Tools are `TextEntryTool` instance
 
 **Built-in tools:**
 - `ClearButtonTool` — Shows ✕ when text is non-empty, clears on tap. Auto-hides when empty.
+- `TextEntryStepperTool` — Increments/decrements the numeric entry value by `Step` on each tap. Auto-displays `+N` or `-N` if `Text` is not explicitly set.
 - `TextEntrySpeechToTextTool` — (Shiny.Maui.Controls.SpeechAddins) Voice input that backfills entry text.
+
+**Stepper tool:**
+```xml
+<shiny:TextEntry Placeholder="Quantity"
+                 Text="{Binding Quantity, Mode=TwoWay}"
+                 Keyboard="Numeric">
+    <shiny:TextEntry.LeftTools>
+        <shiny:TextEntryStepperTool Step="-1" />
+    </shiny:TextEntry.LeftTools>
+    <shiny:TextEntryStepperTool Step="1" />
+</shiny:TextEntry>
+```
+
+**TextEntryStepperTool properties:**
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| Step | double | 1 | Amount to add (negative = subtract) |
+| Text | string? | null | Override button text (defaults to "+N" or "-N") |
 
 **Custom tool:**
 ```xml
@@ -88,6 +110,43 @@ TextEntry supports left and right tool slots. Tools are `TextEntryTool` instance
 | CommandParameter | object? | Command parameter |
 
 **ITextEntryAwareTool** — Implement this interface on a TextEntryTool subclass to get Attach/Detach lifecycle calls with access to the parent TextEntry.
+
+### Input Masking
+
+Set `Mask` to automatically format input as the user types. `#` represents a digit slot; all other characters are literal separators inserted automatically.
+
+When `Mask` is set:
+- `Text` always contains **raw digits only** (e.g., `"5551234567"`)
+- `FormattedText` contains the display value (e.g., `"(555) 123-4567"`)
+- `Keyboard` auto-sets to `Numeric`
+- `MaxLength` is auto-calculated from the mask length
+
+```xml
+<!-- Phone number -->
+<shiny:TextEntry Placeholder="Phone Number"
+                 Mask="(###) ###-####"
+                 Text="{Binding Phone, Mode=TwoWay}" />
+
+<!-- Credit card -->
+<shiny:TextEntry Placeholder="Credit Card"
+                 Mask="#### #### #### ####"
+                 Text="{Binding CardNumber, Mode=TwoWay}" />
+
+<!-- Date -->
+<shiny:TextEntry Placeholder="MM/DD/YYYY"
+                 Mask="##/##/####"
+                 Text="{Binding DateString, Mode=TwoWay}" />
+
+<!-- SSN -->
+<shiny:TextEntry Placeholder="SSN"
+                 Mask="###-##-####"
+                 Text="{Binding SSN, Mode=TwoWay}" />
+
+<!-- ZIP+4 -->
+<shiny:TextEntry Placeholder="ZIP Code"
+                 Mask="#####-####"
+                 Text="{Binding ZipCode, Mode=TwoWay}" />
+```
 
 ### Full Example
 
@@ -162,7 +221,22 @@ Tools use the same `TextEntryTool` base class as MAUI. Pass them as `List<TextEn
 
 **Built-in tools:**
 - `ClearButtonTool` — Shows ✕ when text is non-empty, clears on click. Auto-hides when empty.
+- `TextEntryStepperTool` — Increments/decrements numeric entry value by `Step`. Auto-displays `+N`/`-N` if `Text` not set.
 - `SpeechToTextTool` — (Shiny.Blazor.Controls.SpeechAddins) Voice input via Web Speech API.
+
+**Stepper tool example:**
+```razor
+<TextEntry Placeholder="Quantity"
+           @bind-Text="qty"
+           LeftTools="decTools"
+           RightTools="incTools" />
+
+@code {
+    string qty = "0";
+    List<TextEntryTool> decTools = [new TextEntryStepperTool { Step = -1 }];
+    List<TextEntryTool> incTools = [new TextEntryStepperTool { Step = 1 }];
+}
+```
 
 **TextEntryTool properties:**
 
@@ -205,3 +279,27 @@ Tools use the same `TextEntryTool` base class as MAUI. Pass them as `List<TextEn
     List<TextEntryTool> rightTools = [new ClearButtonTool()];
 }
 ```
+
+### Blazor Mask Example
+
+```razor
+<TextEntry Placeholder="Phone Number"
+           Mask="(###) ###-####"
+           @bind-Text="phone" />
+
+<TextEntry Placeholder="Credit Card"
+           Mask="#### #### #### ####"
+           @bind-Text="card" />
+
+@code {
+    string phone = "";
+    string card = "";
+}
+```
+
+Parameters added for masking:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| Mask | string? | null | Input mask pattern (`#` = digit, others are literals) |
+| FormattedText | string | "" | Read-only formatted display value |
