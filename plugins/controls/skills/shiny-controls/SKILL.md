@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -120,6 +120,16 @@ triggers:
   - floating label
   - blazor textentry
   - blazor text entry
+  - stepper
+  - stepper tool
+  - textentrystepper
+  - gradient slider
+  - gradientslider
+  - slider
+  - range slider
+  - temperature slider
+  - blazor slider
+  - blazor gradient slider
   - duration picker
   - durationpicker
   - shinydurationpicker
@@ -146,6 +156,26 @@ triggers:
   - haptic feedback
   - custom feedback
   - usefeedback
+  - progress bar
+  - progressbar
+  - progress indicator
+  - loading bar
+  - gradient progress
+  - shimmer
+  - vista progress
+  - blazor progressbar
+  - gradient slider
+  - gradientslider
+  - range slider
+  - temperature slider
+  - blazor gradient slider
+  - overlay
+  - loading overlay
+  - loadingoverlay
+  - busy overlay
+  - spinner overlay
+  - progress overlay
+  - blazor overlay
 references:
   - tableview.md
   - floating-panel.md
@@ -165,6 +195,9 @@ references:
   - frosted-glass.md
   - toast.md
   - textentry.md
+  - slider.md
+  - progressbar.md
+  - overlay.md
   - feedback-service.md
 ---
 
@@ -197,6 +230,9 @@ The library contains:
 - **SignaturePad**: A signature capture control that opens in a FloatingPanel (MAUI) or SheetView (Blazor). Users draw on a canvas and export to PNG. Configurable stroke color/width, background, export dimensions, sign/cancel buttons, and panel styling. Like FloatingPanel, it must be placed inside an `OverlayHost` or `ShinyContentPage` (MAUI). The Sign button is disabled until the user draws something
 - **Toast**: A service-first toast notification system invoked via DI-injected `IToaster` (registered by `UseShinyControls()`). Supports auto-dismiss with configurable duration, manual dismiss via `IDisposable`, pill or fill-horizontal display modes, top/bottom positioning, queue or stack mode for multiple toasts, indeterminate spinner, countdown progress bar, icon, tap command, feedback, and screen reader announcement. No XAML or OverlayHost required — the overlay auto-attaches to the current page. Blazor uses `IToastService` with `<ToastHost>` component
 - **TextEntry**: A Material Design-inspired text entry control with animated floating placeholder, customizable border, left/right tool slots, hint text for validation, character count, read-only/password modes, and reusable tools (ClearButtonTool, TextEntrySpeechToTextTool)
+- **Slider**: A slider control with a two-color gradient track, blended thumb border that samples the gradient at the current position, tooltip with custom templates, and full drag/tap interaction
+- **ProgressBar**: A progress bar with gradient fill and a Vista-style shimmer pulse that sweeps left-to-right. Configurable `PulseLength` (width of sheen) and `PulseSpeed` (sweep duration). Triggers on value change or timed interval. Supports indeterminate mode and text overlay
+- **Overlay & LoadingOverlay**: Full-screen overlay with configurable backdrop color and opacity, fade animation, and custom content via `DataTemplate` (MAUI) or `RenderFragment` (Blazor). `LoadingOverlay` extends it with built-in spinner (indeterminate) or progress bar (determinate) plus optional message text
 - **Feedback Service**: All interactive controls fire events through `IFeedbackService`. Default `HapticFeedbackService` provides tactile feedback. Replace with `SetCustomFeedback<T>()` in `UseShinyControls()` for TTS, sounds, analytics, or custom responses. The `control` parameter is the actual control instance (use pattern matching like `control is ChatView`), and `args` carries context — `ChatMessage` for ChatView events, native `EventArgs` for standard MAUI controls. Standard MAUI control integration is pluggable and AOT-compatible via `MauiControlFeedbackBuilder` — use `AddDefaultMauiControlFeedback()` for all built-in hooks, add custom hooks with `Hook<TControl>(eventName, subscribe, unsubscribe)`, or use `AddMauiControlFeedback()` for only the hooks you configure
 
 ## When to Use This Skill
@@ -250,6 +286,13 @@ Invoke this skill when the user wants to:
 - Add validation hints and error states to text inputs
 - Build a text input with clear button, character count, or custom tools
 - Create a form with styled text entry fields
+- Add a gradient slider / temperature slider / range control
+- Show a progress bar with gradient fill or shimmer animation
+- Build a loading indicator with Vista-style pulse sweep
+- Display determinate or indeterminate progress with configurable pulse
+- Add a full-screen overlay / loading overlay to a page
+- Show a busy/loading indicator over content (spinner or progress bar)
+- Create a custom overlay with configurable color and content
 
 ## Library Overview
 
