@@ -51,6 +51,8 @@ triggers:
   - Shiny.Speech.Azure
   - Shiny.Speech.ElevenLabs
   - PipeStream
+  - IsListening
+  - IsSpeaking
   - ListenWithWakeWord
   - ListenForKeyword
   - wake word
@@ -379,7 +381,7 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 7. **Use `ListenForKeyword`** — For yes/no/choice scenarios where you need to detect a specific word from a set
 6. **Register platform services** — Cloud providers still need `AddAudioSource()` and `AddAudioPlayer()` for microphone/speaker access
 7. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
-8. **Use `IsSpeaking`/`IsPlaying`** — Check state before starting new speech/playback
+8. **Use `IsListening`/`IsSpeaking`/`IsPlaying`** — Check state before starting new listening/speech/playback
 9. **Configure silence timeout** — Default 2 seconds; adjust for your use case
 10. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
 11. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
