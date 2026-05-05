@@ -47,6 +47,7 @@ Full-screen overlay controls with configurable background color, transparency, a
 | OverlayColor | Color | Black | Backdrop color |
 | OverlayOpacity | double | 0.5 | Target backdrop opacity when shown |
 | AnimationDuration | uint | 250 | Fade in/out duration in ms |
+| BlurRadius | double | 0 | When > 0, applies a frosted glass blur effect behind the backdrop (uses FrostedGlassView) |
 | OverlayContentTemplate | DataTemplate | null | Custom overlay content |
 
 ### LoadingOverlay Properties (MAUI)
@@ -99,6 +100,7 @@ The Blazor `Overlay` wraps child content and overlays when `IsShown` is true. Cu
 | IsShownChanged | EventCallback&lt;bool&gt; | — | Two-way binding callback |
 | OverlayColor | string | "rgba(0,0,0,0.5)" | CSS color for backdrop |
 | OverlayOpacity | double | 1.0 | Additional opacity multiplier |
+| BlurRadius | double | 0 | When > 0, applies CSS `backdrop-filter: blur(Xpx)` to the backdrop |
 | ChildContent | RenderFragment | — | Normal page content |
 | OverlayContent | RenderFragment | — | Content shown in overlay |
 | CssClass | string? | null | Additional CSS class |
