@@ -39,6 +39,9 @@ public interface ISpeechToTextService
     // Whether STT is supported on this platform
     bool IsSupported { get; }
 
+    // Whether speech recognition is currently active
+    bool IsListening { get; }
+
     // Request microphone and speech recognition permissions
     Task<AccessState> RequestAccess();
 
