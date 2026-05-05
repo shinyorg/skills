@@ -30,7 +30,7 @@ public class ChatMessage
     public DateTimeOffset Timestamp { get; set; }
     public bool IsFromMe { get; set; }
     public string? Identifier { get; set; }                 // Optional user-defined identifier for post-send context
-    public bool IsSent { get; set; }                        // When false, bubble renders dimmed (user messages only)
+    public DateTimeOffset? DateSent { get; set; }           // When null, bubble renders dimmed (pending/offline). Only applies to user messages.
     public List<Acknowledgement>? Acknowledgements { get; set; } // Reactions displayed as badges below bubble
     public IList<FabMenuItem>? ToolItems { get; set; }     // Per-message bubble tool overrides (MAUI only)
 }
@@ -310,7 +310,7 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
 ## Code Generation Guidance
 
 - Use `ChatView` for any chat/messaging/conversation UI — do not hand-build bubble layouts with `CollectionView`
-- Set `IsSent = false` on outgoing messages to dim the bubble until server confirmation arrives, then set `IsSent = true`
+- Set `DateSent = null` on outgoing messages to dim the bubble until server confirmation arrives, then set `DateSent = DateTimeOffset.Now` (supports offline/background send scenarios)
 - Use `Identifier` to associate server-side context (e.g., a server message ID) with a ChatMessage after sending
 - Add `Acknowledgement` items to `Acknowledgements` to show reaction badges (grouped by glyph, count shown when > 1)
 - Always provide a `Participants` list for multi-person chats; each participant's `BubbleColor` is optional
