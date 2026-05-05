@@ -3,9 +3,10 @@
 A floating panel overlay system for .NET MAUI. Panels slide in from the bottom or top edge of the page with configurable detents, header peek when closed, backdrop dimming, drag-handle gestures, keyboard handling, and feedback. Multiple panels can coexist on the same page without blocking touches on content underneath.
 
 **Architecture:**
-- **OverlayHost**: A transparent `Grid` layer with `InputTransparent=true, CascadeInputTransparent=false` — touches pass through to content underneath, but panels and backdrop still receive input on their visible areas. Manages a shared backdrop.
+- **OverlayHost**: A transparent `Grid` layer with `InputTransparent=true, CascadeInputTransparent=false` — touches pass through to content underneath, but panels and backdrop still receive input on their visible areas. Manages a shared backdrop for all overlay clients (`FloatingPanel`, `Overlay`, `LoadingOverlay`).
 - **FloatingPanel**: A `ContentView` that lives inside an `OverlayHost`. Animates height (not translation) so the panel only occupies the space it needs. Pan gesture is restricted to the drag handle only — no scroll conflicts with content.
-- **ShinyContentPage**: A `ContentPage` with a built-in `OverlayHost`. Set page content via `PageContent` and add panels via `Panels`.
+- **Overlay / LoadingOverlay**: Full-screen overlay controls that also live inside an `OverlayHost`. See the overlay skill for details.
+- **ShinyContentPage**: A `ContentPage` with a built-in `OverlayHost`. Set page content via `PageContent` and add panels/overlays via `Panels`.
 
 > **Blazor note:** Blazor does not use FloatingPanel/OverlayHost. It retains `SheetView` which uses CSS `position: fixed`, `z-index`, and `pointer-events: none` for overlay behavior natively.
 
@@ -81,12 +82,14 @@ A floating panel overlay system for .NET MAUI. Panels slide in from the bottom o
 | `BackdropColor` | `Color` | `Black` | Backdrop color |
 | `BackdropMaxOpacity` | `double` | `0.5` | Maximum backdrop opacity |
 
+The backdrop is shared across all clients (`FloatingPanel`, `Overlay`, `LoadingOverlay`). It stays visible as long as any client is active, and tapping it dismisses all active overlay clients.
+
 ## ShinyContentPage Properties
 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `PageContent` | `View?` | `null` | Main page content (`[ContentProperty]`) |
-| `Panels` | `IList<IView>` | — | Collection of FloatingPanels |
+| `Panels` | `IList<IView>` | — | Collection of `FloatingPanel`, `Overlay`, and `LoadingOverlay` instances |
 | `OverlayHost` | `OverlayHost` | — | The internal OverlayHost (read-only) |
 | `BackdropColor` | `Color` | `Black` | Forwarded to internal OverlayHost |
 | `BackdropMaxOpacity` | `double` | `0.5` | Forwarded to internal OverlayHost |
