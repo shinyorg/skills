@@ -56,7 +56,7 @@ You are an expert in the Shiny.AiConversation library, a centralized AI service 
 
 The library provides:
 - **IAiConversationService**: Central orchestrator for AI interactions — manages state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, and persistent chat history
-- **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — implementations handle authentication, token management, and client construction
+- **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
 - **AiChatMessage**: Record representing a persisted chat message with Id, Message, Timestamp, and Direction (User/AI)
@@ -91,14 +91,16 @@ Always register with `AddShinyAiConversation()`:
 ```csharp
 using Shiny.AiConversation;
 
+// Register an IChatClient in DI (simplest approach)
+builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+
 builder.Services.AddShinyAiConversation(opts =>
 {
-    opts.SetChatClientProvider<MyChatClientProvider>();
     opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true); // optional
 });
 ```
 
-- `SetChatClientProvider<T>()` is **required** — throws if omitted
+- `SetChatClientProvider<T>()` is **optional** — if not set, the default `InjectedChatClientProvider` resolves `IChatClient` from DI. Use it only for advanced scenarios (on-demand auth, token refresh, etc.)
 - `SetMessageStore<T>()` is **optional** — enables persistent history and optionally registers the ChatLookupAITool
 - Sound effects and system prompts are set on IAiConversationService **after** `builder.Build()`
 
@@ -120,7 +122,15 @@ aiService.ThinkSound = "think.mp3";
 aiService.RespondingSound = "responding.mp3";
 ```
 
-### 3. Implementing IChatClientProvider
+### 3. Chat Client Setup
+
+**Simple approach** — register `IChatClient` in DI (the default provider resolves it automatically):
+
+```csharp
+builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+```
+
+**Advanced approach** — implement `IChatClientProvider` for on-demand auth or token refresh:
 
 ```csharp
 public class MyChatClientProvider : IChatClientProvider
