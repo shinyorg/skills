@@ -9,11 +9,11 @@ using Shiny.AiConversation;
 
 var builder = MauiApp.CreateBuilder();
 
+// Register an IChatClient in DI (from any Microsoft.Extensions.AI-compatible provider)
+builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+
 builder.Services.AddShinyAiConversation(opts =>
 {
-    // Required: set the chat client provider
-    opts.SetChatClientProvider<MyChatClientProvider>();
-
     // Optional: enable persistent message storage
     // Pass addAiLookupTool: true to register ChatLookupAITool
     opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true);
@@ -49,9 +49,10 @@ aiService.RespondingSound = "responding.mp3";
 ## AiServiceOptions
 
 ### SetChatClientProvider<T>()
-- **Required** — an `InvalidOperationException` is thrown at startup if not configured
+- **Optional** — if not configured, a default `InjectedChatClientProvider` resolves `IChatClient` from DI
 - Registers `T` as a singleton implementing `IChatClientProvider`
 - Uses `TryAddSingleton` so only the first registration wins
+- Use this for advanced scenarios like on-demand authentication or token refresh
 
 ### SetMessageStore<T>(bool addAiLookupTool = true)
 - **Optional** — without it, GetChatHistory/ClearChatHistory will throw
@@ -64,6 +65,7 @@ aiService.RespondingSound = "responding.mp3";
 
 `AddShinyAiConversation()` automatically registers (via TryAddSingleton):
 - `TimeProvider.System`
+- `InjectedChatClientProvider` as the default `IChatClientProvider` — resolves `IChatClient` from DI. If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
 - Speech services via `AddSpeechServices()` (when `AutoAddSpeechServices` is true, the default) — includes ISpeechToTextService, ITextToSpeechService, and IAudioPlayer from Shiny.Speech
 
 These can be overridden by registering your own implementations before calling `AddShinyAiConversation()`, or by setting `opts.AutoAddSpeechServices = false`.

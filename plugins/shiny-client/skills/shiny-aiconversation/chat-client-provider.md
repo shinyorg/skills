@@ -13,8 +13,22 @@ public interface IChatClientProvider
 
 ## Purpose
 
-Provides an `IChatClient` (from Microsoft.Extensions.AI) to the AI service. Implementations handle:
-- Authentication and token management
+Provides an `IChatClient` (from Microsoft.Extensions.AI) to the AI service.
+
+## Default Behavior
+
+A default `InjectedChatClientProvider` is registered automatically. It resolves `IChatClient` from the DI container. For most cases, simply register an `IChatClient` in DI:
+
+```csharp
+builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+```
+
+If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
+
+## Custom Implementation
+
+Implement `IChatClientProvider` only for advanced scenarios:
+- On-demand authentication and token management
 - Client construction and configuration
 - Token refresh and re-authentication on expiry
 
@@ -75,6 +89,15 @@ public class MyChatClientProvider(INavigator navigator) : IChatClientProvider
 4. **No reflection** — Register the provider explicitly with `SetChatClientProvider<T>()`.
 
 ## Registration
+
+For most apps, just register an `IChatClient` in DI — the default provider handles it:
+
+```csharp
+builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+builder.Services.AddShinyAiConversation(opts => { });
+```
+
+For custom providers:
 
 ```csharp
 builder.Services.AddShinyAiConversation(opts =>
