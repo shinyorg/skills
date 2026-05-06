@@ -67,6 +67,7 @@ triggers:
   - BrowserSpeechToTextService
   - BrowserTextToSpeechService
   - BrowserAudioPlayer
+  - BrowserAudioSource
   - OperatingSystem.IsBrowser
 ---
 
@@ -107,7 +108,7 @@ Invoke this skill when the user wants to:
 Shiny Speech provides:
 - Platform-native speech-to-text via `ISpeechToTextService` (iOS, Android, Windows, Browser/WASM)
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
-- Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — not supported in browser)
+- Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser)
 - Platform-native audio playback via `IAudioPlayer` (MP3 format; browser uses HTML5 Audio via base64 data URL)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
@@ -154,9 +155,8 @@ builder.Services.AddAudioPlayer();    // IAudioPlayer only
 
 **Azure AI Speech (replaces platform-native with cloud):**
 ```csharp
-builder.Services.AddAudioSource();    // Still need platform audio capture for STT
-builder.Services.AddAudioPlayer();    // Still need platform audio playback for TTS
 builder.Services.AddAzureSpeech("your-subscription-key", "eastus");
+// Automatically registers IAudioSource and IAudioPlayer for platform audio I/O
 ```
 
 Or with config object and selective services:
@@ -170,8 +170,8 @@ builder.Services.AddAzureSpeech(
 
 **ElevenLabs TTS (replaces platform-native TTS with cloud):**
 ```csharp
-builder.Services.AddAudioPlayer();    // Still need platform audio playback
 builder.Services.AddElevenLabsTextToSpeech("your-api-key");
+// Automatically registers IAudioPlayer for platform audio playback
 ```
 
 ### 3. Platform Permissions
@@ -194,7 +194,7 @@ builder.Services.AddElevenLabsTextToSpeech("your-api-key");
 <script src="shiny-speech.js"></script>
 ```
 
-> **Note:** `IAudioSource` (raw PCM capture) throws `PlatformNotSupportedException` in the browser. The Web Speech API handles audio capture internally.
+> **Note:** `IAudioSource` captures raw PCM audio in the browser using the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono — the same format as other platforms.
 
 ## Code Generation Instructions
 
@@ -365,8 +365,7 @@ public class MyCloudSttProvider : ISpeechToTextProvider
     }
 }
 
-// Register in DI
-builder.Services.AddAudioSource();
+// Register in DI (IAudioSource is auto-registered)
 builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 ```
 
@@ -379,13 +378,13 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 5. **Use `ContinuousRecognize`** — For real-time streaming transcription with partial results
 6. **Use `ListenWithWakeWord`** — For "Hey Siri" style activation where a wake phrase triggers command capture
 7. **Use `ListenForKeyword`** — For yes/no/choice scenarios where you need to detect a specific word from a set
-6. **Register platform services** — Cloud providers still need `AddAudioSource()` and `AddAudioPlayer()` for microphone/speaker access
+6. **Platform services auto-registered** — Cloud providers automatically register `IAudioSource` and `IAudioPlayer` as needed via `TryAdd`, so manual registration is no longer required
 7. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
 8. **Use `IsListening`/`IsSpeaking`/`IsPlaying`** — Check state before starting new listening/speech/playback
 9. **Configure silence timeout** — Default 2 seconds; adjust for your use case
 10. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
 11. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
-12. **Browser audio capture is not supported** — `IAudioSource` throws `PlatformNotSupportedException` in browser; the Web Speech API handles audio internally
+12. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
 13. **Include the JS interop module** — Blazor WASM apps must include `shiny-speech.js` in `index.html` for speech services to work
 
 ## Reference Files
