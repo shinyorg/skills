@@ -1,7 +1,7 @@
 {
   "name": "shiny-data",
-  "version": "1.5.0",
-  "description": "Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, MySQL, SQL Server, PostgreSQL) with LINQ queries, batch operations, SQLCipher encryption, hot backup, diff tracking (JsonPatchDocument), and AI tool exposure; Spatial geospatial database with SQLite R*Tree indexing, custom geometry algorithms, geofencing package, and pre-built US/Canada geographic databases",
+  "version": "1.6.0",
+  "description": "Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, LiteDB, CosmosDB, IndexedDB for Blazor WASM, MySQL, SQL Server, PostgreSQL) with LINQ queries, spatial/geo queries, batch operations, SQLCipher encryption, hot backup, diff tracking (JsonPatchDocument), and AI tool exposure; Spatial geospatial database with SQLite R*Tree indexing, custom geometry algorithms, geofencing package, and pre-built US/Canada geographic databases",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/",
   "license": "MIT",
-  "keywords": ["document-store", "sqlite", "json-document", "spatial", "geospatial", "rtree", "linq", "aot"],
+  "keywords": ["document-store", "sqlite", "json-document", "spatial", "geospatial", "rtree", "linq", "aot", "litedb", "cosmosdb", "indexeddb", "blazor", "mysql", "sqlserver", "postgresql"],
   "skills": "./skills/"
 }
