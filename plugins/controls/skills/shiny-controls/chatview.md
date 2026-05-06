@@ -83,8 +83,17 @@ public class ChatParticipant
 | `MyTextColor` | `Color` / `string` | `Black` | Local user text color |
 | `OtherBubbleColor` | `Color` / `string` | `White` | Default other-user bubble color (overridden by participant's `BubbleColor`) |
 | `OtherTextColor` | `Color` / `string` | `Black` | Other-user text color |
+| `ChatBackgroundColor` | `Color?` / `string?` | `null` | Background color for the messages area |
+| `BubbleFontSize` | `double` | `15` | Font size for message bubble text |
+| `BubbleFontFamily` | `string?` | `null` | Font family for message bubble text |
+| `TimestampFontSize` | `double` | `11` | Font size for timestamp labels |
+| `BubbleCornerRadius` | `double` | `18` | Corner radius for message bubbles (tail corner remains 4) |
 | `PlaceholderText` | `string` | `"Type a message..."` | Input field placeholder |
 | `SendButtonText` | `string` | `"Send"` | Send button label |
+| `SendButtonBackgroundColor` | `Color` / `string` | `#007AFF` | Send button background color |
+| `SendButtonTextColor` | `Color` / `string` | `White` | Send button text color |
+| `InputBarBackgroundColor` | `Color` / `string` | `#F5F5F5` | Input bar background color |
+| `InputBarBorderColor` | `Color` / `string` | `#E0E0E0` | Input bar top border/separator color |
 | `IsInputBarVisible` | `bool` | `true` | Show/hide the entire input bar |
 | `ShowTypingIndicator` | `bool` | `true` | Enable/disable typing indicator |
 | `TypingParticipants` | `IList<ChatParticipant>` | `null` | Currently typing participants (do not include "me") |
