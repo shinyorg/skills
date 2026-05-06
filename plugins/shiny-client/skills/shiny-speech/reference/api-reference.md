@@ -419,12 +419,12 @@ public record ElevenLabsConfig
 - Check `IsSupported` — some platforms/emulators don't support STT
 
 ### No audio captured
-- Ensure `AddAudioSource()` is registered
+- Ensure `AddAudioSource()` is registered (cloud providers auto-register this)
 - Audio format is raw PCM (16kHz, 16-bit, mono) — not WAV or MP3
 - Call `StopCaptureAsync()` when done to release the microphone
 
 ### Cloud provider not working
-- Ensure both `AddAudioSource()` and `AddAudioPlayer()` are registered alongside cloud providers
+- Cloud providers automatically register `IAudioSource` and `IAudioPlayer` as needed
 - Cloud providers replace the platform-native `ISpeechToTextService`/`ITextToSpeechService` registrations
 - Verify API keys and region settings
 
