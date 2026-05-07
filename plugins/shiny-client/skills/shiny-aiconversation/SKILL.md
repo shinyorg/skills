@@ -36,6 +36,12 @@ triggers:
   - iaiconversationservice
   - ai service options
   - aiserviceoptions
+  - github copilot
+  - copilot chat
+  - addgithubcopilotchatclient
+  - addstaticopenaichatclient
+  - openai static
+  - openaistaticChatprovider
 references:
   - ai-service.md
   - registration.md
@@ -61,6 +67,10 @@ The library provides:
 - **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
 - **AiChatMessage**: Record representing a persisted chat message with Id, Message, Timestamp, and Direction (User/AI)
 - **AiServiceOptions**: Fluent configuration for DI registration — sets chat client provider, message store, and optional AI tools
+
+**Built-in Provider Packages**:
+- **Shiny.AiConversation.OpenAi** (`OpenAiStaticChatProvider`): Static OpenAI-compatible provider. Accepts API key, endpoint URI, and model name. Works with OpenAI, Azure OpenAI, Ollama, or any OpenAI-compatible API. Register with `opts.AddStaticOpenAIChatClient(apiToken, endpointUri, modelName)`.
+- **Shiny.AiConversation.Maui.GithubCopilot** (`GitHubCopilotChatClientProvider`): MAUI-specific provider using GitHub device code OAuth flow and the Copilot API. Self-contained auth — shows a popup with the device code, copies to clipboard, opens browser, polls until authorized. Tokens stored in SecureStorage. Register with `opts.AddGithubCopilotChatClient()`. Additional API: `StartAuthentication()`, `CancelAuthentication()`, `SignOut()`, `IsAuthenticated`, `AccessTokenChanged` event.
 
 ## Dependencies
 
@@ -91,16 +101,24 @@ Always register with `AddShinyAiConversation()`:
 ```csharp
 using Shiny.AiConversation;
 
-// Register an IChatClient in DI (simplest approach)
+// Option A: Register an IChatClient in DI (simplest approach)
 builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
 
+// Option B: Use a built-in provider
 builder.Services.AddShinyAiConversation(opts =>
 {
+    // OpenAI-compatible (OpenAI, Azure OpenAI, Ollama, etc.)
+    opts.AddStaticOpenAIChatClient("your-api-key", "https://api.openai.com/v1", "gpt-4o");
+
+    // OR GitHub Copilot (MAUI only — self-contained auth with SecureStorage)
+    opts.AddGithubCopilotChatClient();
+
     opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true); // optional
 });
 ```
 
-- `SetChatClientProvider<T>()` is **optional** — if not set, the default `InjectedChatClientProvider` resolves `IChatClient` from DI. Use it only for advanced scenarios (on-demand auth, token refresh, etc.)
+- Built-in providers: `AddStaticOpenAIChatClient()` for OpenAI-compatible APIs, `AddGithubCopilotChatClient()` for GitHub Copilot on MAUI
+- `SetChatClientProvider<T>()` is for custom providers — if not set and no built-in provider is used, the default `InjectedChatClientProvider` resolves `IChatClient` from DI
 - `SetMessageStore<T>()` is **optional** — enables persistent history and optionally registers the ChatLookupAITool
 - Sound effects and system prompts are set on IAiConversationService **after** `builder.Build()`
 
@@ -151,7 +169,8 @@ public class MyChatClientProvider : IChatClientProvider
 ```csharp
 public class MyMessageStore : IMessageStore
 {
-    public Task Store(AiChatMessage chatMessage, CancellationToken cancellationToken) { ... }
+    public Task Store(ChatMessage chatMessage, CancellationToken cancellationToken) { ... }
+    public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken) { ... }
     public Task Clear(DateTimeOffset? beforeDate = null) { ... }
     public Task<IReadOnlyList<AiChatMessage>> Query(
         string? messageContains = null,
@@ -184,11 +203,11 @@ await aiService.ClearChatHistory();
 await aiService.ClearChatHistory(beforeDate: oneWeekAgo);
 
 // React to state changes
-aiService.StateChanged += () => { /* update UI */ };
+aiService.StatusChanged += (state) => { /* update UI with new AiState */ };
 aiService.AiResponded += (response) =>
 {
-    // response.Message — the AI's text
-    // response.Timestamp — when it was generated
+    // response.Response — the complete ChatResponse
+    // response.Response.Text — the text content of the response
     // response.WasReadAloud — whether TTS was used
 };
 ```
@@ -216,7 +235,7 @@ aiService.AiResponded += (response) =>
 1. **Set sounds externally** — Never set default sound values on AiConversationService directly; configure them in MauiProgram.cs after Build()
 2. **Handle auth on-demand** — IChatClientProvider should handle authentication lazily, not force login at startup
 3. **Use TwoWay binding** for Acknowledgement in settings UIs
-4. **Subscribe/unsubscribe** to StateChanged and AiResponded in page lifecycle (OnAppearing/OnDisappearing)
+4. **Subscribe/unsubscribe** to StatusChanged and AiResponded in page lifecycle (OnAppearing/OnDisappearing)
 5. **Use CancellationToken** for all TalkTo/ListenAndTalk calls
 6. **MessageStore is optional** — The service works without it but GetChatHistory/ClearChatHistory will throw
 7. **ChatLookupAITool is opt-in** — Pass `addAiLookupTool: true` to SetMessageStore to allow the AI to search past conversations

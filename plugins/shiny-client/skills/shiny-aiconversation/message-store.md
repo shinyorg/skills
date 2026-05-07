@@ -7,7 +7,8 @@
 ```csharp
 public interface IMessageStore
 {
-    Task Store(AiChatMessage chatMessage, CancellationToken cancellationToken);
+    Task Store(ChatMessage chatMessage, CancellationToken cancellationToken);
+    Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken);
     Task Clear(DateTimeOffset? beforeDate = null);
     Task<IReadOnlyList<AiChatMessage>> Query(
         string? messageContains = null,
@@ -21,8 +22,11 @@ public interface IMessageStore
 
 ## Methods
 
-### Store
-Persists a single chat message. Called automatically by AiConversationService after each user message and AI response.
+### Store (ChatMessage)
+Persists a user or assistant `ChatMessage`. Called automatically by AiConversationService for the user message.
+
+### Store (ChatResponse)
+Persists the complete AI response including the user's triggering message and the `ChatResponse`. Called once after the AI finishes responding.
 
 ### Clear
 Removes messages from the store:
@@ -46,27 +50,35 @@ using Shiny.AiConversation;
 
 public class DocumentDbMessageStore(IDocumentStore store) : IMessageStore
 {
-    public async Task Store(AiChatMessage chatMessage, CancellationToken cancellationToken)
+    public Task Store(ChatMessage chatMessage, CancellationToken cancellationToken)
     {
-        await store.Set(chatMessage.Id, chatMessage);
+        var direction = chatMessage.Role == ChatRole.User
+            ? ChatMessageDirection.User
+            : ChatMessageDirection.AI;
+
+        return store.Insert(
+            new AiChatMessage(Guid.NewGuid().ToString(), chatMessage.Text ?? "", DateTimeOffset.UtcNow, direction),
+            cancellationToken: cancellationToken
+        );
+    }
+
+    public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken)
+    {
+        if (response.Text is not { } text)
+            return Task.CompletedTask;
+
+        return store.Insert(
+            new AiChatMessage(Guid.NewGuid().ToString(), text, DateTimeOffset.UtcNow, ChatMessageDirection.AI),
+            cancellationToken: cancellationToken
+        );
     }
 
     public async Task Clear(DateTimeOffset? beforeDate = null)
     {
-        if (beforeDate == null)
-        {
-            await store.Clear<AiChatMessage>();
-        }
-        else
-        {
-            var old = await store
-                .CreateQuery<AiChatMessage>()
-                .Where(x => x.Timestamp < beforeDate.Value)
-                .ToListAsync();
-
-            foreach (var msg in old)
-                await store.Remove<AiChatMessage>(msg.Id);
-        }
+        var query = store.Query<AiChatMessage>();
+        if (beforeDate.HasValue)
+            query = query.Where(x => x.Timestamp <= beforeDate.Value);
+        await query.ExecuteDelete();
     }
 
     public async Task<IReadOnlyList<AiChatMessage>> Query(
@@ -76,10 +88,10 @@ public class DocumentDbMessageStore(IDocumentStore store) : IMessageStore
         int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var query = store.CreateQuery<AiChatMessage>();
+        var query = store.Query<AiChatMessage>().OrderBy(x => x.Timestamp);
 
         if (!String.IsNullOrWhiteSpace(messageContains))
-            query = query.Where(x => x.Message.Contains(messageContains, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(x => x.Message.Contains(messageContains));
 
         if (fromDate != null)
             query = query.Where(x => x.Timestamp >= fromDate.Value);
@@ -87,12 +99,10 @@ public class DocumentDbMessageStore(IDocumentStore store) : IMessageStore
         if (toDate != null)
             query = query.Where(x => x.Timestamp <= toDate.Value);
 
-        query = query.OrderBy(x => x.Timestamp);
-
         if (limit != null)
             query = query.Paginate(0, limit.Value);
 
-        return await query.ToListAsync(cancellationToken);
+        return await query.ToList(cancellationToken);
     }
 }
 ```
