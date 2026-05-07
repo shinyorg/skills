@@ -25,58 +25,59 @@ builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("g
 
 If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
 
-## Custom Implementation
+## Built-in Providers
 
-Implement `IChatClientProvider` only for advanced scenarios:
-- On-demand authentication and token management
-- Client construction and configuration
-- Token refresh and re-authentication on expiry
+### Shiny.AiConversation.OpenAi
 
-## Implementation Pattern
+**NuGet**: `Shiny.AiConversation.OpenAi`
+**Namespace**: `Shiny.AiConversation.OpenAi`
+**Class**: `OpenAiStaticChatProvider`
+
+A static provider that creates an OpenAI-compatible chat client once at startup. Works with any OpenAI-compatible endpoint (OpenAI, Azure OpenAI, Ollama, etc.). Includes logging and function invocation middleware.
 
 ```csharp
-using Microsoft.Extensions.AI;
-using Shiny.AiConversation;
-
-public class MyChatClientProvider(INavigator navigator) : IChatClientProvider
+builder.Services.AddShinyAiConversation(opts =>
 {
-    string? accessToken;
-
-    public async Task<IChatClient> GetChatClient(CancellationToken cancelToken = default)
-    {
-        if (this.accessToken == null)
-            await this.RequestAuthentication();
-
-        try
-        {
-            // Build and return the chat client
-            return BuildChatClient(this.accessToken!);
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            // Token expired — re-authenticate
-            this.accessToken = null;
-            await this.RequestAuthentication();
-            return BuildChatClient(this.accessToken!);
-        }
-    }
-
-    async Task RequestAuthentication()
-    {
-        // Navigate to login page on-demand
-        var tcs = new TaskCompletionSource();
-        await navigator.NavigateTo<LoginViewModel>(vm => vm.AuthenticationCompleted = tcs);
-        await tcs.Task; // wait for login to complete
-    }
-
-    IChatClient BuildChatClient(string token)
-    {
-        // Return your IChatClient implementation
-        // e.g., OpenAIChatClient, Azure OpenAI, GitHub Copilot, etc.
-        throw new NotImplementedException();
-    }
-}
+    opts.AddStaticOpenAIChatClient(
+        apiToken: "your-api-key",
+        endpointUri: "https://api.openai.com/v1",
+        modelName: "gpt-4o"
+    );
+});
 ```
+
+### Shiny.AiConversation.Maui.GithubCopilot
+
+**NuGet**: `Shiny.AiConversation.Maui.GithubCopilot`
+**Namespace**: `Shiny.AiConversation.Maui.GithubCopilot`
+**Class**: `GitHubCopilotChatClientProvider`
+
+A MAUI-specific provider that uses the GitHub device code flow for authentication and the Copilot API for chat completions.
+
+**Features**:
+- Self-contained authentication — shows a popup with the device code, copies it to the clipboard, opens the browser
+- Tokens stored in `SecureStorage`
+- Copilot API token exchange with caching and automatic refresh
+- Re-authentication on 401 responses
+- `AccessTokenChanged` event for monitoring auth state
+- `SignOut()` to clear stored tokens
+- `CancelAuthentication()` to cancel an in-progress auth flow
+
+```csharp
+builder.Services.AddShinyAiConversation(opts =>
+{
+    opts.AddGithubCopilotChatClient();
+});
+```
+
+No additional configuration is needed — no token storage, no login page, no event wiring. The provider handles the entire lifecycle.
+
+## Custom Implementation
+
+Implement `IChatClientProvider` only for scenarios not covered by the built-in providers:
+- Custom authentication flows
+- Client construction and configuration
+- Token refresh and re-authentication on expiry
 
 ## Key Design Decisions
 
@@ -84,9 +85,7 @@ public class MyChatClientProvider(INavigator navigator) : IChatClientProvider
 
 2. **Token expiry handling** — Catch 401/Unauthorized responses and re-authenticate transparently.
 
-3. **Navigator injection** — Use `INavigator` from Shiny.Maui.Shell to navigate to login pages. The `NavigateTo<TViewModel>` overload accepts a configuration action to pass data (like a `TaskCompletionSource`) to the login ViewModel.
-
-4. **No reflection** — Register the provider explicitly with `SetChatClientProvider<T>()`.
+3. **No reflection** — Register the provider explicitly with `SetChatClientProvider<T>()`.
 
 ## Registration
 
@@ -97,6 +96,17 @@ builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("g
 builder.Services.AddShinyAiConversation(opts => { });
 ```
 
+For built-in providers, use the extension methods:
+
+```csharp
+builder.Services.AddShinyAiConversation(opts =>
+{
+    opts.AddStaticOpenAIChatClient("key", "https://api.openai.com/v1", "gpt-4o");
+    // OR
+    opts.AddGithubCopilotChatClient();
+});
+```
+
 For custom providers:
 
 ```csharp
@@ -104,12 +114,4 @@ builder.Services.AddShinyAiConversation(opts =>
 {
     opts.SetChatClientProvider<MyChatClientProvider>();
 });
-```
-
-If you need to resolve the concrete provider type elsewhere (e.g., for device flow polling), register it explicitly:
-
-```csharp
-builder.Services.AddSingleton<MyChatClientProvider>(
-    sp => (MyChatClientProvider)sp.GetRequiredService<IChatClientProvider>()
-);
 ```

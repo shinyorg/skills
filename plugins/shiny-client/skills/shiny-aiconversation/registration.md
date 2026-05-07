@@ -2,18 +2,26 @@
 
 ## DI Registration
 
-Register the AI service in `MauiProgram.cs` using `AddShinyAiConversation()`:
+Register the AI service using `AddShinyAiConversation()`:
 
 ```csharp
 using Shiny.AiConversation;
 
 var builder = MauiApp.CreateBuilder();
 
-// Register an IChatClient in DI (from any Microsoft.Extensions.AI-compatible provider)
-builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
-
 builder.Services.AddShinyAiConversation(opts =>
 {
+    // Choose one chat client approach:
+
+    // Option A: Register IChatClient in DI (resolved by default provider)
+    // builder.Services.AddChatClient(new OpenAIClient("key").GetChatClient("gpt-4o").AsIChatClient());
+
+    // Option B: Static OpenAI-compatible provider (NuGet: Shiny.AiConversation.OpenAi)
+    // opts.AddStaticOpenAIChatClient("your-api-key", "https://api.openai.com/v1", "gpt-4o");
+
+    // Option C: GitHub Copilot with device code auth (NuGet: Shiny.AiConversation.Maui.GithubCopilot)
+    opts.AddGithubCopilotChatClient();
+
     // Optional: enable persistent message storage
     // Pass addAiLookupTool: true to register ChatLookupAITool
     opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true);
