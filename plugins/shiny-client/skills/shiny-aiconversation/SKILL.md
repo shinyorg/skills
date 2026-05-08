@@ -36,6 +36,14 @@ triggers:
   - iaiconversationservice
   - ai service options
   - aiserviceoptions
+  - quiet words
+  - quietwords
+  - voice interruption
+  - speech interruption
+  - expects response
+  - conversation continuation
+  - speech to text options
+  - text to speech options
   - github copilot
   - copilot chat
   - addgithubcopilotchatclient
@@ -61,7 +69,7 @@ You are an expert in the Shiny.AiConversation library, a centralized AI service 
 **Infrastructure Namespace**: `Shiny.AiConversation.Infrastructure` (internal implementations)
 
 The library provides:
-- **IAiConversationService**: Central orchestrator for AI interactions — manages state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, and persistent chat history
+- **IAiConversationService**: Central orchestrator for AI interactions — manages state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (auto-listens when AI asks a question), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
 - **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
@@ -87,6 +95,8 @@ Invoke this skill when the user wants to:
 - Add wake word detection to an app
 - Configure acknowledgement modes (None, AudioBlip, LessWordy, Full)
 - Set up sound effects for AI state transitions
+- Configure voice interruption with quiet words
+- Set up speech-to-text and text-to-speech options (culture, voice, speech rate, etc.)
 - Add the optional ChatLookupAITool for AI-driven history search
 - Build a chat UI that integrates with IAiConversationService
 - Handle AI state changes (Idle, Listening, Thinking, Responding)
@@ -138,6 +148,12 @@ aiService.CancelSound = "cancel.mp3";
 aiService.ErrorSound = "error.mp3";
 aiService.ThinkSound = "think.mp3";
 aiService.RespondingSound = "responding.mp3";
+
+// Voice interruption — quiet words stop TTS and break conversation;
+// any other speech during TTS stops it and continues with the new utterance
+// Default: ["cancel", "quiet", "shut up", "stop", "nevermind", "never mind", "hush"]
+// Set to null to disable voice interruption entirely
+aiService.QuietWords = ["stop", "cancel", "quiet", "shut up", "nevermind", "never mind", "hush"];
 ```
 
 ### 3. Chat Client Setup
@@ -209,6 +225,7 @@ aiService.AiResponded += (response) =>
     // response.Response — the complete ChatResponse
     // response.Response.Text — the text content of the response
     // response.WasReadAloud — whether TTS was used
+    // response.ExpectsResponse — true if AI asked a question (will auto-listen for reply)
 };
 ```
 

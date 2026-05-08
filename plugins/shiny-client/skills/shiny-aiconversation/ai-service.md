@@ -21,6 +21,7 @@ event Action<AiResponse>? AiResponded;
 Raised when the AI produces a complete response. The `AiResponse` record contains:
 - `Response` (ChatResponse) — the complete chat response including text, tool calls, and usage details
 - `WasReadAloud` (bool) — whether text-to-speech was used based on the current Acknowledgement mode
+- `ExpectsResponse` (bool) — true when the AI response ends with a question, indicating the service will keep listening for a reply
 
 ## Properties
 
@@ -37,6 +38,9 @@ Raised when the AI produces a complete response. The `AiResponse` record contain
 | `ErrorSound` | `string?` | Sound file name played on error (AudioBlip mode) |
 | `ThinkSound` | `string?` | Sound file name played when AI begins processing (AudioBlip mode) |
 | `RespondingSound` | `string?` | Sound file name played when AI begins streaming response (AudioBlip mode) |
+| `QuietWords` | `IList<string>?` | Words that stop TTS and break conversation loop. Other speech during TTS continues the conversation. Default: cancel, quiet, shut up, stop, nevermind, never mind, hush. Set to null to disable. |
+| `SpeechToTextOptions` | `SpeechRecognitionOptions?` | Options for speech-to-text operations (culture, silence timeout, prefer on-device) |
+| `TextToSpeechOptions` | `Shiny.Speech.TextToSpeechOptions?` | Options for text-to-speech (culture, voice, speech rate, pitch, volume) |
 
 ## Methods
 
@@ -44,13 +48,13 @@ Raised when the AI produces a complete response. The `AiResponse` record contain
 ```csharp
 Task TalkTo(string message, CancellationToken cancellationToken);
 ```
-Sends a text message to the AI. Manages the full lifecycle: Thinking → Responding → Idle. Stores messages in IMessageStore if configured. Streams response and uses TTS if Acknowledgement is LessWordy or Full.
+Sends a text message to the AI. Manages the full lifecycle: Thinking → Responding → Idle. Stores messages in IMessageStore if configured. Uses TTS if Acknowledgement is LessWordy or Full. During TTS, listens for voice interruptions: quiet words stop TTS and break the conversation loop; other speech stops TTS and continues the conversation with the new utterance.
 
 ### ListenAndTalk
 ```csharp
 Task ListenAndTalk(CancellationToken cancellationToken);
 ```
-Activates speech-to-text for a single utterance, then sends it via TalkTo. Throws if wake word is active.
+Activates speech-to-text for a single utterance, then sends it via TalkTo. If the AI response ends with a question, automatically keeps listening for a reply. Throws if wake word is active.
 
 ### StartWakeWord
 ```csharp
@@ -109,7 +113,7 @@ Clears in-memory chat messages only. Does not affect persisted history.
 
 ### AiResponse
 ```csharp
-public record AiResponse(ChatResponse Response, bool WasReadAloud);
+public record AiResponse(ChatResponse Response, bool WasReadAloud, bool ExpectsResponse);
 ```
 
 ### AiChatMessage

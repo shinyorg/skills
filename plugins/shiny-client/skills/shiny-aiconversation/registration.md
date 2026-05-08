@@ -52,6 +52,9 @@ aiService.CancelSound = "cancel.mp3";
 aiService.ErrorSound = "error.mp3";
 aiService.ThinkSound = "think.mp3";
 aiService.RespondingSound = "responding.mp3";
+
+// Voice interruption (defaults are already set, customize if needed)
+// aiService.QuietWords = ["stop", "cancel", "quiet"];  // or null to disable
 ```
 
 ## AiServiceOptions
