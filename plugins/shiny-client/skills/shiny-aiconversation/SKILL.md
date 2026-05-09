@@ -74,6 +74,7 @@ The library provides:
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
 - **AiChatMessage**: Record representing a persisted chat message with Id, Message, Timestamp, and Direction (User/AI)
+- **IContextProvider**: Abstraction for supplying system prompts and AI tools per request — the `DefaultContextProvider` handles time-based prompts, acknowledgement-aware voice prompts, and DI-registered `AITool` instances. Implement custom providers to add domain-specific system prompts or tools.
 - **AiServiceOptions**: Fluent configuration for DI registration — sets chat client provider, message store, and optional AI tools
 
 **Built-in Provider Packages**:
@@ -130,16 +131,14 @@ builder.Services.AddShinyAiConversation(opts =>
 - Built-in providers: `AddStaticOpenAIChatClient()` for OpenAI-compatible APIs, `AddGithubCopilotChatClient()` for GitHub Copilot on MAUI
 - `SetChatClientProvider<T>()` is for custom providers — if not set and no built-in provider is used, the default `InjectedChatClientProvider` resolves `IChatClient` from DI
 - `SetMessageStore<T>()` is **optional** — enables persistent history and optionally registers the ChatLookupAITool
-- Sound effects and system prompts are set on IAiConversationService **after** `builder.Build()`
+- System prompts are provided via `IContextProvider` implementations registered in DI (a `DefaultContextProvider` is auto-registered)
+- Sound effects are set on IAiConversationService **after** `builder.Build()`
 
 ### 2. Post-Build Configuration
 
 ```csharp
 var app = builder.Build();
 var aiService = app.Services.GetRequiredService<IAiConversationService>();
-
-// System prompts
-aiService.SystemPrompts.Add("You are a helpful assistant...");
 
 // Sound resolver + sound file names (files in Resources/Raw/)
 aiService.SoundResolver = name => FileSystem.OpenAppPackageFileAsync(name);
@@ -180,12 +179,30 @@ public class MyChatClientProvider : IChatClientProvider
 - Handle token expiry and re-authentication inside GetChatClient
 - Can inject INavigator to navigate to a login page if authentication is needed on-demand
 
-### 4. Implementing IMessageStore
+### 4. Implementing IContextProvider (Custom)
+
+The `DefaultContextProvider` is registered automatically and provides time-based prompts, acknowledgement-aware voice prompts, and any `AITool` instances from DI. To add custom system prompts or tools, implement `IContextProvider` and register it:
+
+```csharp
+public class MyContextProvider : IContextProvider
+{
+    public IEnumerable<string> GetSystemPrompts(AiAcknowledgement acknowledgement)
+    {
+        yield return "You are a helpful assistant for our company.";
+    }
+
+    public IEnumerable<AITool> GetTools() => [];
+}
+
+// Register in DI — multiple providers are supported
+builder.Services.AddSingleton<IContextProvider, MyContextProvider>();
+```
+
+### 5. Implementing IMessageStore
 
 ```csharp
 public class MyMessageStore : IMessageStore
 {
-    public Task Store(ChatMessage chatMessage, CancellationToken cancellationToken) { ... }
     public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken) { ... }
     public Task Clear(DateTimeOffset? beforeDate = null) { ... }
     public Task<IReadOnlyList<AiChatMessage>> Query(
@@ -197,7 +214,7 @@ public class MyMessageStore : IMessageStore
 }
 ```
 
-### 5. Using IAiConversationService
+### 6. Using IAiConversationService
 
 ```csharp
 // Send a text message
@@ -229,7 +246,7 @@ aiService.AiResponded += (response) =>
 };
 ```
 
-### 6. Acknowledgement Modes
+### 7. Acknowledgement Modes
 
 | Mode | Behavior |
 |------|----------|
@@ -238,7 +255,7 @@ aiService.AiResponded += (response) =>
 | `LessWordy` | TTS with "be concise" system prompt injected |
 | `Full` | TTS with full unmodified responses |
 
-### 7. AI States
+### 8. AI States
 
 | State | Description |
 |-------|-------------|

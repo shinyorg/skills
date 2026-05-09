@@ -32,18 +32,10 @@ var app = builder.Build();
 
 ## Post-Build Configuration
 
-Sound effects and system prompts must be set **after** `builder.Build()` on the resolved IAiConversationService instance:
+Sound effects must be set **after** `builder.Build()` on the resolved IAiConversationService instance. System prompts are provided via `IContextProvider` implementations registered in DI.
 
 ```csharp
 var aiService = app.Services.GetRequiredService<IAiConversationService>();
-
-// Add system prompts
-aiService.SystemPrompts.Add(
-    """
-    You are a helpful assistant. If you don't know the answer,
-    it's okay to say you don't know.
-    """
-);
 
 // Sound resolver + sound file names (files must exist in Resources/Raw/)
 aiService.SoundResolver = name => FileSystem.OpenAppPackageFileAsync(name);
@@ -76,6 +68,7 @@ aiService.RespondingSound = "responding.mp3";
 
 `AddShinyAiConversation()` automatically registers (via TryAddSingleton):
 - `TimeProvider.System`
+- `DefaultContextProvider` as an `IContextProvider` — provides time-based system prompts, acknowledgement-aware voice prompts, and passes through any `AITool` instances from DI
 - `InjectedChatClientProvider` as the default `IChatClientProvider` — resolves `IChatClient` from DI. If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
 - Speech services via `AddSpeechServices()` (when `AutoAddSpeechServices` is true, the default) — includes ISpeechToTextService, ITextToSpeechService, and IAudioPlayer from Shiny.Speech
 

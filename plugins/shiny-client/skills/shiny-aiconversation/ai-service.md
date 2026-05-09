@@ -30,7 +30,6 @@ Raised when the AI produces a complete response. The `AiResponse` record contain
 | `WakeWord` | `string?` | Currently active wake word, or null if not running |
 | `Status` | `AiState` | Current processing state (Idle/Listening/Thinking/Responding) |
 | `Acknowledgement` | `AiAcknowledgement` | Controls response delivery mode (get/set) |
-| `SystemPrompts` | `IList<string>` | System prompts prepended to every chat request |
 | `CurrentChatMessages` | `IReadOnlyList<ChatMessage>` | In-memory chat messages for current session |
 | `SoundResolver` | `Func<string, Task<Stream>>?` | Callback that resolves a sound file name to a playable stream |
 | `OkSound` | `string?` | Sound file name played on successful interaction (AudioBlip mode) |
