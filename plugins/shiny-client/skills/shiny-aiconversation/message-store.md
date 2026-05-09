@@ -7,7 +7,6 @@
 ```csharp
 public interface IMessageStore
 {
-    Task Store(ChatMessage chatMessage, CancellationToken cancellationToken);
     Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken);
     Task Clear(DateTimeOffset? beforeDate = null);
     Task<IReadOnlyList<AiChatMessage>> Query(
@@ -22,10 +21,7 @@ public interface IMessageStore
 
 ## Methods
 
-### Store (ChatMessage)
-Persists a user or assistant `ChatMessage`. Called automatically by AiConversationService for the user message.
-
-### Store (ChatResponse)
+### Store
 Persists the complete AI response including the user's triggering message and the `ChatResponse`. Called once after the AI finishes responding.
 
 ### Clear
@@ -50,18 +46,6 @@ using Shiny.AiConversation;
 
 public class DocumentDbMessageStore(IDocumentStore store) : IMessageStore
 {
-    public Task Store(ChatMessage chatMessage, CancellationToken cancellationToken)
-    {
-        var direction = chatMessage.Role == ChatRole.User
-            ? ChatMessageDirection.User
-            : ChatMessageDirection.AI;
-
-        return store.Insert(
-            new AiChatMessage(Guid.NewGuid().ToString(), chatMessage.Text ?? "", DateTimeOffset.UtcNow, direction),
-            cancellationToken: cancellationToken
-        );
-    }
-
     public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken)
     {
         if (response.Text is not { } text)
