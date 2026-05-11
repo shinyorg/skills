@@ -84,6 +84,12 @@ Task ClearChatHistory(DateTimeOffset? beforeDate = null, CancellationToken cance
 ```
 Clears persisted history. If `beforeDate` is specified, only removes older messages.
 
+### RequestAccess
+```csharp
+Task<AccessState> RequestAccess();
+```
+Checks whether the conversation service can operate by verifying speech-to-text access. Since all other AI services (chat client, TTS, audio) are available by default, speech is the only gating factor. Returns `AccessState.Available` if speech-to-text is ready, or `AccessState.Restricted` for any other speech access state. Call this before using voice features like `ListenAndTalk` or `StartWakeWord`.
+
 ### ClearCurrentChat
 ```csharp
 void ClearCurrentChat();

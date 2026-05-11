@@ -50,6 +50,8 @@ triggers:
   - addstaticopenaichatclient
   - openai static
   - openaistaticChatprovider
+  - request access
+  - requestaccess
 references:
   - ai-service.md
   - registration.md
@@ -69,7 +71,7 @@ You are an expert in the Shiny.AiConversation library, a centralized AI service 
 **Infrastructure Namespace**: `Shiny.AiConversation.Infrastructure` (internal implementations)
 
 The library provides:
-- **IAiConversationService**: Central orchestrator for AI interactions — manages state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (auto-listens when AI asks a question), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
+- **IAiConversationService**: Central orchestrator for AI interactions — manages access checking, state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (auto-listens when AI asks a question), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
 - **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
@@ -102,6 +104,7 @@ Invoke this skill when the user wants to:
 - Build a chat UI that integrates with IAiConversationService
 - Handle AI state changes (Idle, Listening, Thinking, Responding)
 - Use TalkTo or ListenAndTalk for AI interactions
+- Check speech/microphone access before starting voice features
 
 ## Code Generation Instructions
 
@@ -217,6 +220,14 @@ public class MyMessageStore : IMessageStore
 ### 6. Using IAiConversationService
 
 ```csharp
+// Check access before using voice features
+var access = await aiService.RequestAccess();
+if (access != AccessState.Available)
+{
+    // Speech is not available — handle accordingly
+    return;
+}
+
 // Send a text message
 await aiService.TalkTo("What's the weather?", cancellationToken);
 
