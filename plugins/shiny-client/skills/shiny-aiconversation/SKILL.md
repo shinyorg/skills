@@ -74,10 +74,11 @@ The library provides:
 - **IAiConversationService**: Central orchestrator for AI interactions — manages access checking, state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (auto-listens when AI asks a question), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
 - **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
-- **ChatLookupAITool**: Optional AI tool that allows the AI to search past conversations via IMessageStore, registered as an `AITool` for Microsoft.Extensions.AI tool calling
+- **ChatLookupAITool**: AI tool that allows the AI to search past conversations via IMessageStore — automatically added by `ContextProvider` when an `IMessageStore` is registered
 - **AiChatMessage**: Record representing a persisted chat message with Id, Message, Timestamp, and Direction (User/AI)
-- **IContextProvider**: Abstraction for supplying system prompts and AI tools per request — the `DefaultContextProvider` handles time-based prompts, acknowledgement-aware voice prompts, and DI-registered `AITool` instances. Implement custom providers to add domain-specific system prompts or tools.
-- **AiServiceOptions**: Fluent configuration for DI registration — sets chat client provider, message store, and optional AI tools
+- **IContextProvider**: Visitor-pattern abstraction for populating an `AiContext` per request. Each provider's `Apply(AiContext)` method receives a mutable context and adds its contributions. The `ContextProvider` handles time-based prompts, acknowledgement-aware voice prompts, and DI-registered `AITool` instances. Implement custom providers to add domain-specific system prompts, tools, or override speech settings.
+- **AiContext**: Mutable context object passed to `IContextProvider.Apply()` — contains `Acknowledgement`, `SystemPrompts`, `Tools`, `QuietWords`, `SpeechToTextOptions`, and `TextToSpeechOptions` that providers populate or modify
+- **AiConversationOptions**: Fluent configuration for DI registration — sets chat client provider, message store, sound provider, and additional context providers via `AddContextProvider<T>()`
 
 **Built-in Provider Packages**:
 - **Shiny.AiConversation.OpenAi** (`OpenAiStaticChatProvider`): Static OpenAI-compatible provider. Accepts API key, endpoint URI, and model name. Works with OpenAI, Azure OpenAI, Ollama, or any OpenAI-compatible API. Register with `opts.AddStaticOpenAIChatClient(apiToken, endpointUri, modelName)`.
@@ -127,38 +128,18 @@ builder.Services.AddShinyAiConversation(opts =>
     // OR GitHub Copilot (MAUI only — self-contained auth with SecureStorage)
     opts.AddGithubCopilotChatClient();
 
-    opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true); // optional
+    opts.SetMessageStore<MyMessageStore>(); // optional — ChatLookupAITool added automatically
 });
 ```
 
 - Built-in providers: `AddStaticOpenAIChatClient()` for OpenAI-compatible APIs, `AddGithubCopilotChatClient()` for GitHub Copilot on MAUI
 - `SetChatClientProvider<T>()` is for custom providers — if not set and no built-in provider is used, the default `InjectedChatClientProvider` resolves `IChatClient` from DI
-- `SetMessageStore<T>()` is **optional** — enables persistent history and optionally registers the ChatLookupAITool
-- System prompts are provided via `IContextProvider` implementations registered in DI (a `DefaultContextProvider` is auto-registered)
-- Sound effects are set on IAiConversationService **after** `builder.Build()`
+- `SetMessageStore<T>()` is **optional** — enables persistent history; the `ContextProvider` automatically adds `ChatLookupAITool` when a store is present
+- `AddContextProvider<T>()` registers additional `IContextProvider` implementations
+- `SetSoundProvider<T>()` registers a custom `ISoundProvider` implementation
+- System prompts, tools, quiet words, and speech options are provided via `IContextProvider` implementations registered in DI (a `ContextProvider` is auto-registered)
 
-### 2. Post-Build Configuration
-
-```csharp
-var app = builder.Build();
-var aiService = app.Services.GetRequiredService<IAiConversationService>();
-
-// Sound resolver + sound file names (files in Resources/Raw/)
-aiService.SoundResolver = name => FileSystem.OpenAppPackageFileAsync(name);
-aiService.OkSound = "ok.mp3";
-aiService.CancelSound = "cancel.mp3";
-aiService.ErrorSound = "error.mp3";
-aiService.ThinkSound = "think.mp3";
-aiService.RespondingSound = "responding.mp3";
-
-// Voice interruption — quiet words stop TTS and break conversation;
-// any other speech during TTS stops it and continues with the new utterance
-// Default: ["cancel", "quiet", "shut up", "stop", "nevermind", "never mind", "hush"]
-// Set to null to disable voice interruption entirely
-aiService.QuietWords = ["stop", "cancel", "quiet", "shut up", "nevermind", "never mind", "hush"];
-```
-
-### 3. Chat Client Setup
+### 2. Chat Client Setup
 
 **Simple approach** — register `IChatClient` in DI (the default provider resolves it automatically):
 
@@ -182,26 +163,33 @@ public class MyChatClientProvider : IChatClientProvider
 - Handle token expiry and re-authentication inside GetChatClient
 - Can inject INavigator to navigate to a login page if authentication is needed on-demand
 
-### 4. Implementing IContextProvider (Custom)
+### 3. Implementing IContextProvider (Custom)
 
-The `DefaultContextProvider` is registered automatically and provides time-based prompts, acknowledgement-aware voice prompts, and any `AITool` instances from DI. To add custom system prompts or tools, implement `IContextProvider` and register it:
+The `ContextProvider` is registered automatically and provides time-based prompts, acknowledgement-aware voice prompts, and any `AITool` instances from DI. To add custom system prompts, tools, or modify speech settings, implement `IContextProvider` using the visitor pattern and register it:
 
 ```csharp
 public class MyContextProvider : IContextProvider
 {
-    public IEnumerable<string> GetSystemPrompts(AiAcknowledgement acknowledgement)
+    public Task Apply(AiContext context)
     {
-        yield return "You are a helpful assistant for our company.";
+        context.SystemPrompts.Add("You are a helpful assistant for our company.");
+        // context.Tools.Add(...) to add AI tools
+        // context.Acknowledgement is available to adjust behavior per mode
+        // context.QuietWords — modify quiet words for voice interruption
+        // context.SpeechToTextOptions — set/override speech recognition options
+        // context.TextToSpeechOptions — set/override text-to-speech options
+        return Task.CompletedTask;
     }
-
-    public IEnumerable<AITool> GetTools() => [];
 }
 
-// Register in DI — multiple providers are supported
-builder.Services.AddSingleton<IContextProvider, MyContextProvider>();
+// Register in DI — multiple providers are supported, executed in sequence
+builder.Services.AddShinyAiConversation(opts =>
+{
+    opts.AddContextProvider<MyContextProvider>();
+});
 ```
 
-### 5. Implementing IMessageStore
+### 4. Implementing IMessageStore
 
 ```csharp
 public class MyMessageStore : IMessageStore
@@ -217,7 +205,7 @@ public class MyMessageStore : IMessageStore
 }
 ```
 
-### 6. Using IAiConversationService
+### 5. Using IAiConversationService
 
 ```csharp
 // Check access before using voice features
@@ -257,7 +245,7 @@ aiService.AiResponded += (response) =>
 };
 ```
 
-### 7. Acknowledgement Modes
+### 6. Acknowledgement Modes
 
 | Mode | Behavior |
 |------|----------|
@@ -266,7 +254,7 @@ aiService.AiResponded += (response) =>
 | `LessWordy` | TTS with "be concise" system prompt injected |
 | `Full` | TTS with full unmodified responses |
 
-### 8. AI States
+### 7. AI States
 
 | State | Description |
 |-------|-------------|
@@ -277,7 +265,7 @@ aiService.AiResponded += (response) =>
 
 ## Best Practices
 
-1. **Set sounds externally** — Never set default sound values on AiConversationService directly; configure them in MauiProgram.cs after Build()
+1. **Use IContextProvider for configuration** — System prompts, tools, quiet words, and speech options are all configured via `IContextProvider.Apply(AiContext)` — not set directly on the service
 2. **Handle auth on-demand** — IChatClientProvider should handle authentication lazily, not force login at startup
 3. **Use TwoWay binding** for Acknowledgement in settings UIs
 4. **Subscribe/unsubscribe** to StatusChanged and AiResponded in page lifecycle (OnAppearing/OnDisappearing)

@@ -22,32 +22,23 @@ builder.Services.AddShinyAiConversation(opts =>
     // Option C: GitHub Copilot with device code auth (NuGet: Shiny.AiConversation.Maui.GithubCopilot)
     opts.AddGithubCopilotChatClient();
 
-    // Optional: enable persistent message storage
-    // Pass addAiLookupTool: true to register ChatLookupAITool
-    opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true);
+    // Optional: enable persistent message storage (ChatLookupAITool added automatically)
+    opts.SetMessageStore<MyMessageStore>();
 });
 
 var app = builder.Build();
 ```
 
-## Post-Build Configuration
+## Context Providers
 
-Sound effects must be set **after** `builder.Build()` on the resolved IAiConversationService instance. System prompts are provided via `IContextProvider` implementations registered in DI.
+System prompts, tools, quiet words, and speech options are provided via `IContextProvider` implementations registered in DI using the visitor pattern — each provider's `Apply(AiContext)` method populates a shared `AiContext`. The `AiContext` contains:
 
-```csharp
-var aiService = app.Services.GetRequiredService<IAiConversationService>();
-
-// Sound resolver + sound file names (files must exist in Resources/Raw/)
-aiService.SoundResolver = name => FileSystem.OpenAppPackageFileAsync(name);
-aiService.OkSound = "ok.mp3";
-aiService.CancelSound = "cancel.mp3";
-aiService.ErrorSound = "error.mp3";
-aiService.ThinkSound = "think.mp3";
-aiService.RespondingSound = "responding.mp3";
-
-// Voice interruption (defaults are already set, customize if needed)
-// aiService.QuietWords = ["stop", "cancel", "quiet"];  // or null to disable
-```
+- `Acknowledgement` — the current acknowledgement mode (set by the service)
+- `SystemPrompts` — system prompt strings to include in the chat request
+- `Tools` — AI tools available for the request
+- `QuietWords` — words that stop TTS and break the conversation loop (defaults provided)
+- `SpeechToTextOptions` — speech recognition options (culture, silence timeout, etc.)
+- `TextToSpeechOptions` — text-to-speech options (culture, voice, speech rate, etc.)
 
 ## AiServiceOptions
 
@@ -57,18 +48,23 @@ aiService.RespondingSound = "responding.mp3";
 - Uses `TryAddSingleton` so only the first registration wins
 - Use this for advanced scenarios like on-demand authentication or token refresh
 
-### SetMessageStore<T>(bool addAiLookupTool = true)
+### SetMessageStore<T>()
 - **Optional** — without it, GetChatHistory/ClearChatHistory will throw
 - Registers `T` as a singleton implementing `IMessageStore`
-- When `addAiLookupTool` is true, also registers:
-  - `ChatLookupAITool` as a singleton
-  - An `AITool` singleton that the AI can invoke to search past conversations
+- The built-in `ContextProvider` automatically adds `ChatLookupAITool` to every request when a message store is present
+
+### AddContextProvider<T>()
+- Registers an additional `IContextProvider` implementation
+- Multiple providers are supported and executed in sequence
+
+### SetSoundProvider<T>()
+- Registers a custom `ISoundProvider` implementation for audio feedback
 
 ## Auto-Registered Dependencies
 
 `AddShinyAiConversation()` automatically registers (via TryAddSingleton):
 - `TimeProvider.System`
-- `DefaultContextProvider` as an `IContextProvider` — provides time-based system prompts, acknowledgement-aware voice prompts, and passes through any `AITool` instances from DI
+- `ContextProvider` as an `IContextProvider` — uses the visitor pattern (`Apply(AiContext)`) to add time-based system prompts, acknowledgement-aware voice prompts, DI-registered `AITool` instances, and `ChatLookupAITool` when an `IMessageStore` is available. The `AiContext` also carries `QuietWords`, `SpeechToTextOptions`, and `TextToSpeechOptions` that providers can modify. `ContextProvider` can also be injected directly to add/remove system prompts, tools, and quiet words at runtime.
 - `InjectedChatClientProvider` as the default `IChatClientProvider` — resolves `IChatClient` from DI. If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
 - Speech services via `AddSpeechServices()` (when `AutoAddSpeechServices` is true, the default) — includes ISpeechToTextService, ITextToSpeechService, and IAudioPlayer from Shiny.Speech
 
