@@ -2,7 +2,7 @@
 
 ## Overview
 
-An optional AI tool that allows the AI to search past conversations stored in `IMessageStore`. When registered, the AI can autonomously decide to look up previous chats when the user asks about past discussions.
+An AI tool that allows the AI to search past conversations stored in `IMessageStore`. When a message store is registered, the `ContextProvider` automatically adds this tool to every request — the AI can autonomously decide to look up previous chats when the user asks about past discussions.
 
 **Namespace**: `Shiny.AiConversation.Infrastructure`
 
@@ -19,26 +19,17 @@ Results are limited to 50 messages and formatted as timestamped lines.
 
 ## Registration
 
-The tool is registered automatically when `addAiLookupTool: true` is passed to `SetMessageStore()`:
+The tool is added automatically by the built-in `ContextProvider` when an `IMessageStore` is registered:
 
 ```csharp
 builder.Services.AddShinyAiConversation(opts =>
 {
-    opts.SetChatClientProvider<MyChatClientProvider>();
-    opts.SetMessageStore<MyMessageStore>(addAiLookupTool: true); // default is true
+    opts.SetMessageStore<MyMessageStore>();
 });
 ```
 
-This registers:
-1. `ChatLookupAITool` as a singleton
-2. An `AITool` singleton (resolved via `ChatLookupAITool.AsTool()`)
-
-The `AiConversationService` implementation collects all registered `AITool` instances via `IEnumerable<AITool>` and passes them to the chat client's `ChatOptions.Tools`.
+The `ContextProvider` creates a `ChatLookupAITool` instance during its `Apply(AiContext)` method and adds it to the context's `Tools` list. No separate DI registration is needed.
 
 ## Disabling
 
-To use IMessageStore without the lookup tool:
-
-```csharp
-opts.SetMessageStore<MyMessageStore>(addAiLookupTool: false);
-```
+If you want to use `IMessageStore` for persistence without the AI lookup tool, implement a custom `IContextProvider` that does not add the tool, and do not register the built-in `ContextProvider`.
