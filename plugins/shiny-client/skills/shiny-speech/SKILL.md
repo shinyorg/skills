@@ -24,10 +24,15 @@ triggers:
   - ITextToSpeechProvider
   - SpeechRecognitionResult
   - SpeechRecognitionOptions
+  - SpeechRecognitionError
   - TextToSpeechOptions
   - VoiceInfo
   - AccessState
-  - ContinuousRecognize
+  - ResultReceived
+  - KeywordHeard
+  - StatementAfterKeyword
+  - WaitListenForKeywords
+  - ListenForKeywords
   - ListenUntilSilence
   - SpeakAsync
   - GetVoicesAsync
@@ -53,8 +58,6 @@ triggers:
   - PipeStream
   - IsListening
   - IsSpeaking
-  - ListenWithWakeWord
-  - ListenForKeyword
   - wake word
   - keyword detection
   - hey siri
@@ -84,13 +87,14 @@ Invoke this skill when the user wants to:
 - Use Azure AI Speech for cloud-based STT/TTS
 - Use ElevenLabs for cloud-based TTS
 - Implement a custom cloud speech provider
-- Configure speech recognition options (language, silence timeout, on-device preference)
+- Configure speech recognition options (language, silence timeout, on-device preference, keywords)
 - Configure text-to-speech options (voice, rate, pitch, volume)
 - List available TTS voices
-- Implement continuous speech recognition with streaming results
+- Start/stop continuous speech recognition with event-based results
 - Implement listen-until-silence dictation
-- Implement wake word detection ("Hey Siri" style activation)
+- Implement wake word / keyword activation ("Hey Siri" style)
 - Implement keyword listening (listen until a specific keyword is detected)
+- Listen for keywords continuously as an async stream
 - Add speech-to-text or text-to-speech to a Blazor WebAssembly app
 - Use the Web Speech API via Shiny.Speech in the browser
 
@@ -107,13 +111,16 @@ Invoke this skill when the user wants to:
 
 Shiny Speech provides:
 - Platform-native speech-to-text via `ISpeechToTextService` (iOS, Android, Windows, Browser/WASM)
+- Event-based recognition model — `ResultReceived`, `KeywordHeard`, `Error` events allow multiple subscribers
+- Start/Stop lifecycle — call `Start()` to begin listening, `Stop()` to end; `Start()` throws if already listening
+- Built-in keyword detection — set `Keywords` in `SpeechRecognitionOptions` and subscribe to `KeywordHeard`
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
 - Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser)
 - Platform-native audio playback via `IAudioPlayer` (MP3 format; browser uses HTML5 Audio via base64 data URL)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
 - ElevenLabs integration (TTS only)
-- Streaming recognition results via `IAsyncEnumerable<SpeechRecognitionResult>`
+- Convenience extension methods: `ListenUntilSilence`, `StatementAfterKeyword`, `WaitListenForKeywords`, `ListenForKeywords`
 - Permission management via `AccessState` and `RequestAccess()`
 
 ## Setup
@@ -200,7 +207,7 @@ builder.Services.AddElevenLabsTextToSpeech("your-api-key");
 
 ### 1. Speech-to-Text Usage
 
-Always check permissions before using STT:
+Always check permissions before using STT. The service uses a Start/Stop model with events.
 
 ```csharp
 public class MyViewModel(ISpeechToTextService stt)
@@ -209,72 +216,92 @@ public class MyViewModel(ISpeechToTextService stt)
     {
         var access = await stt.RequestAccess();
         if (access != AccessState.Available)
-        {
-            // Handle denied permission
             return;
-        }
 
-        // Listen until silence (simple dictation)
-        var result = await stt.ListenUntilSilence(new SpeechRecognitionOptions
-        {
-            Culture = CultureInfo.GetCultureInfo("en-US"),
-            SilenceTimeout = TimeSpan.FromSeconds(3),
-            PreferOnDevice = true
-        });
-
-        if (result != null)
-        {
-            // Use transcribed text
-        }
-    }
-
-    async Task StartContinuousListening(CancellationToken ct)
-    {
-        await foreach (var result in stt.ContinuousRecognize(cancellationToken: ct))
+        // Subscribe to events (multiple subscribers allowed)
+        stt.ResultReceived += (s, result) =>
         {
             // result.Text — recognized text
             // result.IsFinal — true when segment is finalized
             // result.Confidence — optional confidence score (0-1)
+        };
+
+        stt.KeywordHeard += (s, keyword) =>
+        {
+            // keyword — the matched keyword string
+        };
+
+        stt.Error += (s, error) =>
+        {
+            // error.Message — error description
+            // error.Exception — optional exception
+        };
+
+        // Start listening (throws InvalidOperationException if already listening)
+        await stt.Start(new SpeechRecognitionOptions
+        {
+            Culture = CultureInfo.GetCultureInfo("en-US"),
+            SilenceTimeout = TimeSpan.FromSeconds(3),
+            PreferOnDevice = true,
+            Keywords = ["Yes", "No", "Maybe"]  // optional keyword detection
+        });
+    }
+
+    async Task StopListening()
+    {
+        await stt.Stop(); // no-op if not listening
+    }
+}
+```
+
+### Extension Methods (Convenience Patterns)
+
+```csharp
+public class MyViewModel(ISpeechToTextService stt)
+{
+    async Task SimpleDictation(CancellationToken ct)
+    {
+        // Listen until silence — starts, waits for first final result, stops
+        var text = await stt.ListenUntilSilence(
+            new SpeechRecognitionOptions
+            {
+                Culture = CultureInfo.GetCultureInfo("en-US"),
+                SilenceTimeout = TimeSpan.FromSeconds(3)
+            },
+            ct
+        );
+    }
+
+    async Task WakeWordActivation(CancellationToken ct)
+    {
+        // "Hey Computer, do something" → returns "do something"
+        // Waits for keyword, then captures next final statement
+        var command = await stt.StatementAfterKeyword(
+            ["Hey Computer"],
+            cancellationToken: ct
+        );
+    }
+
+    async Task WaitForAnswer(CancellationToken ct)
+    {
+        // Wait for one specific keyword (with optional timeout)
+        var answer = await stt.WaitListenForKeywords(
+            ["Yes", "No", "Maybe"],
+            timeout: TimeSpan.FromSeconds(30),
+            cancellationToken: ct
+        );
+        // Returns matched keyword or null on timeout
+    }
+
+    async Task ContinuousKeywords(CancellationToken ct)
+    {
+        // Stream keywords continuously as IAsyncEnumerable
+        await foreach (var keyword in stt.ListenForKeywords(
+            ["Up", "Down", "Left", "Right"],
+            cancellationToken: ct))
+        {
+            Console.WriteLine($"Direction: {keyword}");
         }
-    }
-}
-```
-
-### Wake Word Listening ("Hey Siri" style)
-
-```csharp
-public class MyViewModel(ISpeechToTextService stt)
-{
-    async Task ListenForWakeWord(CancellationToken ct)
-    {
-        var access = await stt.RequestAccess();
-        if (access != AccessState.Available)
-            return;
-
-        // Continuously listens until wake phrase is detected,
-        // then captures everything spoken after it until silence.
-        // If user says wake phrase then pauses, it waits for the next utterance.
-        var command = await stt.ListenWithWakeWord("Hey Computer", cancellationToken: ct);
-        // "Hey Computer, what's the weather" → "what's the weather"
-        // "Hey Computer" [pause] "what's the weather" → "what's the weather"
-    }
-}
-```
-
-### Keyword Listening
-
-```csharp
-public class MyViewModel(ISpeechToTextService stt)
-{
-    async Task ListenForAnswer(CancellationToken ct)
-    {
-        var access = await stt.RequestAccess();
-        if (access != AccessState.Available)
-            return;
-
-        // Listens until one of the specified keywords is detected (case-insensitive, whole word)
-        var answer = await stt.ListenForKeyword(["Yes", "No", "Maybe"], cancellationToken: ct);
-        // User says "I think yes" → returns "Yes" (original casing from input list)
     }
 }
 ```
@@ -372,20 +399,24 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 ## Best Practices
 
 1. **Always check permissions** — Call `RequestAccess()` before STT operations
-2. **Use cancellation tokens** — All async methods accept `CancellationToken` for proper cancellation
-3. **Dispose audio resources** — `IAudioSource` and `IAudioPlayer` implement `IAsyncDisposable`
-4. **Prefer `ListenUntilSilence`** — For simple dictation scenarios, use this over `ContinuousRecognize`
-5. **Use `ContinuousRecognize`** — For real-time streaming transcription with partial results
-6. **Use `ListenWithWakeWord`** — For "Hey Siri" style activation where a wake phrase triggers command capture
-7. **Use `ListenForKeyword`** — For yes/no/choice scenarios where you need to detect a specific word from a set
-6. **Platform services auto-registered** — Cloud providers automatically register `IAudioSource` and `IAudioPlayer` as needed via `TryAdd`, so manual registration is no longer required
-7. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
-8. **Use `IsListening`/`IsSpeaking`/`IsPlaying`** — Check state before starting new listening/speech/playback
-9. **Configure silence timeout** — Default 2 seconds; adjust for your use case
-10. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
-11. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
-12. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
-13. **Include the JS interop module** — Blazor WASM apps must include `shiny-speech.js` in `index.html` for speech services to work
+2. **Use Start/Stop lifecycle** — Call `Start()` to begin, `Stop()` to end; `Start()` throws if already listening
+3. **Subscribe before starting** — Attach event handlers before calling `Start()` to avoid missing results
+4. **Unsubscribe on stop** — Remove event handlers after calling `Stop()` to avoid leaks
+5. **Use extension methods for common patterns** — `ListenUntilSilence`, `StatementAfterKeyword`, `WaitListenForKeywords`, `ListenForKeywords` handle Start/Stop/event wiring for you
+6. **Dispose audio resources** — `IAudioSource` and `IAudioPlayer` implement `IAsyncDisposable`
+7. **Use `ListenUntilSilence`** — For simple dictation scenarios
+8. **Use `StatementAfterKeyword`** — For "Hey Siri" style wake word activation
+9. **Use `WaitListenForKeywords`** — For yes/no/choice scenarios
+10. **Use `ListenForKeywords`** — For continuous keyword detection as an async stream
+11. **Platform services auto-registered** — Cloud providers automatically register `IAudioSource` and `IAudioPlayer` as needed via `TryAdd`, so manual registration is no longer required
+12. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
+13. **Use `IsListening`/`IsSpeaking`/`IsPlaying`** — Check state before starting new listening/speech/playback
+14. **Configure silence timeout** — Default 2 seconds; adjust for your use case
+15. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
+16. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
+17. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
+18. **Include the JS interop module** — Blazor WASM apps must include `shiny-speech.js` in `index.html` for speech services to work
+19. **CarPlay compatible** — iOS audio session uses `PlayAndRecord` with `AllowBluetooth` / `AllowBluetoothA2dp` / `DefaultToSpeaker`, so when CarPlay is active iOS automatically routes audio through the car's microphone and speakers — no CarPlay-specific code needed
 
 ## Reference Files
 
