@@ -31,7 +31,7 @@ public enum AccessState
 
 ## ISpeechToTextService Interface
 
-Platform-native or cloud-backed speech recognition service. Registered as singleton.
+Platform-native or cloud-backed speech recognition service. Registered as singleton. Uses a Start/Stop model with events to allow multiple subscribers.
 
 ```csharp
 public interface ISpeechToTextService
@@ -45,17 +45,20 @@ public interface ISpeechToTextService
     // Request microphone and speech recognition permissions
     Task<AccessState> RequestAccess();
 
-    // Stream recognition results continuously until cancelled
-    IAsyncEnumerable<SpeechRecognitionResult> ContinuousRecognize(
-        SpeechRecognitionOptions? options = null,
-        CancellationToken cancellationToken = default
-    );
+    // Start listening — throws InvalidOperationException if already listening
+    Task Start(SpeechRecognitionOptions? options = null);
 
-    // Listen until silence is detected, return final transcription
-    Task<string?> ListenUntilSilence(
-        SpeechRecognitionOptions? options = null,
-        CancellationToken cancellationToken = default
-    );
+    // Stop listening — no-op if not listening
+    Task Stop();
+
+    // Fires for every recognition result (partial and final)
+    event EventHandler<SpeechRecognitionResult> ResultReceived;
+
+    // Fires when a keyword from SpeechRecognitionOptions.Keywords is detected in a final result
+    event EventHandler<string> KeywordHeard;
+
+    // Fires on recognition errors
+    event EventHandler<SpeechRecognitionError> Error;
 }
 ```
 
@@ -64,41 +67,62 @@ public interface ISpeechToTextService
 ```csharp
 public class MyViewModel(ISpeechToTextService stt)
 {
-    // Simple dictation
-    var text = await stt.ListenUntilSilence();
-
-    // Continuous streaming
-    await foreach (var result in stt.ContinuousRecognize(cancellationToken: ct))
+    async Task Listen()
     {
-        Console.WriteLine($"{result.Text} (final: {result.IsFinal})");
+        stt.ResultReceived += (s, result) =>
+            Console.WriteLine($"{result.Text} (final: {result.IsFinal})");
+
+        stt.KeywordHeard += (s, keyword) =>
+            Console.WriteLine($"Keyword: {keyword}");
+
+        await stt.Start(new SpeechRecognitionOptions
+        {
+            Keywords = ["Yes", "No"]
+        });
+
+        // Later...
+        await stt.Stop();
     }
 }
 ```
 
 ## SpeechToTextExtensions (Extension Methods)
 
-Extension methods on `ISpeechToTextService` for higher-level listening patterns.
+Convenience extension methods on `ISpeechToTextService` that handle Start/Stop/event wiring automatically.
 
 ```csharp
 public static class SpeechToTextExtensions
 {
-    // "Hey Siri" style — continuously listens until wake phrase is detected,
-    // then captures everything spoken after it until silence.
-    // Returns only the text after the wake phrase.
-    // If user says wake phrase then pauses, waits for the next utterance.
-    static Task<string?> ListenWithWakeWord(
+    // Listen until silence — starts, waits for first final result, then stops.
+    static Task<string?> ListenUntilSilence(
         this ISpeechToTextService service,
-        string wakePhrase,
         SpeechRecognitionOptions? options = null,
         CancellationToken cancellationToken = default
     );
 
-    // Listens until one of the specified keywords is detected.
-    // Matching is case-insensitive and whole-word only.
-    // Returns the matched keyword using the original casing from the input list.
-    static Task<string?> ListenForKeyword(
+    // Wake word style — waits for a keyword to be heard,
+    // then returns the next final statement after it.
+    static Task<string?> StatementAfterKeyword(
         this ISpeechToTextService service,
-        IEnumerable<string> keywords,
+        string[] keywords,
+        SpeechRecognitionOptions? options = null,
+        CancellationToken cancellationToken = default
+    );
+
+    // Waits until one of the specified keywords is detected.
+    // Returns the matched keyword or null on timeout/cancellation.
+    static Task<string?> WaitListenForKeywords(
+        this ISpeechToTextService service,
+        string[] keywords,
+        TimeSpan? timeout = null,
+        SpeechRecognitionOptions? options = null,
+        CancellationToken cancellationToken = default
+    );
+
+    // Continuously yields keywords as they are detected.
+    static IAsyncEnumerable<string> ListenForKeywords(
+        this ISpeechToTextService service,
+        string[] keywords,
         SpeechRecognitionOptions? options = null,
         CancellationToken cancellationToken = default
     );
@@ -108,13 +132,18 @@ public static class SpeechToTextExtensions
 ### Usage
 
 ```csharp
-// Wake word: captures command after activation phrase
-var command = await stt.ListenWithWakeWord("Hey Computer", cancellationToken: ct);
-// "Hey Computer, what's the weather" → "what's the weather"
+// Simple dictation
+var text = await stt.ListenUntilSilence();
 
-// Keyword: detects specific words
-var answer = await stt.ListenForKeyword(["Yes", "No", "Maybe"], cancellationToken: ct);
-// "I think yes" → "Yes"
+// Wake word: "Hey Computer, do X" → returns "do X"
+var command = await stt.StatementAfterKeyword(["Hey Computer"], cancellationToken: ct);
+
+// Wait for keyword (with timeout)
+var answer = await stt.WaitListenForKeywords(["Yes", "No"], timeout: TimeSpan.FromSeconds(30));
+
+// Continuous keyword stream
+await foreach (var kw in stt.ListenForKeywords(["Up", "Down", "Left", "Right"], cancellationToken: ct))
+    Console.WriteLine($"Direction: {kw}");
 ```
 
 ## ITextToSpeechService Interface
@@ -204,6 +233,15 @@ public record SpeechRecognitionResult(
 );
 ```
 
+## SpeechRecognitionError Record
+
+```csharp
+public record SpeechRecognitionError(
+    string Message,            // Error description
+    Exception? Exception       // Optional underlying exception
+);
+```
+
 ## SpeechRecognitionOptions Record
 
 ```csharp
@@ -217,6 +255,10 @@ public record SpeechRecognitionOptions
 
     // Request on-device recognition when available
     bool PreferOnDevice { get; init; }
+
+    // Keywords for keyword detection (null = no keyword detection)
+    // When set, KeywordHeard event fires on case-insensitive whole-word matches
+    string[]? Keywords { get; init; }
 }
 ```
 
@@ -256,7 +298,7 @@ public record VoiceInfo(
 
 ### ISpeechToTextProvider
 
-Pluggable interface for cloud STT backends. Implement to add custom providers.
+Pluggable interface for cloud STT backends. Implement to add custom providers. The `CloudSpeechToText` wrapper consumes this internally and raises events on `ISpeechToTextService`.
 
 ```csharp
 public interface ISpeechToTextProvider
@@ -293,7 +335,7 @@ public interface ITextToSpeechProvider
 
 When running in a Blazor WebAssembly app, `AddSpeechServices()` auto-detects the browser via `OperatingSystem.IsBrowser()` and registers these implementations:
 
-- **`BrowserSpeechToTextService`** — Uses the Web Speech API `SpeechRecognition` interface via `[JSImport]`/`[JSExport]` interop
+- **`BrowserSpeechToTextService`** — Uses the Web Speech API `SpeechRecognition` interface via `[JSImport]`/`[JSExport]` interop. Raises `ResultReceived`, `KeywordHeard`, and `Error` events.
 - **`BrowserTextToSpeechService`** — Uses the Web Speech API `SpeechSynthesis` interface via `[JSImport]`/`[JSExport]` interop
 - **`BrowserAudioPlayer`** — Converts streams to base64 data URLs and plays via HTML5 `Audio` element
 - **`BrowserAudioSource`** — Throws `PlatformNotSupportedException` (raw PCM capture is not available in the browser; the Web Speech API handles audio internally)
@@ -417,6 +459,7 @@ public record ElevenLabsConfig
 - Call `RequestAccess()` first and check for `AccessState.Available`
 - Ensure microphone permissions are declared in platform manifests
 - Check `IsSupported` — some platforms/emulators don't support STT
+- Make sure you're not calling `Start()` when already listening (it throws)
 
 ### No audio captured
 - Ensure `AddAudioSource()` is registered (cloud providers auto-register this)
