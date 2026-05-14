@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), CarouselGallery (Netflix-style horizontal carousel with snap-to-center, scale transforms, peek insets, and infinite loop), StaggeredGrid (Pinterest-style masonry/waterfall layout with variable-height items), VirtualizedGrid (full-featured grouped grid with sticky headers, virtualization, orientation-aware columns, load-more, and cell padding), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -176,6 +176,30 @@ triggers:
   - spinner overlay
   - progress overlay
   - blazor overlay
+  - carousel
+  - carousel gallery
+  - carouselgallery
+  - netflix carousel
+  - horizontal carousel
+  - snap carousel
+  - blazor carousel
+  - staggered grid
+  - staggeredgrid
+  - masonry
+  - masonry grid
+  - waterfall layout
+  - pinterest grid
+  - pinterest layout
+  - blazor staggered grid
+  - blazor masonry
+  - virtualized grid
+  - virtualizedgrid
+  - grouped grid
+  - sticky headers
+  - collection grid
+  - grid with groups
+  - blazor virtualized grid
+  - blazor grid
 references:
   - tableview.md
   - floating-panel.md
@@ -199,6 +223,9 @@ references:
   - progressbar.md
   - overlay.md
   - feedback-service.md
+  - carousel-gallery.md
+  - staggered-grid.md
+  - virtualized-grid.md
 ---
 
 # Shiny Controls Skill
@@ -233,6 +260,9 @@ The library contains:
 - **Slider**: A slider control with a two-color gradient track, blended thumb border that samples the gradient at the current position, tooltip with custom templates, and full drag/tap interaction
 - **ProgressBar**: A progress bar with gradient fill and a Vista-style shimmer pulse that sweeps left-to-right. Configurable `PulseLength` (width of sheen) and `PulseSpeed` (sweep duration). Triggers on value change or timed interval. Supports indeterminate mode and text overlay
 - **Overlay & LoadingOverlay**: Full-screen overlay with configurable backdrop color and opacity, fade animation, and custom content via `DataTemplate` (MAUI) or `RenderFragment` (Blazor). `LoadingOverlay` extends it with built-in spinner (indeterminate) or progress bar (determinate) plus optional message text
+- **CarouselGallery**: A Netflix-style horizontal carousel with snap-to-center behavior, configurable scale transforms for focused/unfocused items, peek area insets, infinite loop support, and position tracking. Uses native recycler views on MAUI (Android RecyclerView, iOS UICollectionView, Windows ItemsRepeater) and CSS scroll-snap on Blazor
+- **StaggeredGrid**: A Pinterest-style masonry/waterfall layout with variable-height items arranged in columns. Uses native staggered layout managers on MAUI (Android StaggeredGridLayoutManager, iOS custom WaterfallLayout, Windows WaterfallVirtualizingLayout) and CSS column-count on Blazor
+- **VirtualizedGrid**: A full-featured grouped grid with sticky group headers, virtualization, orientation-aware column count (portrait/landscape), cell padding, load-more button, and item visibility events. Uses native grid layout managers on MAUI (Android GridLayoutManager, iOS CompositionalLayout with pinned headers, Windows UniformGridLayout) and CSS Grid with Blazor Virtualize on Blazor
 - **Feedback Service**: All interactive controls fire events through `IFeedbackService`. Default `HapticFeedbackService` provides tactile feedback. Replace with `SetCustomFeedback<T>()` in `UseShinyControls()` for TTS, sounds, analytics, or custom responses. The `control` parameter is the actual control instance (use pattern matching like `control is ChatView`), and `args` carries context — `ChatMessage` for ChatView events, native `EventArgs` for standard MAUI controls. Standard MAUI control integration is pluggable and AOT-compatible via `MauiControlFeedbackBuilder` — use `AddDefaultMauiControlFeedback()` for all built-in hooks, add custom hooks with `Hook<TControl>(eventName, subscribe, unsubscribe)`, or use `AddMauiControlFeedback()` for only the hooks you configure
 
 ## When to Use This Skill
@@ -282,6 +312,16 @@ Invoke this skill when the user wants to:
 - Replace haptic feedback with custom feedback (text-to-speech, sounds, analytics)
 - Wire up IFeedbackService for control interaction events
 - Enable text-to-speech on incoming chat messages via feedback service
+- Build a Netflix-style horizontal carousel with snap-to-center and scale effects
+- Create a horizontal scrolling gallery with peek insets and position tracking
+- Display featured items in a carousel with infinite loop
+- Build a Pinterest-style masonry or waterfall grid layout
+- Display variable-height items in a staggered column arrangement
+- Create a photo gallery with variable-sized cards
+- Build a grouped grid with sticky section headers
+- Create a virtualized grid for large datasets with lazy loading
+- Display items in a grid with orientation-aware column counts
+- Add load-more pagination to a grid or collection view
 - Create a text entry field with floating placeholder
 - Add validation hints and error states to text inputs
 - Build a text input with clear button, character count, or custom tools
@@ -376,6 +416,9 @@ All controls exist on both hosts, but the Blazor surface is idiomatic Razor, not
 | `shiny:AutoCompleteEntry` | `<AutoCompleteEntry>` | Colors are CSS strings; `SearchCommand` is `EventCallback<string>`; supports `CssClass`, `InputClass`, `DropDownClass`, and `AdditionalAttributes` on Blazor |
 | `shiny:CountryPicker`  | `<CountryPicker>` | Colors are CSS strings on Blazor |
 | `shiny:AddressEntry`   | `<AddressEntry>`  | Colors are CSS strings on Blazor; uses `IAddressSearchProvider` on both hosts |
+| `shiny:CarouselGallery` | `<CarouselGallery>` | MAUI uses `PeekAreaInsets` (Thickness), Blazor uses `PeekAmount` (double). MAUI uses `ItemSelectedCommand` (ICommand), Blazor uses `ItemSelected` (EventCallback<TItem>). Blazor adds `ShowIndicators` for dot indicators |
+| `shiny:StaggeredGrid` | `<StaggeredGrid>` | MAUI uses `ItemSelectedCommand` (ICommand), Blazor uses `ItemSelected` (EventCallback<TItem>). MAUI uses `ColumnSpacing`/`RowSpacing`, Blazor same. Item order may differ (native waterfall vs CSS column-count) |
+| `shiny:VirtualizedGrid` | `<VirtualizedGrid>` | MAUI has `PortraitColumnCount`/`LandscapeColumnCount` (orientation-aware), `CellPadding` (Thickness), `ItemVisibleCommand`/`ItemHiddenCommand`. Blazor has `CellPaddingLeft/Right/Top/Bottom`, `EnableVirtualization`, `GroupedItems` (explicit list of `VirtualizedGridGroup<TItem>`) |
 | Scheduler views        | `<SchedulerCalendarView>`, `<SchedulerAgendaView>`, `<SchedulerCalendarListView>` | Same names |
 | `IToaster.ShowAsync(text, cfg => {})` | `IToastService.ShowAsync(text, cfg => {})` | MAUI uses DI-injected `IToaster` (registered by `UseShinyControls()`); Blazor uses DI-injected `IToastService`. Blazor requires `AddShinyToast()` in DI and `<ToastHost />` in layout |
 | `shiny:TextEntry` | `<TextEntry>` | Colors are CSS strings on Blazor; tools are `List<TextEntryTool>` on both hosts. MAUI uses `ICommand`, Blazor uses `Action` callback. Blazor `TextEntryTool` has `Icon` as string (not ImageSource) |
