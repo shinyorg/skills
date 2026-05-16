@@ -52,12 +52,24 @@ triggers:
   - openaistaticChatprovider
   - request access
   - requestaccess
+  - voice selection
+  - voice tools
+  - change voice
+  - play voice sample
+  - get available voices
+  - voiceselection
+  - addvoiceselectiontools
+  - add voice selection tools
+  - voice sampling
+  - tts voice
+  - switch voice
 references:
   - ai-service.md
   - registration.md
   - message-store.md
   - chat-client-provider.md
   - chat-lookup-tool.md
+  - voice-selection-tools.md
 ---
 
 # Shiny.AiConversation Skill
@@ -75,6 +87,7 @@ The library provides:
 - **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: AI tool that allows the AI to search past conversations via IMessageStore — automatically added by `ContextProvider` when an `IMessageStore` is registered
+- **VoiceSelectionContextProvider**: Optional `IContextProvider` that adds three AI tools — `get_available_voices`, `play_voice_sample`, and `change_voice` — enabling the AI to list voices, play audio samples, and change its own TTS voice mid-conversation. Enabled via `opts.AddVoiceSelectionTools()`.
 - **AiChatMessage**: Record representing a persisted chat message with Id, Message, Timestamp, and Direction (User/AI)
 - **IContextProvider**: Visitor-pattern abstraction for populating an `AiContext` per request. Each provider's `Apply(AiContext)` method receives a mutable context and adds its contributions. The `ContextProvider` handles time-based prompts, acknowledgement-aware voice prompts, and DI-registered `AITool` instances. Implement custom providers to add domain-specific system prompts, tools, or override speech settings.
 - **AiContext**: Mutable context object passed to `IContextProvider.Apply()` — contains `Acknowledgement`, `SystemPrompts`, `Tools`, `QuietWords`, `SpeechToTextOptions`, and `TextToSpeechOptions` that providers populate or modify
@@ -102,6 +115,7 @@ Invoke this skill when the user wants to:
 - Configure voice interruption with quiet words
 - Set up speech-to-text and text-to-speech options (culture, voice, speech rate, etc.)
 - Add the optional ChatLookupAITool for AI-driven history search
+- Enable voice selection tools so the AI can list voices, play samples, and switch its own voice
 - Build a chat UI that integrates with IAiConversationService
 - Handle AI state changes (Idle, Listening, Thinking, Responding)
 - Use TalkTo or ListenAndTalk for AI interactions
@@ -135,6 +149,7 @@ builder.Services.AddShinyAiConversation(opts =>
 - Built-in providers: `AddStaticOpenAIChatClient()` for OpenAI-compatible APIs, `AddGithubCopilotChatClient()` for GitHub Copilot on MAUI
 - `SetChatClientProvider<T>()` is for custom providers — if not set and no built-in provider is used, the default `InjectedChatClientProvider` resolves `IChatClient` from DI
 - `SetMessageStore<T>()` is **optional** — enables persistent history; the `ContextProvider` automatically adds `ChatLookupAITool` when a store is present
+- `AddVoiceSelectionTools()` is **optional** — registers `VoiceSelectionContextProvider`, giving the AI tools to list voices, play samples, and change its own voice
 - `AddContextProvider<T>()` registers additional `IContextProvider` implementations
 - `SetSoundProvider<T>()` registers a custom `ISoundProvider` implementation
 - System prompts, tools, quiet words, and speech options are provided via `IContextProvider` implementations registered in DI (a `ContextProvider` is auto-registered)
