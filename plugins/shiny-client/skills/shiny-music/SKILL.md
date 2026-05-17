@@ -1,62 +1,7 @@
---
+---
 name: shiny-music
 description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android, iOS, and Mac Catalyst with permissions, metadata querying, filtering, playback, lyrics, album art, and file copy
-auto_invoke: true
-triggers:
-  - music library
-  - music player
-  - device music
-  - IMediaLibrary
-  - IMusicPlayer
-  - ILyricsProvider
-  - LyricsResult
-  - MusicMetadata
-  - MusicFilter
-  - GroupedCount
-  - PlaylistInfo
-  - media library
-  - music permission
-  - music playback
-  - play music
-  - copy track
-  - audio library
-  - MediaStore audio
-  - MPMediaQuery
-  - music genre
-  - genre query
-  - music year
-  - music decade
-  - year query
-  - decade query
-  - filter tracks
-  - playlist
-  - playlists
-  - GetGenresAsync
-  - GetYearsAsync
-  - GetDecadesAsync
-  - GetTracksAsync
-  - GetPlaylistsAsync
-  - GetPlaylistTracksAsync
-  - GetAlbumArtPathAsync
-  - GetLyricsAsync
-  - album art
-  - album artwork
-  - lyrics
-  - synced lyrics
-  - LRC
-  - LRCLIB
-  - Shiny.Music
-  - music metadata
-  - READ_MEDIA_AUDIO
-  - NSAppleMusicUsageDescription
-  - custom playlist
-  - custom playlists
-  - play count
-  - play counts
-  - CreatePlaylistAsync
-  - RemovePlaylistAsync
-  - AddTrackToPlaylistAsync
-  - RemoveTrackFromPlaylistAsync
+when_to_use: Use when the user needs device music-library access, playback, metadata queries, lyrics, album art, playlists, or track-copy workflows across Android, iOS, or Mac Catalyst.
 ---
 
 # Shiny Music Skill

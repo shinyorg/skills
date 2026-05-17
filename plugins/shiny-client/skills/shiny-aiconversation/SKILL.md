@@ -1,78 +1,19 @@
 ---
 name: shiny-aiconversation
 description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), persistent message store, optional AI chat history lookup tool, and configurable sound effects
-auto_invoke: true
-triggers:
-  - shiny ai
-  - shiny maui ai
-  - ai service
-  - aiservice
-  - iai service
-  - iaiservice
-  - chat client provider
-  - ichatclientprovider
-  - message store
-  - imessagestore
-  - wake word
-  - wakeword
-  - listen and talk
-  - speech to text
-  - text to speech
-  - ai acknowledgement
-  - aiacknowledgement
-  - audio blip
-  - ai chat message
-  - aichatmessage
-  - chat history
-  - ai tool lookup
-  - chat lookup
-  - talk to ai
-  - ai response
-  - ai state
-  - addshinyaiconversation
-  - add shiny ai conversation
-  - ai conversation service
-  - aiconversationservice
-  - iaiconversationservice
-  - ai service options
-  - aiserviceoptions
-  - quiet words
-  - quietwords
-  - voice interruption
-  - speech interruption
-  - expects response
-  - conversation continuation
-  - speech to text options
-  - text to speech options
-  - github copilot
-  - copilot chat
-  - addgithubcopilotchatclient
-  - addstaticopenaichatclient
-  - openai static
-  - openaistaticChatprovider
-  - request access
-  - requestaccess
-  - voice selection
-  - voice tools
-  - change voice
-  - play voice sample
-  - get available voices
-  - voiceselection
-  - addvoiceselectiontools
-  - add voice selection tools
-  - voice sampling
-  - tts voice
-  - switch voice
-references:
-  - ai-service.md
-  - registration.md
-  - message-store.md
-  - chat-client-provider.md
-  - chat-lookup-tool.md
-  - voice-selection-tools.md
+when_to_use: Use when the user needs a .NET MAUI AI conversation service, chat client provider setup, persistent message storage, wake-word or speech-driven conversations, GitHub Copilot/OpenAI chat integration, or voice-selection tools.
 ---
 
 # Shiny.AiConversation Skill
+
+## Reference Docs
+
+- `reference/ai-service.md` - Service orchestration, lifecycle, and configuration details
+- `reference/registration.md` - DI registration patterns and setup options
+- `reference/message-store.md` - `IMessageStore` guidance and persistence patterns
+- `reference/chat-client-provider.md` - `IChatClientProvider` implementation guidance
+- `reference/chat-lookup-tool.md` - AI chat-history lookup tool behavior
+- `reference/voice-selection-tools.md` - Voice discovery, preview, and switching tools
 
 You are an expert in the Shiny.AiConversation library, a centralized AI service for .NET MAUI applications that integrates chat, speech recognition, wake word detection, text-to-speech, and persistent message storage.
 

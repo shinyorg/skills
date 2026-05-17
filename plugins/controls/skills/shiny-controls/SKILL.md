@@ -1,227 +1,35 @@
 ---
 name: shiny-controls
 description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
-auto_invoke: true
-triggers:
-  - tableview
-  - table view
-  - settings page
-  - settings view
-  - settingsview
-  - sheet view
-  - sheetview
-  - bottom sheet
-  - bottomsheet
-  - floating panel
-  - floatingpanel
-  - overlay host
-  - overlayhost
-  - shiny content page
-  - shinycontentpage
-  - pill
-  - badge
-  - status badge
-  - scheduler
-  - calendar
-  - agenda
-  - event list
-  - calendar view
-  - timeline
-  - image viewer
-  - imageviewer
-  - image zoom
-  - pinch to zoom
-  - photo viewer
-  - image editor
-  - imageeditor
-  - image editing
-  - crop image
-  - draw on image
-  - annotate image
-  - image annotation
-  - photo editor
-  - markdown
-  - markdown view
-  - markdown editor
-  - markdown preview
-  - rich text
-  - security pin
-  - securitypin
-  - pin code
-  - pin entry
-  - otp
-  - one time password
-  - pin control
-  - fab
-  - floating action button
-  - floating button
-  - fab menu
-  - fabmenu
-  - speed dial
-  - action menu
-  - action button
-  - shiny blazor controls
-  - blazor tableview
-  - blazor sheetview
-  - blazor bottomsheet
-  - blazor floating panel
-  - blazor fab
-  - blazor pillview
-  - blazor imageviewer
-  - blazor imageeditor
-  - blazor securitypin
-  - blazor scheduler
-  - blazor markdown
-  - blazor mermaid
-  - autocomplete
-  - auto complete
-  - autocompleteentry
-  - auto complete entry
-  - search input
-  - typeahead
-  - type ahead
-  - country picker
-  - countrypicker
-  - country selector
-  - country search
-  - address entry
-  - addressentry
-  - address search
-  - address lookup
-  - geocoding
-  - geocode
-  - blazor autocomplete
-  - blazor country picker
-  - blazor address entry
-  - chat
-  - chatview
-  - chat view
-  - chat bubbles
-  - messaging
-  - chat control
-  - typing indicator
-  - blazor chatview
-  - signature pad
-  - signaturepad
-  - signature
-  - signature capture
-  - sign here
-  - e-signature
-  - esignature
-  - draw signature
-  - blazor signaturepad
-  - blazor signature
-  - text entry
-  - textentry
-  - text field
-  - text input
-  - material entry
-  - floating placeholder
-  - floating label
-  - blazor textentry
-  - blazor text entry
-  - stepper
-  - stepper tool
-  - textentrystepper
-  - gradient slider
-  - gradientslider
-  - slider
-  - range slider
-  - temperature slider
-  - blazor slider
-  - blazor gradient slider
-  - duration picker
-  - durationpicker
-  - shinydurationpicker
-  - frosted glass
-  - frostedglass
-  - glass effect
-  - blur effect
-  - acrylic
-  - backdrop blur
-  - glassmorphism
-  - chat template
-  - message template
-  - chat button
-  - action message
-  - toast
-  - toast notification
-  - toast service
-  - snackbar
-  - show toast
-  - blazor toast
-  - feedback service
-  - ifeedbackservice
-  - haptic
-  - haptic feedback
-  - custom feedback
-  - usefeedback
-  - progress bar
-  - progressbar
-  - progress indicator
-  - loading bar
-  - gradient progress
-  - shimmer
-  - vista progress
-  - blazor progressbar
-  - gradient slider
-  - gradientslider
-  - range slider
-  - temperature slider
-  - blazor gradient slider
-  - overlay
-  - loading overlay
-  - loadingoverlay
-  - busy overlay
-  - spinner overlay
-  - progress overlay
-  - blazor overlay
-  - carousel
-  - carousel gallery
-  - carouselgallery
-  - netflix carousel
-  - horizontal scroll
-  - snap carousel
-  - staggered grid
-  - staggeredgrid
-  - masonry
-  - waterfall layout
-  - pinterest grid
-  - pinterest layout
-  - virtualized grid
-  - virtualizedgrid
-  - grouped grid
-  - sticky headers
-  - load more
-  - blazor carousel
-  - blazor staggered grid
-  - blazor virtualized grid
-references:
-  - tableview.md
-  - floating-panel.md
-  - pillview.md
-  - image-viewer.md
-  - image-editor.md
-  - chatview.md
-  - security-pin.md
-  - fab.md
-  - markdown.md
-  - scheduler.md
-  - autocomplete.md
-  - country-picker.md
-  - address-entry.md
-  - signature-pad.md
-  - pickers.md
-  - frosted-glass.md
-  - toast.md
-  - textentry.md
-  - slider.md
-  - progressbar.md
-  - overlay.md
-  - feedback-service.md
+when_to_use: Use when the user needs Shiny MAUI or Blazor UI controls such as TableView, FloatingPanel or SheetView, ChatView, ImageViewer, ImageEditor, SecurityPin, Scheduler, Markdown, AutoCompleteEntry, AddressEntry, SignaturePad, TextEntry, Slider, ProgressBar, Overlay, Toast, or Feedback Service.
 ---
 
 # Shiny Controls Skill
+
+## Reference Docs
+
+- `reference/tableview.md` - TableView cells, sections, styling, and reorder behavior
+- `reference/floating-panel.md` - FloatingPanel, OverlayHost, and ShinyContentPage guidance
+- `reference/pillview.md` - Status badge patterns
+- `reference/image-viewer.md` - ImageViewer behavior and usage
+- `reference/image-editor.md` - ImageEditor tools and export flows
+- `reference/chatview.md` - ChatView structure, templates, and events
+- `reference/security-pin.md` - SecurityPin configuration and OTP flows
+- `reference/fab.md` - Fab and FabMenu patterns
+- `reference/markdown.md` - MarkdownView and MarkdownEditor guidance
+- `reference/scheduler.md` - Scheduler layouts and interactions
+- `reference/autocomplete.md` - AutoCompleteEntry setup and search behavior
+- `reference/country-picker.md` - CountryPicker setup and customization
+- `reference/address-entry.md` - AddressEntry geocoding patterns
+- `reference/signature-pad.md` - SignaturePad capture and export
+- `reference/pickers.md` - Duration picker guidance
+- `reference/frosted-glass.md` - FrostedGlassView effects and limits
+- `reference/toast.md` - Toast service APIs and usage
+- `reference/textentry.md` - TextEntry behaviors and slots
+- `reference/slider.md` - Slider and gradient track options
+- `reference/progressbar.md` - ProgressBar and shimmer behavior
+- `reference/overlay.md` - Overlay and LoadingOverlay usage
+- `reference/feedback-service.md` - `IFeedbackService` integration and extensibility
 
 You are an expert in the Shiny Controls library, which ships a single shared control surface across two hosts:
 - **.NET MAUI** — `Shiny.Maui.Controls` (plus `Shiny.Maui.Controls.Markdown`, `Shiny.Maui.Controls.MermaidDiagrams`)
