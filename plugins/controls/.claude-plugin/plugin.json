@@ -1,7 +1,7 @@
 {
   "name": "shiny-controls",
   "version": "1.8.0",
-  "description": "Shiny Controls — shared UI components for .NET MAUI and Blazor with full parity: TableView (14 cell types), FloatingPanel/OverlayHost/ShinyContentPage (bottom/top sheets with detents), ShinyDurationPicker, FrostedGlassView (native blur/glass effect), Toast service (code-invoked notifications with queue/stack, auto-dismiss, spinner, progress bar), ChatView (per-participant avatars, image messages, typing indicator), ImageViewer with zoom, ImageEditor (crop/rotate/draw/text, PNG/JPEG/WEBP export), AutoCompleteEntry, CountryPicker, AddressEntry with geocoding, PillView badges, SecurityPin, SignaturePad (canvas drawing with PNG export), Fab/FabMenu, Scheduler/calendar views (pinch-to-zoom, agenda, infinite scroll), TextEntry (animated floating placeholder, validation hints, character count), Slider (two-color gradient track), ProgressBar (gradient fill, shimmer pulse), Overlay/LoadingOverlay (configurable overlay with spinner/progress), Markdown renderer and editor, MermaidDiagrams, TextToSpeechButton, Feedback service (haptic/TTS/sound), and haptic feedback",
+  "description": "Shiny Controls — shared .NET MAUI and Blazor UI components including TableView, FloatingPanel/OverlayHost, ShinyDurationPicker, FrostedGlassView, Toast service, ChatView, ImageViewer/ImageEditor, AutoCompleteEntry, CountryPicker, AddressEntry, PillView, SecurityPin, SignaturePad, Fab/FabMenu, scheduler/calendar views, TextEntry, Slider, ProgressBar, overlays, Markdown/Mermaid rendering, TextToSpeechButton, and feedback/haptics",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
