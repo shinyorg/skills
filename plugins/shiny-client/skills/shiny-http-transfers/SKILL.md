@@ -1,6 +1,24 @@
 ---
 name: shiny-http-transfers
 description: Guide for generating code that uses Shiny.NET HTTP Transfers for background uploads and downloads on iOS/Android
+triggers:
+- "http transfer"
+- "background upload"
+- "background download"
+- "file upload"
+- "file download"
+- "transfer manager"
+- "HttpTransferManager"
+- "IHttpTransferManager"
+- "IHttpTransferDelegate"
+- "HttpTransferRequest"
+- "HttpTransferMonitor"
+- "Shiny.Net.Http"
+- "azure blob upload"
+- "multipart upload"
+- "download file"
+- "upload file"
+- "transfer progress"
 ---
 
 # Shiny HTTP Transfers

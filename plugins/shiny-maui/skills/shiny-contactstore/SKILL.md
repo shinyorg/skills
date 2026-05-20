@@ -1,6 +1,21 @@
 ---
 name: shiny-contactstore
 description: Generate code using Shiny.Maui.ContactStore for cross-platform device contact access with CRUD, LINQ queries, and MAUI permissions
+triggers:
+- "contact store"
+- "contacts"
+- "IContactStore"
+- "ContactStore"
+- "AddContactStore"
+- "ContactPermission"
+- "ContactReadPermission"
+- "ContactWritePermission"
+- "Shiny.Maui.ContactStore"
+- "device contacts"
+- "read contacts"
+- "write contacts"
+- "contact query"
+- "contact LINQ"
 ---
 
 # Shiny.Maui.ContactStore Skill

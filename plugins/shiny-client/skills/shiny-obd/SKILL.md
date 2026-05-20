@@ -1,6 +1,35 @@
 ---
 name: shiny-obd
 description: Generate code using Shiny.Obd, an OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE transport
+triggers:
+- "obd"
+- "obd-ii"
+- "obd2"
+- "vehicle diagnostics"
+- "elm327"
+- "obdlink"
+- "IObdCommand"
+- "IObdConnection"
+- "IObdTransport"
+- "IObdDeviceScanner"
+- "ObdDiscoveredDevice"
+- "BleObdDeviceScanner"
+- "ObdCommand"
+- "ObdConnection"
+- "StandardCommands"
+- "vehicle speed"
+- "engine rpm"
+- "coolant temperature"
+- "throttle position"
+- "vin command"
+- "obd ble"
+- "BleObdTransport"
+- "obd adapter"
+- "obd scan"
+- "device scanner"
+- "adapter profile"
+- "Shiny.Obd"
+- "AddShinyObdBluetoothLE"
 ---
 
 # Shiny.Obd Skill

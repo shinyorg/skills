@@ -2,6 +2,22 @@
 name: shiny-aiconversation
 description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), persistent message store, optional AI chat history lookup tool, and configurable sound effects
 when_to_use: Use when the user needs a .NET MAUI AI conversation service, chat client provider setup, persistent message storage, wake-word or speech-driven conversations, GitHub Copilot/OpenAI chat integration, or voice-selection tools.
+triggers:
+- "Set up an AI chat service in a .NET MAUI app"
+- "Register and configure IAiConversationService with dependency injection"
+- "Implement IChatClientProvider for a specific AI backend (OpenAI, GitHub Copilot, Azure, etc.)"
+- "Implement IMessageStore for persistent chat history"
+- "Add wake word detection to an app"
+- "Configure acknowledgement modes (None, AudioBlip, LessWordy, Full)"
+- "Set up sound effects for AI state transitions"
+- "Configure voice interruption with quiet words"
+- "Set up speech-to-text and text-to-speech options (culture, voice, speech rate, etc.)"
+- "Add the optional ChatLookupAITool for AI-driven history search"
+- "Enable voice selection tools so the AI can list voices, play samples, and switch its own voice"
+- "Build a chat UI that integrates with IAiConversationService"
+- "Handle AI state changes (Idle, Listening, Thinking, Responding)"
+- "Use TalkTo or ListenAndTalk for AI interactions"
+- "Check speech/microphone access before starting voice features"
 ---
 
 # Shiny.AiConversation Skill

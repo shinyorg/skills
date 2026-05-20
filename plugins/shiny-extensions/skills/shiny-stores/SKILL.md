@@ -1,6 +1,16 @@
 ---
 name: shiny-stores
 description: Generate and configure Shiny Stores for .NET - cross-platform key/value stores with persistent service binding for mobile, desktop, and Blazor WebAssembly
+triggers:
+- "IKeyValueStore"
+- "IObjectStoreBinder"
+- "IKeyValueStoreFactory"
+- "AddShinyStores"
+- "AddPersistentService"
+- "ObjectStoreBinderAttribute"
+- "AddShinyWebAssemblyStores"
+- "Shiny.Extensions.Stores"
+- "Shiny.Extensions.Stores.Web"
 ---
 
 # Shiny Stores Skill

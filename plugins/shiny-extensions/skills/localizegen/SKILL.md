@@ -1,6 +1,22 @@
 ---
 name: localizegen
 description: Generate strongly-typed localization classes from .resx resource files using Shiny.Extensions.Localization.Generator for .NET applications
+triggers:
+- "localization"
+- "localize"
+- "resx"
+- "resource file"
+- "IStringLocalizer"
+- "StringLocalizer"
+- "strongly typed localization"
+- "AddStronglyTypedLocalizations"
+- "Localized class"
+- "localizegen"
+- "Shiny.Extensions.Localization.Generator"
+- "i18n"
+- "internationalization"
+- "translate"
+- "translation"
 ---
 
 # Shiny Localization Generator Skill

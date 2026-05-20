@@ -1,6 +1,21 @@
 ---
 name: shiny-reflector
 description: Generate code using Shiny Reflector for AOT-compliant, source-generated property access, JSON serialization, and assembly info generation in .NET applications
+triggers:
+- "reflector"
+- "reflection"
+- "ReflectorAttribute"
+- "IReflectorClass"
+- "IHasReflectorClass"
+- "GetReflector"
+- "PropertyGeneratedInfo"
+- "ReflectorJsonConverter"
+- "assembly info"
+- "AssemblyInfo"
+- "ReflectorItem"
+- "Shiny.Reflector"
+- "source generated reflection"
+- "property access"
 ---
 
 # Shiny Reflector Skill

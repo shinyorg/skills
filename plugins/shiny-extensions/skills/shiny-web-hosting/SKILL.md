@@ -1,6 +1,12 @@
 ---
 name: shiny-web-hosting
 description: Generate and configure Shiny Web Hosting for .NET - modular ASP.NET Core application configuration with IWebModule for clean service registration and middleware setup
+triggers:
+- "IWebModule"
+- "AddInfrastructureModules"
+- "UseInfrastructureModules"
+- "Shiny.Extensions.WebHosting"
+- "WebExtensions"
 ---
 
 # Shiny Web Hosting Skill

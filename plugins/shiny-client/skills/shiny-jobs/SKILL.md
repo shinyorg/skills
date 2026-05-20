@@ -1,6 +1,20 @@
 ---
 name: shiny-jobs
 description: Background job scheduling and execution for .NET MAUI, iOS, and Android using Shiny.Jobs
+triggers:
+- "background job"
+- "job manager"
+- "scheduled job"
+- "periodic job"
+- "background task"
+- "job registration"
+- "IJobManager"
+- "IJob"
+- "JobInfo"
+- "Shiny.Jobs"
+- "foreground job"
+- "job constraints"
+- "job scheduling"
 ---
 
 # Shiny Jobs

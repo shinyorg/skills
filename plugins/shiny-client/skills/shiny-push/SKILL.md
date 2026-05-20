@@ -1,6 +1,30 @@
 ---
 name: shiny-push
 description: Guide for implementing push notifications in .NET MAUI apps using Shiny.Push (native FCM/APNs) and Shiny.Push.AzureNotificationHubs
+triggers:
+- "push notification"
+- "push notifications"
+- "push delegate"
+- "push manager"
+- "IPushManager"
+- "IPushDelegate"
+- "firebase push"
+- "FCM"
+- "APNs"
+- "azure notification hub"
+- "azure notification hubs"
+- "ANH"
+- "remote notification"
+- "device token"
+- "registration token"
+- "push tag"
+- "push tags"
+- "AddPush"
+- "AddPushAzureNotificationHubs"
+- "PushAccessState"
+- "PushNotification"
+- "Shiny.Push"
+- "shiny push"
 ---
 
 # Shiny Push Notifications

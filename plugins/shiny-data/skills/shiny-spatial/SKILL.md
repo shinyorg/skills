@@ -1,6 +1,16 @@
 ---
 name: shiny-spatial
 description: Build geospatial applications with Shiny.Spatial - a dependency-free, AOT-compatible .NET spatial database using SQLite R*Tree indexing with custom C# geometry algorithms for two-pass spatial queries
+triggers:
+- "spatial"
+- "geospatial"
+- "spatial database"
+- "rtree"
+- "shiny.spatial"
+- "shiny spatial"
+- "geofence"
+- "geofencing"
+- "region change"
 ---
 
 # Shiny.Spatial Skill

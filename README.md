@@ -45,7 +45,7 @@ plugins/
 
 - **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each pointing to the same plugin directories.
 - **`.claude-plugin/plugin.json`** and **`.github/plugin/plugin.json`** — Per-plugin manifests containing name, version, description, keywords, and the relative path to the plugin's skills directory.
-- **`SKILL.md`** — The skill itself: YAML front matter with portable Agent Skills metadata (`name`, `description`, optional `when_to_use`), followed by usage guidance, code generation instructions, and best practices. Supporting docs should live in the skill's `reference/` directory so both Claude and Copilot load them consistently.
+- **`SKILL.md`** — The skill itself: YAML front matter with portable Agent Skills metadata (`name`, `description`, `triggers`, and optional `when_to_use`), followed by usage guidance, code generation instructions, and best practices. Keep `triggers` in front matter for GitHub Copilot CLI discovery, and keep the prose sections for Claude-friendly guidance. Supporting docs should live in the skill's `reference/` directory so both Claude and Copilot load them consistently.
 
 ## License
 

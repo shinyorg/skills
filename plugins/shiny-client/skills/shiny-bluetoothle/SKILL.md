@@ -1,6 +1,26 @@
 ---
 name: shiny-bluetoothle
 description: Shiny BluetoothLE client/central operations for scanning, connecting, and communicating with BLE peripherals
+triggers:
+- "bluetooth"
+- "ble"
+- "bluetoothle"
+- "bluetooth le"
+- "bluetooth low energy"
+- "peripheral"
+- "gatt"
+- "characteristic"
+- "scan ble"
+- "ble scan"
+- "ble connect"
+- "IBleManager"
+- "IPeripheral"
+- "managed scan"
+- "ble notification"
+- "ble write"
+- "ble read"
+- "ble descriptor"
+- "advertisement"
 ---
 
 # Shiny BluetoothLE (Client/Central)

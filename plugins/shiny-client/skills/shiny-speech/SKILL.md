@@ -2,6 +2,23 @@
 name: shiny-speech
 description: Generate code using Shiny.Speech for cross-platform speech-to-text, text-to-speech, audio capture, and audio playback with pluggable cloud providers
 when_to_use: Use when the user needs speech-to-text, text-to-speech, microphone capture, audio recording, audio playback, keyword detection, or speech-provider integration in a Shiny-powered app.
+triggers:
+- "Add speech-to-text (STT) or text-to-speech (TTS) to a .NET MAUI app"
+- "Capture audio from the device microphone"
+- "Play audio streams on the device"
+- "Use Azure AI Speech for cloud-based STT/TTS"
+- "Use ElevenLabs for cloud-based TTS"
+- "Implement a custom cloud speech provider"
+- "Configure speech recognition options (language, silence timeout, on-device preference, keywords)"
+- "Configure text-to-speech options (voice, rate, pitch, volume)"
+- "List available TTS voices"
+- "Start/stop continuous speech recognition with event-based results"
+- "Implement listen-until-silence dictation"
+- "Implement wake word / keyword activation (\"Hey Siri\" style)"
+- "Implement keyword listening (listen until a specific keyword is detected)"
+- "Listen for keywords continuously as an async stream"
+- "Add speech-to-text or text-to-speech to a Blazor WebAssembly app"
+- "Use the Web Speech API via Shiny.Speech in the browser"
 ---
 
 # Shiny Speech Skill

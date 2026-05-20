@@ -2,6 +2,39 @@
 name: shiny-documentdb
 description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, IndexedDB (Blazor WASM), MySQL, SQL Server, and PostgreSQL with LINQ queries, spatial/geo queries, and AOT support
 when_to_use: Use when the user needs a schema-free .NET document store, provider-specific setup, LINQ queries, spatial queries, SQLCipher encryption, AI-tool exposure, or DocumentDb persistence patterns.
+triggers:
+- "Store and retrieve .NET objects as JSON documents in SQLite, IndexedDB, MySQL, SQL Server, or PostgreSQL"
+- "Query JSON documents with LINQ expressions or raw SQL"
+- "Set up a schema-free document database without migrations"
+- "Use AOT-safe document storage with `JsonTypeInfo<T>` overloads"
+- "Stream query results with `IAsyncEnumerable<T>`"
+- "Create JSON property indexes for faster queries"
+- "Project query results into DTOs at the SQL level"
+- "Compute aggregates (Max, Min, Sum, Average) across documents"
+- "Use aggregate projections with GROUP BY via `Sql.*` markers"
+- "Sort query results with expression-based OrderBy/OrderByDescending"
+- "Paginate query results with LIMIT/OFFSET"
+- "Use transactions for atomic document operations"
+- "Work with nested objects and child collections without table design"
+- "Map document types to dedicated tables (table-per-type)"
+- "Use a custom Id property instead of the default `Id`"
+- "Diff a modified object against a stored document (`GetDiff`)"
+- "Batch insert multiple documents efficiently (`BatchInsert`)"
+- "Choose between database providers (SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL)"
+- "Use IndexedDB for client-side storage in Blazor WebAssembly apps"
+- "Query documents by geographic proximity (within radius, bounding box, nearest neighbors)"
+- "Configure spatial indexing for `GeoPoint` properties (`MapSpatialProperty`)"
+- "Use SQLite R*Tree spatial indexes or CosmosDB native GeoJSON queries"
+- "Use optimistic concurrency with document-level version properties (`MapVersionProperty`)"
+- "Set up multi-tenancy with shared-table isolation (single database, `TenantId` column)"
+- "Set up multi-tenancy with tenant-per-database isolation (separate database per tenant)"
+- "Implement `ITenantResolver` for tenant context resolution"
+- "Back up SQLite, SQLCipher, or LiteDB databases to a file (`Backup`)"
+- "Clear all documents across all tables in SQLite (`ClearAllAsync`)"
+- "Expose document types as AI tools for LLM agents (`AddDocumentStoreAITools`)"
+- "Configure AI tool capabilities per type (ReadOnly, All, or individual flags)"
+- "Control field visibility for LLM access (AllowProperties, IgnoreProperties)"
+- "Use structured filter expressions in AI tool queries"
 ---
 
 # Shiny DocumentDb Skill

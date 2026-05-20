@@ -1,6 +1,20 @@
 ---
 name: shiny-maui-hosting
 description: Generate and configure Shiny MAUI Hosting for .NET - modular MAUI app configuration with IMauiModule, static Host.Services access, and platform lifecycle hooks
+triggers:
+- "IMauiModule"
+- "Shiny.Extensions.MauiHosting"
+- "ILifecycleExecutor"
+- "IAppForeground"
+- "IAppBackground"
+- "IContinueActivity"
+- "IOnFinishedLaunching"
+- "IOnApplicationCreated"
+- "IOnActivityOnCreate"
+- "IOnActivityRequestPermissionsResult"
+- "IOnActivityNewIntent"
+- "IOnActivityResult"
+- "Host.Services"
 ---
 
 # Shiny MAUI Hosting Skill
