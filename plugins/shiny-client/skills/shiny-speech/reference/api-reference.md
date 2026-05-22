@@ -5,7 +5,7 @@
 ```bash
 dotnet add package Shiny.Speech
 dotnet add package Shiny.Speech.Azure            # Optional: Azure AI Speech
-dotnet add package Shiny.Speech.ElevenLabs       # Optional: ElevenLabs TTS
+dotnet add package Shiny.Speech.ElevenLabs       # Optional: ElevenLabs STT (Scribe) + TTS
 ```
 
 ## Namespace
@@ -159,6 +159,13 @@ public interface ITextToSpeechService
     // Whether speech is currently playing
     bool IsSpeaking { get; }
 
+    // True when this service can emit AudioLevelChanged during playback
+    bool IsPlayerAnalysisSupported { get; }
+
+    // Fires periodically while speaking with the current RMS level (0.0 - 1.0).
+    // Suitable for driving a VU meter UI.
+    event EventHandler<double>? AudioLevelChanged;
+
     // Get available voices, optionally filtered by culture
     Task<IReadOnlyList<VoiceInfo>> GetVoicesAsync(
         CultureInfo? culture = null,
@@ -176,6 +183,15 @@ public interface ITextToSpeechService
     Task StopAsync();
 }
 ```
+
+`IsPlayerAnalysisSupported` matrix:
+
+| Platform | Native TTS | Cloud TTS (Azure / OpenAI / ElevenLabs / custom) |
+|---|---|---|
+| iOS / macOS / Mac Catalyst | ✅ (AVAudioEngine + player-node tap) | ✅ (AVAudioPlayer metering) |
+| Android | ✅ (`OnAudioAvailable` PCM RMS) | ✅ (Visualizer on audio session) |
+| Windows | ❌ | ❌ |
+| Browser | ❌ | ❌ |
 
 ### Usage
 
@@ -220,6 +236,12 @@ public interface IAudioPlayer : IAsyncDisposable
 
     // Whether audio is currently playing
     bool IsPlaying { get; }
+
+    // True when this player can emit AudioLevelChanged during playback
+    bool IsPlayerAnalysisSupported { get; }
+
+    // Fires periodically during playback with the current RMS level (0.0 - 1.0).
+    event EventHandler<double>? AudioLevelChanged;
 }
 ```
 
@@ -308,6 +330,12 @@ public interface ISpeechToTextProvider
         SpeechRecognitionOptions? options = null,
         CancellationToken cancellationToken = default
     );
+
+    // Non-fatal errors during continuous recognition (e.g. transient network failure
+    // between chunked requests). CloudSpeechToText subscribes and forwards to its own
+    // ISpeechToTextService.Error event — implementers raise this instead of throwing
+    // out of the IAsyncEnumerable when they want the session to keep running.
+    event EventHandler<SpeechRecognitionError>? Error;
 }
 ```
 
@@ -429,15 +457,29 @@ public record AzureSpeechConfig
 }
 ```
 
-### ElevenLabs TTS (Shiny.Speech.ElevenLabs)
+### ElevenLabs (Shiny.Speech.ElevenLabs)
 
 ```csharp
 public static class ElevenLabsServiceCollectionExtensions
 {
-    // Register ElevenLabs TTS with API key
-    IServiceCollection AddElevenLabsTextToSpeech(this IServiceCollection services, string apiKey);
+    // Combined: register STT (Scribe) + TTS — toggle either via flags
+    IServiceCollection AddElevenLabsSpeech(
+        this IServiceCollection services,
+        string apiKey,
+        bool speechToText = true,
+        bool textToSpeech = true);
+    IServiceCollection AddElevenLabsSpeech(
+        this IServiceCollection services,
+        ElevenLabsConfig config,
+        bool speechToText = true,
+        bool textToSpeech = true);
 
-    // Register ElevenLabs TTS with config object
+    // STT-only convenience
+    IServiceCollection AddElevenLabsSpeechToText(this IServiceCollection services, string apiKey);
+    IServiceCollection AddElevenLabsSpeechToText(this IServiceCollection services, ElevenLabsConfig config);
+
+    // TTS-only convenience
+    IServiceCollection AddElevenLabsTextToSpeech(this IServiceCollection services, string apiKey);
     IServiceCollection AddElevenLabsTextToSpeech(this IServiceCollection services, ElevenLabsConfig config);
 }
 ```
@@ -449,9 +491,12 @@ public record ElevenLabsConfig
 {
     required string ApiKey { get; init; }
     string DefaultVoiceId { get; init; } = "21m00Tcm4TlvDq8ikWAM"; // Rachel
-    string ModelId { get; init; } = "eleven_multilingual_v2";
+    string TextToSpeechModel { get; init; } = "eleven_multilingual_v2";
+    string SpeechToTextModel { get; init; } = "scribe_v1";
 }
 ```
+
+> **ElevenLabs Scribe is request/response, not streaming.** `CloudSpeechToText` buffers the captured PCM until `Stop()` is called, wraps it in a WAV container, and posts a single multipart request to `/v1/speech-to-text`. One final `SpeechRecognitionResult` is yielded. For continuous partial results across long sessions, use Azure.
 
 ## Troubleshooting
 
