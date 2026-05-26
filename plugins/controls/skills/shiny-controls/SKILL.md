@@ -1,96 +1,244 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
-when_to_use: Use when the user needs Shiny MAUI or Blazor UI controls such as TableView, FloatingPanel or SheetView, ChatView, ImageViewer, ImageEditor, SecurityPin, Scheduler, Markdown, AutoCompleteEntry, AddressEntry, SignaturePad, TextEntry, Slider, ProgressBar, Overlay, Toast, or Feedback Service.
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+auto_invoke: true
 triggers:
-- "Create a settings page or preferences UI in .NET MAUI"
-- "Add or configure TableView cells (switch, checkbox, entry, picker, command, etc.)"
-- "Style a TableView with global cascading styles or per-cell overrides"
-- "Use sections with headers, footers, and dynamic ItemTemplate cells"
-- "Enable drag-to-reorder within a section"
-- "Bind cell properties to a ViewModel using MVVM"
-- "Create radio button groups, date/time pickers, number pickers, or multi-select pickers"
-- "Build any form-like or list-based settings UI"
-- "Add a bottom sheet / sliding panel / floating panel to a page"
-- "Show status badges, tags, or labels (pill views)"
-- "Display categorized status indicators (success, warning, critical, etc.)"
-- "Add a zoomable image viewer / photo viewer overlay"
-- "Display full-screen images with pinch-to-zoom, pan, and double-tap zoom"
-- "Edit images with crop, rotate, draw, or text annotations"
-- "Build an image editor with undo/redo and export"
-- "Build a chat or messaging UI with bubbles, typing indicators, and message history"
-- "Create a conversational interface with load-more pagination and auto-scroll"
-- "Build a PIN entry / OTP / passcode input screen"
-- "Capture numeric or alphanumeric codes in individual cells with optional masking"
-- "Add a floating action button (FAB) to a page, or a speed-dial style multi-action menu"
-- "Expose primary/contextual actions in the bottom corner with animated reveal"
-- "Create scheduler/calendar views (monthly grid, day/week agenda, event list)"
-- "Implement event providers for calendar data"
-- "Customize event templates or day header templates for scheduler views"
-- "Configure agenda timeline with overlap detection, timezone support, and time markers"
-- "Set up infinite scrolling event lists grouped by day"
-- "Build any calendar, appointment, or scheduling UI"
-- "Render markdown text as native MAUI controls"
-- "Build a markdown editor with formatting toolbar and live preview"
-- "Display documentation, notes, or rich text content from markdown strings"
-- "Add a search/autocomplete text input with dropdown suggestions"
-- "Build a typeahead or search-as-you-type control with debounce"
-- "Add a country picker or country selector with flag display"
-- "Build an address search/lookup field with geocoding"
-- "Implement a custom search provider for address or location queries"
-- "Capture a signature or e-signature from the user"
-- "Add a signature pad / drawing pad to a page"
-- "Export a captured signature as a PNG image"
-- "Show toast notifications, snackbar messages, or transient alerts from code"
-- "Display progress/loading toasts with spinner while operations complete"
-- "Queue or stack multiple notifications"
-- "Replace haptic feedback with custom feedback (text-to-speech, sounds, analytics)"
-- "Wire up IFeedbackService for control interaction events"
-- "Enable text-to-speech on incoming chat messages via feedback service"
-- "Create a text entry field with floating placeholder"
-- "Add validation hints and error states to text inputs"
-- "Build a text input with clear button, character count, or custom tools"
-- "Create a form with styled text entry fields"
-- "Add a gradient slider / temperature slider / range control"
-- "Show a progress bar with gradient fill or shimmer animation"
-- "Build a loading indicator with Vista-style pulse sweep"
-- "Display determinate or indeterminate progress with configurable pulse"
-- "Add a full-screen overlay / loading overlay to a page"
-- "Show a busy/loading indicator over content (spinner or progress bar)"
-- "Create a custom overlay with configurable color and content"
-- "Build a horizontal carousel with snap-to-center or free-scroll behavior"
-- "Create a Netflix-style browsing gallery"
-- "Build a Pinterest-style masonry/waterfall grid with variable-height items"
-- "Create a virtualized grid with grouping, sticky headers, and load-more"
-- "Add load-more pagination (threshold or button) to a collection view"
+  - tableview
+  - table view
+  - settings page
+  - settings view
+  - settingsview
+  - treeview
+  - tree view
+  - tree control
+  - hierarchical view
+  - hierarchy
+  - file browser
+  - folder browser
+  - folder picker
+  - directory tree
+  - lazy load tree
+  - expandable list
+  - nested list
+  - tree node
+  - org chart
+  - blazor treeview
+  - blazor tree view
+  - sheet view
+  - sheetview
+  - bottom sheet
+  - bottomsheet
+  - floating panel
+  - floatingpanel
+  - overlay host
+  - overlayhost
+  - shiny content page
+  - shinycontentpage
+  - pill
+  - badge
+  - status badge
+  - scheduler
+  - calendar
+  - agenda
+  - event list
+  - calendar view
+  - timeline
+  - image viewer
+  - imageviewer
+  - image zoom
+  - pinch to zoom
+  - photo viewer
+  - image editor
+  - imageeditor
+  - image editing
+  - crop image
+  - draw on image
+  - annotate image
+  - image annotation
+  - photo editor
+  - markdown
+  - markdown view
+  - markdown editor
+  - markdown preview
+  - rich text
+  - security pin
+  - securitypin
+  - pin code
+  - pin entry
+  - otp
+  - one time password
+  - pin control
+  - fab
+  - floating action button
+  - floating button
+  - fab menu
+  - fabmenu
+  - speed dial
+  - action menu
+  - action button
+  - shiny blazor controls
+  - blazor tableview
+  - blazor sheetview
+  - blazor bottomsheet
+  - blazor floating panel
+  - blazor fab
+  - blazor pillview
+  - blazor imageviewer
+  - blazor imageeditor
+  - blazor securitypin
+  - blazor scheduler
+  - blazor markdown
+  - blazor mermaid
+  - autocomplete
+  - auto complete
+  - autocompleteentry
+  - auto complete entry
+  - search input
+  - typeahead
+  - type ahead
+  - country picker
+  - countrypicker
+  - country selector
+  - country search
+  - address entry
+  - addressentry
+  - address search
+  - address lookup
+  - geocoding
+  - geocode
+  - blazor autocomplete
+  - blazor country picker
+  - blazor address entry
+  - chat
+  - chatview
+  - chat view
+  - chat bubbles
+  - messaging
+  - chat control
+  - typing indicator
+  - blazor chatview
+  - signature pad
+  - signaturepad
+  - signature
+  - signature capture
+  - sign here
+  - e-signature
+  - esignature
+  - draw signature
+  - blazor signaturepad
+  - blazor signature
+  - text entry
+  - textentry
+  - text field
+  - text input
+  - material entry
+  - floating placeholder
+  - floating label
+  - blazor textentry
+  - blazor text entry
+  - stepper
+  - stepper tool
+  - textentrystepper
+  - gradient slider
+  - gradientslider
+  - slider
+  - range slider
+  - temperature slider
+  - blazor slider
+  - blazor gradient slider
+  - duration picker
+  - durationpicker
+  - shinydurationpicker
+  - frosted glass
+  - frostedglass
+  - glass effect
+  - blur effect
+  - acrylic
+  - backdrop blur
+  - glassmorphism
+  - chat template
+  - message template
+  - chat button
+  - action message
+  - toast
+  - toast notification
+  - toast service
+  - snackbar
+  - show toast
+  - blazor toast
+  - feedback service
+  - ifeedbackservice
+  - haptic
+  - haptic feedback
+  - custom feedback
+  - usefeedback
+  - progress bar
+  - progressbar
+  - progress indicator
+  - loading bar
+  - gradient progress
+  - shimmer
+  - vista progress
+  - blazor progressbar
+  - gradient slider
+  - gradientslider
+  - range slider
+  - temperature slider
+  - blazor gradient slider
+  - overlay
+  - loading overlay
+  - loadingoverlay
+  - busy overlay
+  - spinner overlay
+  - progress overlay
+  - blazor overlay
+  - carousel
+  - carousel gallery
+  - carouselgallery
+  - netflix carousel
+  - horizontal scroll
+  - snap carousel
+  - staggered grid
+  - staggeredgrid
+  - masonry
+  - waterfall layout
+  - pinterest grid
+  - pinterest layout
+  - virtualized grid
+  - virtualizedgrid
+  - grouped grid
+  - sticky headers
+  - load more
+  - blazor carousel
+  - blazor staggered grid
+  - blazor virtualized grid
+references:
+  - tableview.md
+  - treeview.md
+  - floating-panel.md
+  - pillview.md
+  - image-viewer.md
+  - image-editor.md
+  - chatview.md
+  - security-pin.md
+  - fab.md
+  - markdown.md
+  - scheduler.md
+  - autocomplete.md
+  - country-picker.md
+  - address-entry.md
+  - signature-pad.md
+  - pickers.md
+  - frosted-glass.md
+  - toast.md
+  - textentry.md
+  - slider.md
+  - progressbar.md
+  - overlay.md
+  - feedback-service.md
 ---
 
 # Shiny Controls Skill
-
-## Reference Docs
-
-- `reference/tableview.md` - TableView cells, sections, styling, and reorder behavior
-- `reference/floating-panel.md` - FloatingPanel, OverlayHost, and ShinyContentPage guidance
-- `reference/pillview.md` - Status badge patterns
-- `reference/image-viewer.md` - ImageViewer behavior and usage
-- `reference/image-editor.md` - ImageEditor tools and export flows
-- `reference/chatview.md` - ChatView structure, templates, and events
-- `reference/security-pin.md` - SecurityPin configuration and OTP flows
-- `reference/fab.md` - Fab and FabMenu patterns
-- `reference/markdown.md` - MarkdownView and MarkdownEditor guidance
-- `reference/scheduler.md` - Scheduler layouts and interactions
-- `reference/autocomplete.md` - AutoCompleteEntry setup and search behavior
-- `reference/country-picker.md` - CountryPicker setup and customization
-- `reference/address-entry.md` - AddressEntry geocoding patterns
-- `reference/signature-pad.md` - SignaturePad capture and export
-- `reference/pickers.md` - Duration picker guidance
-- `reference/frosted-glass.md` - FrostedGlassView effects and limits
-- `reference/toast.md` - Toast service APIs and usage
-- `reference/textentry.md` - TextEntry behaviors and slots
-- `reference/slider.md` - Slider and gradient track options
-- `reference/progressbar.md` - ProgressBar and shimmer behavior
-- `reference/overlay.md` - Overlay and LoadingOverlay usage
-- `reference/feedback-service.md` - `IFeedbackService` integration and extensibility
 
 You are an expert in the Shiny Controls library, which ships a single shared control surface across two hosts:
 - **.NET MAUI** — `Shiny.Maui.Controls` (plus `Shiny.Maui.Controls.Markdown`, `Shiny.Maui.Controls.MermaidDiagrams`)
@@ -100,6 +248,7 @@ Every control below is available on **both** MAUI and Blazor. The feature set (p
 
 The library contains:
 - **TableView**: A pure MAUI settings-style TableView with 14 cell types, cascading styles, sections, drag-sort reordering, and full MVVM/binding support
+- **TreeView**: Hierarchical tree with lazy-loaded branches (`ChildrenLoader` for per-node async, `RootLoader` for async root), `ChildrenSelector` for sync data, `HasChildrenSelector`/`CanExpandSelector`/`CanSelectSelector` predicates, configurable `ExpandedIcon`/`CollapsedIcon`/`RetryIcon` (ImageSource on MAUI, RenderFragment slots on Blazor), single/multi selection with two-way `SelectedItem`/`SelectedItems`, events + ICommand mirrors for `ItemSelected`/`ItemExpanded`/`ItemCollapsed`/`LoadFailed`/`ItemDropped`, indent + guide lines, drag/drop reorder (event-only — never mutates your data), and keyboard navigation on Blazor
 - **FloatingPanel + OverlayHost**: A floating panel overlay system (MAUI only). Panels slide from bottom or top with configurable detents, header peek when closed, backdrop dimming, and feedback. Multiple panels coexist without blocking touches. Use with `OverlayHost` (manual Grid setup) or `ShinyContentPage` (convenience ContentPage with built-in overlay). Blazor uses `SheetView` with CSS-based overlays instead
 - **PillView**: A status badge/label control with 6 preset themes, custom colors, and WCAG-accessible contrast
 - **ImageViewer**: A full-screen image overlay with pinch-to-zoom, pan when zoomed, double-tap to toggle zoom, animated open/close, and a close button
@@ -138,6 +287,11 @@ Invoke this skill when the user wants to:
 - Bind cell properties to a ViewModel using MVVM
 - Create radio button groups, date/time pickers, number pickers, or multi-select pickers
 - Build any form-like or list-based settings UI
+- Build a tree/hierarchical view (file browser, folder picker, org chart, category tree)
+- Lazy-load tree branches from a remote source on first expand
+- Show a tree with single or multi-select and per-item `CanSelect`/`CanExpand` predicates
+- Customize the tree's expand/collapse icons (font icons, custom images, render fragments)
+- Enable drag-and-drop reordering within a tree
 - Add a bottom sheet / sliding panel / floating panel to a page
 - Show status badges, tags, or labels (pill views)
 - Display categorized status indicators (success, warning, critical, etc.)
@@ -258,6 +412,7 @@ All controls exist on both hosts, but the Blazor surface is idiomatic Razor, not
 |-------------------------|-------------------|-------------------------------------------------|
 | `shiny:TableView`       | `<TableView>`     | No prefix on Blazor; `TableRoot` is not needed  |
 | `shiny:TableRoot`       | *(omitted)*       | Sections go directly inside `<TableView>`       |
+| `shiny:TreeView`        | `<TreeView TItem="…">` | Strongly typed on Blazor; `ExpandedIcon`/`CollapsedIcon`/`RetryIcon` are `RenderFragment` slots, not `ImageSource`; Blazor adds keyboard navigation (↑/↓/←/→/Enter/Home/End) and a `<LoadingTemplate>` slot for the root-load spinner |
 | `shiny:TableSection`    | `<TableSection>`  |                                                 |
 | `shiny:PillView`        | `<Pill>`          | Renamed to just `Pill` on Blazor                |
 | `shiny:FloatingPanel` in `shiny:OverlayHost` | `<SheetView>` | MAUI uses FloatingPanel+OverlayHost; Blazor uses SheetView with CSS overlay. Content goes in `<SheetContent>` named slot on Blazor |
