@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -212,6 +212,16 @@ triggers:
   - blazor carousel
   - blazor staggered grid
   - blazor virtualized grid
+  - skeleton
+  - skeleton loader
+  - skeleton view
+  - skeletonview
+  - shimmer
+  - shimmer loading
+  - shimmer placeholder
+  - loading placeholder
+  - content placeholder
+  - placeholder loading
 references:
   - tableview.md
   - treeview.md
@@ -235,6 +245,7 @@ references:
   - slider.md
   - progressbar.md
   - overlay.md
+  - skeleton.md
   - feedback-service.md
 ---
 
@@ -271,6 +282,7 @@ The library contains:
 - **Slider**: A slider control with a two-color gradient track, blended thumb border that samples the gradient at the current position, tooltip with custom templates, and full drag/tap interaction
 - **ProgressBar**: A progress bar with gradient fill and a Vista-style shimmer pulse that sweeps left-to-right. Configurable `PulseLength` (width of sheen) and `PulseSpeed` (sweep duration). Triggers on value change or timed interval. Supports indeterminate mode and text overlay
 - **Overlay & LoadingOverlay**: Full-screen overlay with configurable backdrop color and opacity, fade animation, and custom content via `DataTemplate` (MAUI) or `RenderFragment` (Blazor). `LoadingOverlay` extends it with built-in spinner (indeterminate) or progress bar (determinate) plus optional message text
+- **SkeletonView**: A content-wrapping control (similar to `RefreshView`) that shows animated shimmer placeholders while `IsBusy` is true, then reveals the real content when loading finishes. Built-in line placeholders (configurable `ItemCount`/`ItemHeight`/`ItemSpacing`/`CornerRadius`/`BaseColor`/`ShimmerColor`) or a custom placeholder layout via `SkeletonTemplate` (MAUI) / `SkeletonContent` (Blazor). Shimmer is a sweeping `LinearGradientBrush` band on MAUI and an animated CSS gradient (honoring `prefers-reduced-motion`) on Blazor. Use it for inline content regions; use `LoadingOverlay` for whole-page loading
 - **CarouselGallery**: Netflix-style horizontal carousel with snap-to-center, configurable scale transforms (FocusedItemScale/UnfocusedItemScale), peek area insets, infinite loop, two-way position tracking, and `SnapCount` (0=free scroll, 1+=snap to item). Uses native recycler views on MAUI and CSS scroll-snap on Blazor
 - **StaggeredGrid**: Pinterest-style masonry/waterfall layout with variable-height items in configurable columns. Items with HeightRequest on the root template view use that value directly for measurement. Uses native staggered layout managers on MAUI and CSS column-count on Blazor
 - **VirtualizedGrid**: Full-featured grouped grid with sticky section headers, virtualization, orientation-aware column counts, cell padding, load-more button (renders as footer at end of data) with custom template support, and item visibility tracking. Uses native grid layouts on MAUI and CSS Grid on Blazor
