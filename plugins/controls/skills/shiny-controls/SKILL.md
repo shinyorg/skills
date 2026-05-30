@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, BadgeView (content-wrapping corner badge with text/dot/count overflow and pulse), ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -222,6 +222,18 @@ triggers:
   - loading placeholder
   - content placeholder
   - placeholder loading
+  - badgeview
+  - badge view
+  - notification badge
+  - notification dot
+  - count badge
+  - unread badge
+  - unread count
+  - inbox badge
+  - cart badge
+  - corner badge
+  - blazor badge
+  - blazor badgeview
 references:
   - tableview.md
   - treeview.md
@@ -246,6 +258,7 @@ references:
   - progressbar.md
   - overlay.md
   - skeleton.md
+  - badge.md
   - feedback-service.md
 ---
 
@@ -262,6 +275,7 @@ The library contains:
 - **TreeView**: Hierarchical tree with lazy-loaded branches (`ChildrenLoader` for per-node async, `RootLoader` for async root), `ChildrenSelector` for sync data, `HasChildrenSelector`/`CanExpandSelector`/`CanSelectSelector` predicates, configurable `ExpandedIcon`/`CollapsedIcon`/`RetryIcon` (ImageSource on MAUI, RenderFragment slots on Blazor), single/multi selection with two-way `SelectedItem`/`SelectedItems`, events + ICommand mirrors for `ItemSelected`/`ItemExpanded`/`ItemCollapsed`/`LoadFailed`/`ItemDropped`, indent + guide lines, drag/drop reorder (event-only — never mutates your data), and keyboard navigation on Blazor
 - **FloatingPanel + OverlayHost**: A floating panel overlay system (MAUI only). Panels slide from bottom or top with configurable detents, header peek when closed, backdrop dimming, and feedback. Multiple panels coexist without blocking touches. Use with `OverlayHost` (manual Grid setup) or `ShinyContentPage` (convenience ContentPage with built-in overlay). Blazor uses `SheetView` with CSS-based overlays instead
 - **PillView**: A status badge/label control with 6 preset themes, custom colors, and WCAG-accessible contrast
+- **BadgeView**: A content-wrapping overlay that pins a small badge to one of the four corners (`TopLeft`/`TopRight`/`BottomLeft`/`BottomRight`) of a wrapped view. Setting `Text` to an empty string auto-hides the badge — bind your unread/count value directly. Supports configurable `BadgeColor`/`BadgeTextColor`/`BadgeBorderColor`/`BadgeBorderThickness`, `IsDot` mode for simple notification indicators, `MaxCount` numeric overflow rendering ("99+"), per-corner `OffsetX`/`OffsetY` nudge (default hangs the badge slightly outside the corner), scale-in/out animation (`IsAnimated`), and optional continuous `IsPulsing` to draw attention. Blazor honors `prefers-reduced-motion`
 - **ImageViewer**: A full-screen image overlay with pinch-to-zoom, pan when zoomed, double-tap to toggle zoom, animated open/close, and a close button
 - **ImageEditor**: An inline image editor with cropping (drag-handle selection with dimmed overlay), rotation, freehand drawing with color, text annotations, undo/redo, reset, and export to PNG/JPEG/WEBP at configurable resolutions
 - **ChatView**: A modern chat UI with message bubbles, per-participant colors and avatars, visual grouping by sender/minute, typing indicators, virtualized message list with load-more, auto-link detection, image messages, and a bottom input bar with send/attach
@@ -307,6 +321,9 @@ Invoke this skill when the user wants to:
 - Add a bottom sheet / sliding panel / floating panel to a page
 - Show status badges, tags, or labels (pill views)
 - Display categorized status indicators (success, warning, critical, etc.)
+- Overlay a notification badge (count, dot, or label) on the corner of an icon, avatar, button, or card (BadgeView)
+- Show an unread count or "99+" overflow indicator on inbox/cart/profile UI elements
+- Display a pulsing "NEW"/"!" attention badge on a feature or menu item
 - Add a zoomable image viewer / photo viewer overlay
 - Display full-screen images with pinch-to-zoom, pan, and double-tap zoom
 - Edit images with crop, rotate, draw, or text annotations
@@ -427,6 +444,7 @@ All controls exist on both hosts, but the Blazor surface is idiomatic Razor, not
 | `shiny:TreeView`        | `<TreeView TItem="…">` | Strongly typed on Blazor; `ExpandedIcon`/`CollapsedIcon`/`RetryIcon` are `RenderFragment` slots, not `ImageSource`; Blazor adds keyboard navigation (↑/↓/←/→/Enter/Home/End) and a `<LoadingTemplate>` slot for the root-load spinner |
 | `shiny:TableSection`    | `<TableSection>`  |                                                 |
 | `shiny:PillView`        | `<Pill>`          | Renamed to just `Pill` on Blazor                |
+| `shiny:BadgeView`       | `<BadgeView>`     | Wraps `Content` (MAUI) / `ChildContent` (Blazor). Colors are CSS strings on Blazor; `Position` is the `BadgePosition` enum on both hosts; empty `Text` auto-hides unless `IsDot=true` |
 | `shiny:FloatingPanel` in `shiny:OverlayHost` | `<SheetView>` | MAUI uses FloatingPanel+OverlayHost; Blazor uses SheetView with CSS overlay. Content goes in `<SheetContent>` named slot on Blazor |
 | `shiny:Fab`             | `<Fab>`           | `Icon` takes inline SVG/text string, not `ImageSource` |
 | `shiny:FabMenu`         | `<FabMenu>`       | Items passed via `Items` parameter (List<FabMenuItem>), not as children |
@@ -825,6 +843,7 @@ Or use `OverlayHost` manually in a Grid:
 10. **Use ItemTemplate for dynamic content** - Bind `ItemsSource` on sections for data-driven cells
 11. **Use ShinyContentPage or OverlayHost for FloatingPanels** - Use `ShinyContentPage` as the page base class, or place `OverlayHost` in a Grid for overlay panels. Place ImageViewer in a Grid as before
 12. **Use PillView for status indicators** - Prefer preset types for consistency; use custom colors for brand-specific needs
+13. **Use BadgeView for corner indicators** - Bind `Text` directly to your unread/count source (empty string auto-hides). Use `MaxCount` for numeric overflow ("99+") and `IsDot` for plain "has new" indicators. Reserve `IsPulsing` for genuinely important badges
 13. **Use AOT-safe bindings for scheduler templates** - Always use `static (T item) => item.Property` lambda bindings, never string-based
 14. **Leave MarkdownView/MarkdownEditor Theme as null** - It auto-resolves Light/Dark based on the app theme
 15. **Use MarkdownView for read-only content** - Documentation, notes, changelogs; use MarkdownEditor only when the user needs to edit
