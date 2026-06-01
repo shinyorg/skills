@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, BadgeView (content-wrapping corner badge with text/dot/count overflow and pulse), ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, BadgeView (content-wrapping corner badge with text/dot/count overflow and pulse), ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Tray Icon for desktop (separate Shiny.Maui.Controls.TrayIcon package - cross-platform system tray / status-bar icon with context menus, click events, tooltips, and dynamic visibility on Windows/macOS AppKit/MacCatalyst/Linux), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -234,6 +234,31 @@ triggers:
   - corner badge
   - blazor badge
   - blazor badgeview
+  - tray icon
+  - trayicon
+  - system tray
+  - system tray icon
+  - status bar icon
+  - status bar app
+  - menu bar icon
+  - menu bar app
+  - menubar
+  - notification area
+  - taskbar icon
+  - shell_notifyicon
+  - notifyicon
+  - nsstatusitem
+  - nsstatusbar
+  - app indicator
+  - appindicator
+  - libappindicator
+  - libayatana-appindicator
+  - statusnotifieritem
+  - desktop tray
+  - maui desktop tray
+  - background app
+  - tray menu
+  - tray context menu
 references:
   - tableview.md
   - treeview.md
@@ -259,6 +284,7 @@ references:
   - overlay.md
   - skeleton.md
   - badge.md
+  - tray-icon.md
   - feedback-service.md
 ---
 
@@ -300,6 +326,7 @@ The library contains:
 - **CarouselGallery**: Netflix-style horizontal carousel with snap-to-center, configurable scale transforms (FocusedItemScale/UnfocusedItemScale), peek area insets, infinite loop, two-way position tracking, and `SnapCount` (0=free scroll, 1+=snap to item). Uses native recycler views on MAUI and CSS scroll-snap on Blazor
 - **StaggeredGrid**: Pinterest-style masonry/waterfall layout with variable-height items in configurable columns. Items with HeightRequest on the root template view use that value directly for measurement. Uses native staggered layout managers on MAUI and CSS column-count on Blazor
 - **VirtualizedGrid**: Full-featured grouped grid with sticky section headers, virtualization, orientation-aware column counts, cell padding, load-more button (renders as footer at end of data) with custom template support, and item visibility tracking. Uses native grid layouts on MAUI and CSS Grid on Blazor
+- **Tray Icon (Desktop)**: A separate `Shiny.Maui.Controls.TrayIcon` package adds a cross-platform system tray / status-bar icon for MAUI desktop apps. Supports Windows (`Shell_NotifyIcon`), macOS AppKit (`NSStatusItem`, native `net10.0-macos` build), MacCatalyst (AppKit bridged via the Objective-C runtime), and Linux (`libayatana-appindicator3` + GTK 3 — requires the system library installed). API: `ITrayIconFactory` resolved from DI, then `ITrayIcon` with `SetIcon(Func<Stream>)` (PNG or ICO bytes — Windows auto-wraps PNG into ICO), `Tooltip`, `Title` (macOS/Linux label, ignored on Windows), `IsVisible`, `IsTemplateImage` (macOS auto-tint), `SetMenu(TrayMenu)`, `ShowMenu()`, and `PrimaryClick`/`SecondaryClick`/`DoubleClick` events. Menus are built fluently with `TrayMenu.Build(b => b.Item(...).Check(...).Separator().Submenu(...))` — `TrayMenuItem`, `TrayCheckMenuItem`, `TraySeparator`, and `TraySubmenu`. Mutating any item's `Label`/`IsEnabled`/`IsVisible` rebuilds the native menu automatically. No Blazor equivalent — tray icons are a desktop OS concept
 - **Feedback Service**: All interactive controls fire events through `IFeedbackService`. Default `HapticFeedbackService` provides tactile feedback. Replace with `SetCustomFeedback<T>()` in `UseShinyControls()` for TTS, sounds, analytics, or custom responses. The `control` parameter is the actual control instance (use pattern matching like `control is ChatView`), and `args` carries context — `ChatMessage` for ChatView events, native `EventArgs` for standard MAUI controls. Standard MAUI control integration is pluggable and AOT-compatible via `MauiControlFeedbackBuilder` — use `AddDefaultMauiControlFeedback()` for all built-in hooks, add custom hooks with `Hook<TControl>(eventName, subscribe, unsubscribe)`, or use `AddMauiControlFeedback()` for only the hooks you configure
 
 ## When to Use This Skill
@@ -373,6 +400,14 @@ Invoke this skill when the user wants to:
 - Build a Pinterest-style masonry/waterfall grid with variable-height items
 - Create a virtualized grid with grouping, sticky headers, and load-more
 - Add load-more pagination (threshold or button) to a collection view
+- Add a system tray / status-bar / menu-bar icon to a MAUI desktop app (Windows, macOS, MacCatalyst, Linux)
+- Show a right-click context menu with submenus and checkmark items on a tray icon
+- Handle left-click / right-click / double-click on a tray icon
+- Build a "menu bar app" on macOS or a tray-resident background app on Windows
+- Update tray menu items dynamically (e.g. "Pause" ↔ "Resume" labels, enable/disable states)
+- Show or hide a tray icon at runtime without recreating it
+- Make a tray icon auto-adapt to the macOS light/dark menu bar via template images
+- Use Linux AppIndicator (`libayatana-appindicator`) for tray icons on GNOME/KDE
 
 ## Library Overview
 
