@@ -1,48 +1,33 @@
 ---
 name: shiny-http-transfers
-description: Guide for generating code that uses Shiny.NET HTTP Transfers for background uploads and downloads on iOS/Android
+description: Guide for generating code that uses Shiny.NET HTTP Transfers for background uploads and downloads on iOS/Android, Windows, Linux, macOS, and Blazor WASM (Service Worker Background Sync)
+auto_invoke: true
 triggers:
-- "http transfer"
-- "background upload"
-- "background download"
-- "file upload"
-- "file download"
-- "transfer manager"
-- "HttpTransferManager"
-- "IHttpTransferManager"
-- "IHttpTransferDelegate"
-- "HttpTransferRequest"
-- "HttpTransferMonitor"
-- "Shiny.Net.Http"
-- "azure blob upload"
-- "multipart upload"
-- "download file"
-- "upload file"
-- "transfer progress"
+  - http transfer
+  - background upload
+  - background download
+  - file upload
+  - file download
+  - transfer manager
+  - HttpTransferManager
+  - IHttpTransferManager
+  - IHttpTransferDelegate
+  - HttpTransferRequest
+  - HttpTransferMonitor
+  - Shiny.Net.Http
+  - azure blob upload
+  - aws s3 upload
+  - s3 upload
+  - AwsS3UploadRequest
+  - multipart upload
+  - download file
+  - upload file
+  - transfer progress
 ---
 
 # Shiny HTTP Transfers
 
-## Triggers
-- http transfer
-- background upload
-- background download
-- file upload
-- file download
-- transfer manager
-- HttpTransferManager
-- IHttpTransferManager
-- IHttpTransferDelegate
-- HttpTransferRequest
-- HttpTransferMonitor
-- Shiny.Net.Http
-- azure blob upload
-- multipart upload
-- download file
-- upload file
-- transfer progress
-
-Background HTTP upload and download management for .NET MAUI (iOS & Android) using native platform transfer APIs.
+Background HTTP upload and download management. On iOS, backed by native `NSURLSession` background sessions. On Android, Windows, Linux, macOS, and base .NET, backed by an in-process managed loop using `HttpClient` + `IConnectivity` that wakes on connectivity changes and supports **resumable downloads** via HTTP Range requests (uploads always restart); on Android this loop runs inside a foreground service. On Blazor WASM, backed by the Service Worker Background Sync API (IndexedDB queue drained by the SW via `fetch()` while the tab is closed).
 
 ## When to Use This Skill
 
@@ -53,20 +38,21 @@ Use this skill when the user needs to:
 - Queue background transfers that survive app suspension
 - Handle transfer errors with automatic retry logic
 - Upload files to Azure Blob Storage
+- Upload files to AWS S3
 - Build a UI that tracks active transfers with progress reporting
 - Perform multipart or raw file uploads
 - Download files with progress tracking and estimated time remaining
 
 ## Library Overview
 
-| Item        | Value                          |
-|-------------|--------------------------------|
-| NuGet       | `Shiny.Net.Http`               |
-| Namespace   | `Shiny.Net.Http`               |
-| Platforms   | iOS, Android                   |
-| DI Setup    | `services.AddHttpTransfers<TDelegate>()` |
+| Item        | Value                                                                                   |
+|-------------|-----------------------------------------------------------------------------------------|
+| NuGet       | `Shiny.Net.Http`, `Shiny.Net.Http.Blazor`                                               |
+| Namespace   | `Shiny.Net.Http`                                                                        |
+| Platforms   | iOS (native NSURLSession); Android, Windows, Linux, macOS, .NET base (managed HttpClient loop); Blazor WASM (Service Worker) |
+| DI Setup    | `services.AddHttpTransfers<TDelegate>()` (iOS/Android/Windows), `services.AddHttpClientTransfers<TDelegate>()` (Linux/macOS/plain .NET), or `services.AddBlazorHttpTransfers<TDelegate>()` (Blazor) |
 
-The registration extension method lives in the `Shiny` namespace and is available on `IServiceCollection`.
+The registration extension methods live in the `Shiny` namespace and are available on `IServiceCollection`.
 
 ## Setup
 
@@ -126,6 +112,43 @@ public partial class MyHttpTransferDelegate : IAndroidForegroundServiceDelegate
 #endif
 ```
 
+### Linux / macOS / Plain .NET Setup
+
+On non-platform .NET hosts (Linux, macOS server, console apps, etc.) call `AddHttpClientTransfers<TDelegate>()` instead of `AddHttpTransfers<TDelegate>()`. It registers `HttpClientHttpTransferManager` backed by an `HttpClient` loop driven by `IConnectivity` that wakes immediately on connectivity changes. Downloads resume after network interruption via HTTP Range requests (`Range: bytes=N-`, `FileMode.Append` when the server responds with `206 Partial Content`); uploads always restart from scratch.
+
+You must register an `IConnectivity` implementation yourself (e.g. `AddConnectivity()` from `Shiny.Core.Linux` or `Shiny.Core.Blazor`). A default JSON filesystem repository is registered automatically and persists transfer state to `{LocalApplicationData}/Shiny` across process restarts.
+
+Cancelled downloads clean up any partial file on disk so a subsequent re-queue starts fresh.
+
+### Blazor WASM Setup (`Shiny.Net.Http.Blazor`)
+
+```csharp
+using Shiny;
+
+builder.Services.AddBlazorHttpTransfers<MyDelegate>(opts =>
+{
+    opts.ServiceWorkerPath = "./_content/Shiny.Net.Http.Blazor/http-transfer-sw.js";
+});
+```
+
+The Blazor package uses the Service Worker Background Sync API. Queued transfers are written to IndexedDB; the Service Worker's `sync` event handler drains the queue via `fetch()` and stores download bodies as `Blob`s back into IndexedDB. When the tab reopens, the C# `HttpTransferManager` reconciles results from IndexedDB and fires the `IHttpTransferDelegate` callbacks.
+
+Ship the bundled SW file or import its handlers from your own service worker:
+
+```js
+// my-sw.js
+importScripts('./_content/Shiny.Net.Http.Blazor/http-transfer-sw.js');
+```
+
+**Blazor limitations (v1)**:
+
+- **No resumable downloads** — the SW receives a whole response `Blob`; partial-body appending is not supported.
+- **Upload bodies are base64-bridged through JS interop** and persisted as IndexedDB `Blob`s. Fine for small/medium files; very large uploads should wait for a future OPFS streaming path.
+- **Browser support for Background Sync is Chromium-only** (no Firefox, no Safari). On unsupported browsers queued transfers drain while the tab is foreground and then sit in IndexedDB until next visit.
+- **Retrieving completed downloads**: use `(manager as Shiny.Net.Http.Blazor.HttpTransferManager).GetDownloadBytes(identifier)` which reads the blob back out of IndexedDB as a `byte[]`.
+
+**Do not confuse with `Shiny.Jobs` on Blazor** — Jobs only run while the tab is open because the WASM runtime cannot execute inside a Service Worker. HTTP transfers are the one exception because `fetch()` is pure JS that the SW can run on its own.
+
 ## Code Generation Instructions
 
 When generating code that uses Shiny HTTP Transfers, follow these conventions:
@@ -160,6 +183,7 @@ When generating code that uses Shiny HTTP Transfers, follow these conventions:
 - Use `TransferHttpContent.FromJson(obj)` to attach a JSON body to an upload.
 - Use `TransferHttpContent.FromFormData(...)` to attach form-encoded data.
 - Use `AzureBlobStorageUploadRequest` for Azure Blob Storage uploads -- call `.WithBlobContainer(tenant, container)` or `.WithCustomUri(uri)`, configure auth via `.WithSasToken()` or `.WithSharedKeyAuthorization()`, then call `.Build()` to get an `HttpTransferRequest`.
+- Use `AwsS3UploadRequest` for AWS S3 uploads -- call `.WithBucket(bucket, region)`, configure auth via `.WithPresignedUrl()` or `.WithCredentials(accessKeyId, secretAccessKey)`, optionally set `.WithObjectKey()`, `.WithContentType()`, `.WithStorageClass()`, then call `.Build()` to get an `HttpTransferRequest`. Uses AWS Signature V4 signing with `UNSIGNED-PAYLOAD` -- no AWS SDK required.
 - Use `AppleHttpTransferRequest` (inherits `HttpTransferRequest`) when Apple-specific options are needed (e.g., `AllowsConstrainedNetworkAccess`, `AllowsCellularAccess`, `AssumesHttp3Capable`).
 
 ### Foreground (Non-Background) Transfers

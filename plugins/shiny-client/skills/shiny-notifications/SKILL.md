@@ -1,44 +1,27 @@
 ---
 name: shiny-notifications
 description: Cross-platform local notification management for .NET MAUI apps using Shiny, supporting scheduled, repeating, and geofence-triggered notifications with channels, badges, and interactive actions.
+auto_invoke: true
 triggers:
-- "local notifications"
-- "notification manager"
-- "notification channel"
-- "notification delegate"
-- "push notification"
-- "scheduled notification"
-- "geofence notification"
-- "repeating notification"
-- "badge count"
-- "notification actions"
-- "Shiny.Notifications"
-- "INotificationManager"
-- "INotificationDelegate"
-- "notification permission"
-- "notification sound"
-- "channel importance"
+  - local notifications
+  - notification manager
+  - notification channel
+  - notification delegate
+  - push notification
+  - scheduled notification
+  - geofence notification
+  - repeating notification
+  - badge count
+  - notification actions
+  - Shiny.Notifications
+  - INotificationManager
+  - INotificationDelegate
+  - notification permission
+  - notification sound
+  - channel importance
 ---
 
 # Shiny Notifications
-
-## Triggers
-- local notifications
-- notification manager
-- notification channel
-- notification delegate
-- push notification
-- scheduled notification
-- geofence notification
-- repeating notification
-- badge count
-- notification actions
-- Shiny.Notifications
-- INotificationManager
-- INotificationDelegate
-- notification permission
-- notification sound
-- channel importance
 
 ## When to Use This Skill
 
@@ -55,11 +38,17 @@ Use this skill when the user needs to:
 
 | Item | Value |
 |---|---|
-| **NuGet Package** | `Shiny.Notifications` |
+| **NuGet Package** | `Shiny.Notifications` (iOS, Mac Catalyst, Android, macOS, Windows); `Shiny.Notifications.Linux` (Linux) |
 | **Primary Namespace** | `Shiny.Notifications` |
 | **Registration Namespace** | `Shiny` (extension methods on `IServiceCollection`) |
-| **Platforms** | iOS, Mac Catalyst, Android |
+| **Platforms** | iOS, Mac Catalyst, Android, macOS, Windows, Linux |
 | **Dependencies** | `Shiny.Core`, `Shiny.Locations`, `Shiny.Support.Repositories` |
+
+### Linux
+
+Linux notifications ship in a separate package, `Shiny.Notifications.Linux`. They are delivered via the freedesktop `org.freedesktop.Notifications` D-Bus service (GNOME, KDE, XFCE, etc.) and support the same `INotificationManager` API surface as the other platforms. Scheduled notifications are tracked **in-process only** — there is no OS-level scheduler like BGTaskScheduler or WorkManager, so the host process must be running for a scheduled notification to fire. Channels are exposed but only a subset of freedesktop hints (urgency, category, image) are actually honoured by most daemons. Geofence triggers and time-sensitive flags are not applicable.
+
+Register with `services.AddNotifications<TDelegate>();` from the `Shiny` namespace — the same call site as the other platforms.
 
 ## Setup
 

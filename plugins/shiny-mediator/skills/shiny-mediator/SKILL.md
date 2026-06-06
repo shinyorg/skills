@@ -1,6 +1,7 @@
 ---
 name: shiny-mediator
 description: Generate Shiny Mediator handlers, contracts, middleware, and scaffold projects for .NET applications
+auto_invoke: true
 triggers:
 - "mediator"
 - "handler"

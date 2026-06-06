@@ -1,50 +1,36 @@
 ---
 name: shiny-bluetoothle
 description: Shiny BluetoothLE client/central operations for scanning, connecting, and communicating with BLE peripherals
+auto_invoke: true
 triggers:
-- "bluetooth"
-- "ble"
-- "bluetoothle"
-- "bluetooth le"
-- "bluetooth low energy"
-- "peripheral"
-- "gatt"
-- "characteristic"
-- "scan ble"
-- "ble scan"
-- "ble connect"
-- "IBleManager"
-- "IPeripheral"
-- "managed scan"
-- "ble notification"
-- "ble write"
-- "ble read"
-- "ble descriptor"
-- "advertisement"
+  - bluetooth
+  - ble
+  - bluetoothle
+  - bluetooth le
+  - bluetooth low energy
+  - peripheral
+  - gatt
+  - characteristic
+  - scan ble
+  - ble scan
+  - ble connect
+  - IBleManager
+  - IPeripheral
+  - managed scan
+  - ble notification
+  - ble write
+  - ble read
+  - ble descriptor
+  - advertisement
+  - L2CAP
+  - L2Cap
+  - L2CapChannel
+  - ICanL2Cap
+  - OpenL2CapChannel
+  - PSM
 ---
 
 # Shiny BluetoothLE (Client/Central)
-
-## Triggers
-- bluetooth
-- ble
-- bluetoothle
-- bluetooth le
-- bluetooth low energy
-- peripheral
-- gatt
-- characteristic
-- scan ble
-- ble scan
-- ble connect
-- IBleManager
-- IPeripheral
-- managed scan
-- ble notification
-- ble write
-- ble read
-- ble descriptor
-- advertisement
 
 ## When to Use This Skill
 
@@ -57,15 +43,30 @@ Use this skill when the user needs to:
 - Request MTU changes, pair with devices, or perform reliable write transactions
 - Read standard BLE services (device information, battery, heart rate)
 - Work with BLE advertisement data
+- Open L2CAP CoC channels to a peripheral that has published a PSM
 
 Do NOT use this skill for BLE hosting/peripheral mode (advertising, GATT server). That is a separate library (`Shiny.BluetoothLE.Hosting`).
 
 ## Library Overview
 
-- **NuGet Package**: `Shiny.BluetoothLE`
+- **NuGet Package**: `Shiny.BluetoothLE` (Android, iOS/macOS, Windows), `Shiny.BluetoothLE.Linux` (Linux via BlueZ), `Shiny.BluetoothLE.Blazor` (Blazor WebAssembly via Web Bluetooth API)
 - **Primary Namespace**: `Shiny.BluetoothLE`
 - **Managed Scan Namespace**: `Shiny.BluetoothLE.Managed`
-- **Platforms**: Android, iOS/macOS (Apple), Windows, WebAssembly
+- **Platforms**: Android, iOS/macOS (Apple), Windows, Linux (BlueZ), WebAssembly (Web Bluetooth)
+
+### Blazor WebAssembly / Web Bluetooth caveats
+
+The Blazor implementation is built on the browser's Web Bluetooth API and inherits its limitations:
+
+- **User-gesture gated.** Scans must be kicked off from a click handler. The browser shows a native chooser and Shiny only sees the peripheral(s) the user explicitly selects — there is no ambient/background scanning and no manufacturer data.
+- **HTTPS or `http://localhost` required.** The API is unavailable on plain `http://`.
+- **No background operation.** Scanning and connections stop when the tab is backgrounded or closed.
+- **Browser support is Chromium-only and requires enabling in some cases.** When generating setup instructions or troubleshooting guidance, note the following:
+    - **Chrome / Edge / Brave / Opera (desktop)**: enabled by default on Windows, macOS, Linux, ChromeOS. Fallback: `chrome://flags/#enable-web-bluetooth` (or `edge://flags`, etc.) → *Enabled* → restart. Linux also needs `experimental-web-platform-features` on and BlueZ 5.43+.
+    - **Chrome / Edge (Android)**: Android 6.0+. OS location services must be on for the chooser prompt to appear.
+    - **Samsung Internet**: enable `internet://flags` → *Web Bluetooth*.
+    - **Safari (macOS / iOS / iPadOS)**: not supported. On iOS/iPadOS suggest third-party WKWebView-based browsers *Bluefy* or *WebBLE*. Stock macOS Safari has no workaround.
+    - **Firefox**: not supported on any platform.
 
 ## Setup
 
@@ -127,6 +128,87 @@ When generating BLE client code, follow these conventions:
 9. **Handle `BleException` and `BleOperationException`**: GATT operations can throw these. `BleOperationException` includes a `GattStatusCode`.
 
 10. **Connection auto-reconnect**: `ConnectionConfig.AutoConnect = true` (default) enables automatic reconnection. Set to `false` for faster initial connections.
+
+## L2CAP Channels
+
+Some platforms support L2CAP Connection-Oriented Channels for streaming data without going through GATT. This is exposed as an optional capability — `ICanL2Cap` — on the platform `Peripheral` types.
+
+### Feature detection
+
+```csharp
+using Shiny.BluetoothLE;
+
+if (peripheral.IsL2CapAvailable())
+{
+    // Backend supports L2CAP
+}
+```
+
+### Opening a channel
+
+```csharp
+// Safe variant — returns an empty observable on unsupported platforms
+peripheral
+    .TryOpenL2CapChannel(psm: 0x0083, secure: false)
+    .Subscribe(channel => { /* ... */ });
+
+// Direct access when the cast succeeds
+if (peripheral is ICanL2Cap l2cap)
+{
+    l2cap.OpenL2CapChannel(psm: 0x0083, secure: false).Subscribe(channel =>
+    {
+        // channel.Psm           — the PSM the channel was opened on
+        // channel.Identifier    — the remote peer identifier
+        // channel.DataReceived  — IObservable<byte[]> of incoming bytes
+        // channel.Write(bytes)  — IObservable<Unit> that completes when bytes are queued
+    });
+}
+```
+
+`L2CapChannel` implements `IDisposable` — dispose it to close the underlying streams (Apple) or socket (Android).
+
+### Reading and writing
+
+```csharp
+using System.Reactive.Threading.Tasks;
+
+channel.DataReceived.Subscribe(
+    payload => Console.WriteLine($"<- {payload.Length} bytes"),
+    ex      => Console.WriteLine($"Channel error: {ex.Message}"),
+    ()      => Console.WriteLine("Remote closed the channel")
+);
+
+await channel.Write(payload).ToTask();
+```
+
+`DataReceived` is hot, emits right-sized byte arrays per read, completes on remote close, and surfaces I/O errors via `OnError`.
+
+### Platform notes
+
+- **iOS / Mac Catalyst / macOS**: `CBPeripheral.OpenL2CapChannel`. The `secure` flag is ignored — security is set by how the peripheral published the channel.
+- **Android**: `BluetoothDevice.CreateL2capChannel` / `CreateInsecureL2capChannel`. Requires API 29+. Throws `InvalidOperationException` on older versions.
+- **Windows / Linux / Blazor**: not currently supported (`IsL2CapAvailable()` returns false).
+
+### File Transfer
+
+`L2CapChannelExtensions.SendFile(...)` streams a file over the channel with progress metrics (throughput, percent-complete, estimated time remaining) that match `Shiny.Net.Http.TransferProgress`:
+
+```csharp
+using Shiny.BluetoothLE;
+
+await channel.SendFile(
+    "/path/to/file.bin",
+    bufferSize: 4096,
+    onProgress: p => Console.WriteLine(
+        $"{p.PercentComplete:P0} ({p.BytesTransferred}/{p.BytesToTransfer}) " +
+        $"{p.BytesPerSecond / 1024} KB/s, ETA {p.EstimatedTimeRemaining}"
+    ),
+    cancellationToken: ct
+);
+```
+
+- Progress emissions cadence ~2s plus a final 100% emission on completion.
+- A `Stream` overload exists for non-file sources. Pass `totalBytes` to enable percent / ETA; pass `null` and `IsDeterministic` will be false, `PercentComplete` returns `-1`, `EstimatedTimeRemaining` returns `TimeSpan.Zero`.
 
 ## Namespace Ambiguities
 

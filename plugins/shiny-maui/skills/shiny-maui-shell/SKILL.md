@@ -1,6 +1,7 @@
 ---
 name: shiny-maui-shell
 description: Generate .NET MAUI Shell pages, ViewModels, navigation, and source-generated routes using Shiny MAUI Shell
+auto_invoke: true
 triggers:
 - "maui shell"
 - "shell navigation"

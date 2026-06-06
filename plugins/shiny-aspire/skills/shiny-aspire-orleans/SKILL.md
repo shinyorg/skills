@@ -1,6 +1,7 @@
 ---
 name: shiny-aspire-orleans
 description: Generate code using Shiny Aspire integrations — Orleans ADO.NET hosting and Gluetun VPN container routing
+auto_invoke: true
 triggers:
 - "aspire orleans"
 - "orleans aspire"

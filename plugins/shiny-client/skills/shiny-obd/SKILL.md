@@ -1,6 +1,7 @@
 ---
 name: shiny-obd
 description: Generate code using Shiny.Obd, an OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE transport
+auto_invoke: true
 triggers:
 - "obd"
 - "obd-ii"

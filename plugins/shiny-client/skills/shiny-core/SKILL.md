@@ -1,88 +1,49 @@
 ---
 name: shiny-core
 description: Core infrastructure, hosting, DI, key-value stores, lifecycle hooks, and platform abstractions for Shiny on .NET MAUI, iOS, and Android
+auto_invoke: true
 triggers:
-- "shiny core"
-- "shiny setup"
-- "shiny host"
-- "HostBuilder"
-- "IHost"
-- "IPlatform"
-- "IKeyValueStore"
-- "ISerializer"
-- "IObjectStoreBinder"
-- "IKeyValueStoreFactory"
-- "AccessState"
-- "IShinyStartupTask"
-- "IShinyComponentStartup"
-- "ShinyLifecycleTask"
-- "IAndroidLifecycle"
-- "IIosLifecycle"
-- "UseShiny"
-- "AddShinyService"
-- "NotifyPropertyChanged"
-- "ShinySubject"
-- "key value store"
-- "settings store"
-- "secure store"
-- "object store binder"
-- "platform abstraction"
-- "lifecycle hook"
-- "startup task"
-- "connectivity"
-- "IConnectivity"
-- "IBattery"
-- "IRepository"
-- "IRepositoryEntity"
-- "IRemoteConfigurationProvider"
-- "remote configuration"
-- "Shiny.Core"
-- "Shiny.Support.DeviceMonitoring"
-- "Shiny.Support.Repositories"
-- "Shiny.Extensions.Configuration"
+  - shiny core
+  - shiny setup
+  - shiny host
+  - HostBuilder
+  - IHost
+  - IPlatform
+  - IKeyValueStore
+  - ISerializer
+  - IObjectStoreBinder
+  - IKeyValueStoreFactory
+  - AccessState
+  - IShinyStartupTask
+  - IShinyComponentStartup
+  - ShinyLifecycleTask
+  - IAndroidLifecycle
+  - IIosLifecycle
+  - UseShiny
+  - AddShinyService
+  - NotifyPropertyChanged
+  - ShinySubject
+  - key value store
+  - settings store
+  - secure store
+  - object store binder
+  - platform abstraction
+  - lifecycle hook
+  - startup task
+  - connectivity
+  - IConnectivity
+  - IBattery
+  - IRepository
+  - IRepositoryEntity
+  - IRemoteConfigurationProvider
+  - remote configuration
+  - Shiny.Core
+  - Shiny.Support.DeviceMonitoring
+  - Shiny.Support.Repositories
+  - Shiny.Extensions.Configuration
 ---
 
 # Shiny Core
-
-## Triggers
-- shiny core
-- shiny setup
-- shiny host
-- HostBuilder
-- IHost
-- IPlatform
-- IKeyValueStore
-- ISerializer
-- IObjectStoreBinder
-- IKeyValueStoreFactory
-- AccessState
-- IShinyStartupTask
-- IShinyComponentStartup
-- ShinyLifecycleTask
-- IAndroidLifecycle
-- IIosLifecycle
-- UseShiny
-- AddShinyService
-- NotifyPropertyChanged
-- ShinySubject
-- key value store
-- settings store
-- secure store
-- object store binder
-- platform abstraction
-- lifecycle hook
-- startup task
-- connectivity
-- IConnectivity
-- IBattery
-- IRepository
-- IRepositoryEntity
-- IRemoteConfigurationProvider
-- remote configuration
-- Shiny.Core
-- Shiny.Support.DeviceMonitoring
-- Shiny.Support.Repositories
-- Shiny.Extensions.Configuration
 
 Shiny.Core is the foundational library for the Shiny ecosystem. It provides the hosting model, dependency injection infrastructure, key-value storage, object-store binding, platform abstractions, lifecycle hooks, and reactive helpers that all other Shiny modules build upon. Companion support libraries add connectivity monitoring, battery status, file-based repositories, and remote configuration.
 

@@ -1,6 +1,7 @@
 ---
 name: shiny-contactstore
 description: Generate code using Shiny.Maui.ContactStore for cross-platform device contact access with CRUD, LINQ queries, and MAUI permissions
+auto_invoke: true
 triggers:
 - "contact store"
 - "contacts"

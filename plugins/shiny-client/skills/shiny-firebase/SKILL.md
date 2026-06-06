@@ -1,6 +1,7 @@
 ---
 name: shiny-firebase
 description: Guide for implementing Firebase Cloud Messaging push notifications in .NET MAUI apps using Shiny.Push.FirebaseMessaging on iOS and Android.
+auto_invoke: true
 triggers:
 - "firebase"
 - "FCM"

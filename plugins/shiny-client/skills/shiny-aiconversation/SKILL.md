@@ -1,6 +1,7 @@
 ---
 name: shiny-aiconversation
 description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), persistent message store, optional AI chat history lookup tool, and configurable sound effects
+auto_invoke: true
 when_to_use: Use when the user needs a .NET MAUI AI conversation service, chat client provider setup, persistent message storage, wake-word or speech-driven conversations, GitHub Copilot/OpenAI chat integration, or voice-selection tools.
 triggers:
 - "Set up an AI chat service in a .NET MAUI app"

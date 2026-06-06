@@ -1,6 +1,7 @@
 ---
 name: shiny-health
 description: Generate cross-platform health data queries, write health data, and observe real-time health changes using Shiny Health for Apple HealthKit and Android Health Connect
+auto_invoke: true
 triggers:
 - "health data"
 - "health kit"

@@ -1,6 +1,7 @@
 ---
 name: shiny-di
 description: Generate and configure Shiny DI for .NET - attribute-driven service registration with source generators, keyed services, categories, and multi-interface support
+auto_invoke: true
 triggers:
 - "ServiceAttribute"
 - "SingletonAttribute"

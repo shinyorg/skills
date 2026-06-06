@@ -2,11 +2,21 @@
 
 ## Installation
 
+For MAUI / native targets:
+
 ```xml
 <PackageReference Include="Shiny.Locations" Version="4.*" />
 ```
 
+For Blazor WebAssembly:
+
+```xml
+<PackageReference Include="Shiny.Locations.Blazor" Version="4.*" />
+```
+
 The support library `Shiny.Support.Locations` is included transitively and provides the `Position` and `Distance` types.
+
+> **Blazor / Web limitations.** `Shiny.Locations.Blazor` only implements `IGpsManager`, and only for foreground use via `navigator.geolocation`. There is no `IGeofenceManager` (the browser has no Geofence API), no significant-location-change API, and no way to keep the page alive in the background. Background modes on a `GpsRequest` are accepted but logged and treated as foreground; `IGpsDelegate` is invoked but only while the tab is alive.
 
 ## Namespaces
 
@@ -49,6 +59,35 @@ public enum GpsBackgroundMode
     /// iOS: Full background request - Updates every 1 second
     /// Android: Foreground Service - Updates every 1 second
     Realtime
+}
+```
+
+### MotionActivityType
+
+```csharp
+namespace Shiny.Locations;
+
+public enum MotionActivityType
+{
+    Unknown = 0,
+    Stationary = 1,
+    Walking = 2,
+    Running = 3,
+    Cycling = 4,
+    Automotive = 5
+}
+```
+
+### MotionActivityConfidence
+
+```csharp
+namespace Shiny.Locations;
+
+public enum MotionActivityConfidence
+{
+    Low,
+    Medium,
+    High
 }
 ```
 
@@ -157,6 +196,18 @@ public record GeofenceRegion(
 ) : IRepositoryEntity;
 ```
 
+### MotionActivityReading
+
+```csharp
+namespace Shiny.Locations;
+
+public record MotionActivityReading(
+    MotionActivityType Activity,
+    MotionActivityConfidence Confidence,
+    DateTimeOffset Timestamp
+);
+```
+
 ### LocationPermissionResult
 
 ```csharp
@@ -257,6 +308,48 @@ public interface IGeofenceDelegate
 }
 ```
 
+### IMotionActivityManager
+
+```csharp
+namespace Shiny.Locations;
+
+public interface IMotionActivityManager
+{
+    /// If the manager is currently listening for activity changes
+    bool IsListening { get; }
+
+    /// Get the current access state for motion activity recognition
+    AccessState GetCurrentStatus();
+
+    /// Request access to motion activity recognition
+    Task<AccessState> RequestAccess();
+
+    /// Gets the last known motion activity reading, or queries the platform for the current one
+    IObservable<MotionActivityReading?> GetLastReading();
+
+    /// Hook to activity change events (foreground). Use delegates for background.
+    IObservable<MotionActivityReading> WhenReading();
+
+    /// Start listening for motion activity changes
+    Task StartListener();
+
+    /// Stop listening for motion activity changes
+    Task StopListener();
+}
+```
+
+### IMotionActivityDelegate
+
+```csharp
+namespace Shiny.Locations;
+
+public interface IMotionActivityDelegate
+{
+    /// Fired when a motion activity reading is received
+    Task OnReading(MotionActivityReading reading);
+}
+```
+
 ---
 
 ## Abstract Base Classes
@@ -270,9 +363,13 @@ namespace Shiny.Locations;
 
 public abstract class GpsDelegate(ILogger logger) : NotifyPropertyChanged, IGpsDelegate
 {
-    // Properties for filtering
+    // Minimum threshold filters (AND when both set, single check if only one set)
     Distance? MinimumDistance { get; set; }
     TimeSpan? MinimumTime { get; set; }
+
+    // Maximum threshold filters (OR - if either is crossed, always fires regardless of minimums)
+    Distance? MaximumDistance { get; set; }
+    TimeSpan? MaximumTime { get; set; }
 
     // Stationary detection configuration
     protected int StationaryMetersThreshold { get; set; }   // default: 10
@@ -288,6 +385,12 @@ public abstract class GpsDelegate(ILogger logger) : NotifyPropertyChanged, IGpsD
     protected abstract Task OnGpsReading(GpsReading reading);
 }
 ```
+
+**Filtering behavior:**
+
+- **Minimums (AND):** When both `MinimumDistance` and `MinimumTime` are set, *both* thresholds must be met before `OnGpsReading` fires. When only one is set, that single threshold is checked.
+- **Maximums (OR):** When `MaximumDistance` or `MaximumTime` is set, crossing *either* threshold always fires `OnGpsReading`, regardless of whether minimum thresholds are met. This is useful as a safety net to ensure readings are never suppressed for too long.
+- **Priority:** Maximum thresholds are evaluated first. If a maximum fires, minimum checks are skipped entirely.
 
 ### GpsGeofenceDelegate
 
@@ -333,6 +436,26 @@ public static class Extensions
         Position center,
         Distance radius,
         CancellationToken cancelToken = default
+    );
+}
+```
+
+### IGeofenceManager Extensions
+
+```csharp
+namespace Shiny.Locations;
+
+public static class Extensions
+{
+    /// Starts monitoring a region only if its identifier isn't already monitored.
+    /// When replaceIfExists is true (default), an existing region with the same
+    /// identifier is stopped and restarted so changed position/notification
+    /// settings take effect. Returns true if the region already existed,
+    /// false if it was newly added.
+    static Task<bool> TryStartMonitoring(
+        this IGeofenceManager geofenceManager,
+        GeofenceRegion region,
+        bool replaceIfExists = true
     );
 }
 ```
@@ -387,6 +510,24 @@ services.AddGpsDirectGeofencing<MyGeofenceDelegate>();
 // Non-generic version
 services.AddGpsDirectGeofencing(typeof(MyGeofenceDelegate));
 ```
+
+### Motion Activity Registration
+
+```csharp
+// Motion activity without a background delegate
+services.AddMotionActivity();
+
+// Motion activity with a background delegate
+services.AddMotionActivity<MyMotionActivityDelegate>();
+
+// Non-generic version
+services.AddMotionActivity(typeof(MyMotionActivityDelegate));
+```
+
+**Platform notes:**
+- **iOS/macOS:** Uses `CMMotionActivityManager`. Requires `NSMotionUsageDescription` in `Info.plist`.
+- **Android:** Uses Google Play Services Activity Recognition API. Requires `com.google.android.gms.permission.ACTIVITY_RECOGNITION`. Registration silently no-ops if Google Play Services is unavailable.
+- **Other platforms:** Registration is a no-op.
 
 ---
 
@@ -463,8 +604,14 @@ public class MyGpsDelegate : GpsDelegate
 
     public MyGpsDelegate(ILogger<MyGpsDelegate> logger) : base(logger)
     {
+        // Both minimums must be met (AND) before OnGpsReading fires
         this.MinimumDistance = Distance.FromMeters(100);
         this.MinimumTime = TimeSpan.FromSeconds(30);
+
+        // Safety net: if either maximum is crossed, always fire (OR) regardless of minimums
+        this.MaximumDistance = Distance.FromKilometers(1);
+        this.MaximumTime = TimeSpan.FromMinutes(5);
+
         this.DetectStationary = true;
     }
 
@@ -530,6 +677,21 @@ if (access == AccessState.Available)
 }
 ```
 
+### Start Monitoring Idempotently
+
+```csharp
+var region = new GeofenceRegion(
+    "my-office",
+    new Position(43.6532, -79.3832),
+    Distance.FromMeters(200)
+);
+
+// Safe to call repeatedly (e.g. on every app launch) without duplicating or throwing.
+// replaceIfExists: true (default) restarts an existing region so updated
+// position/notification settings take effect.
+bool alreadyExisted = await geofenceManager.TryStartMonitoring(region);
+```
+
 ### Distance Calculations
 
 ```csharp
@@ -550,6 +712,77 @@ bool? isInside = await gpsManager.IsInsideRegion(
     toronto,
     Distance.FromKilometers(1)
 );
+```
+
+### Motion Activity Recognition
+
+```csharp
+public class MyViewModel
+{
+    readonly IMotionActivityManager activityManager;
+
+    public MyViewModel(IMotionActivityManager activityManager)
+    {
+        this.activityManager = activityManager;
+    }
+
+    public async Task StartTracking()
+    {
+        var access = await this.activityManager.RequestAccess();
+        if (access != AccessState.Available)
+        {
+            // Handle denied/restricted
+            return;
+        }
+
+        await this.activityManager.StartListener();
+    }
+
+    public void ObserveActivity(CompositeDisposable disposable)
+    {
+        this.activityManager
+            .WhenReading()
+            .Subscribe(reading =>
+            {
+                var activity = reading.Activity;     // Walking, Running, Cycling, etc.
+                var confidence = reading.Confidence;  // Low, Medium, High
+                var timestamp = reading.Timestamp;
+            })
+            .DisposeWith(disposable);
+    }
+
+    public async Task StopTracking()
+    {
+        await this.activityManager.StopListener();
+    }
+}
+```
+
+### Motion Activity Background Delegate
+
+```csharp
+public class MyMotionActivityDelegate : IMotionActivityDelegate
+{
+    readonly ILogger<MyMotionActivityDelegate> logger;
+
+    public MyMotionActivityDelegate(ILogger<MyMotionActivityDelegate> logger)
+    {
+        this.logger = logger;
+    }
+
+    public Task OnReading(MotionActivityReading reading)
+    {
+        this.logger.LogInformation(
+            "Motion Activity: {Activity}, Confidence={Confidence}",
+            reading.Activity,
+            reading.Confidence
+        );
+        return Task.CompletedTask;
+    }
+}
+
+// Registration
+services.AddMotionActivity<MyMotionActivityDelegate>();
 ```
 
 ### Background GPS with Realtime Mode

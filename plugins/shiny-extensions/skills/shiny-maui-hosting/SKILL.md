@@ -1,6 +1,7 @@
 ---
 name: shiny-maui-hosting
 description: Generate and configure Shiny MAUI Hosting for .NET - modular MAUI app configuration with IMauiModule, static Host.Services access, and platform lifecycle hooks
+auto_invoke: true
 triggers:
 - "IMauiModule"
 - "Shiny.Extensions.MauiHosting"

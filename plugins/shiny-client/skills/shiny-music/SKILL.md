@@ -1,6 +1,7 @@
 ---
 name: shiny-music
 description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android, iOS, and Mac Catalyst with permissions, metadata querying, filtering, playback, lyrics, album art, and file copy
+auto_invoke: true
 when_to_use: Use when the user needs device music-library access, playback, metadata queries, lyrics, album art, playlists, or track-copy workflows across Android, iOS, or Mac Catalyst.
 triggers:
 - "Access the device music library on Android, iOS, or Mac Catalyst"

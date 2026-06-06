@@ -1,7 +1,7 @@
 {
   "name": "shiny-extensions",
-  "version": "1.8.0",
-  "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), AOT-compliant reflection via source generation (with AssemblyInfo generation and ReflectorJsonConverter), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, and modular ASP.NET Core web hosting with IWebModule",
+  "version": "1.10.0",
+  "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, and modular ASP.NET Core web hosting with IWebModule",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/skills",
   "license": "MIT",
-  "keywords": ["dependency-injection", "source-generators", "key-value-store", "reflection", "localization", "resx", "maui-hosting", "web-hosting", "aot"],
+  "keywords": ["dependency-injection", "source-generators", "key-value-store", "localization", "resx", "maui-hosting", "web-hosting", "aot"],
   "skills": "./skills/"
 }
