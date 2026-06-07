@@ -5,7 +5,7 @@ A Visual-Studio-style window-docking system for desktop apps — dockable tool w
 | Package | Use when |
 |---|---|
 | **`Shiny.Maui.Controls.Desktop`** (`Shiny.Maui.Controls.Desktop.Docking` namespace) | .NET MAUI desktop apps. Combined with the [Tray Icon](./tray-icon.md) feature in the same package since both share the desktop TFM matrix (`net10.0;-windows;-maccatalyst;-macos` + Linux GTK4 path) |
-| **`Shiny.Blazor.Controls.Docking`** (`Shiny.Blazor.Controls.Docking` namespace) | Blazor apps. WASM-supported in v1; Blazor Server / `BlazorWebView` will be supported as the contracts stabilize |
+| **`Shiny.Blazor.Controls.Kiosk`** (`Shiny.Blazor.Controls.Kiosk.Docking` namespace) | Blazor apps. WASM-supported in v1; Blazor Server / `BlazorWebView` will be supported as the contracts stabilize. The package also hosts a forthcoming on-screen keyboard — both features share the kiosk-shaped TFM-free Blazor surface |
 
 Mobile (iOS / Android) is **out of scope by design**. Tear-off floating windows on macOS Catalyst are limited to in-app floating only in v1 — native AppKit (`net10.0-macos`) and Windows get full tear-off via `NSPanel` / `AppWindow`; native GTK4 windows on Linux.
 
@@ -79,13 +79,13 @@ public sealed class SolutionExplorerPanel : ContentView
 ## Setup (Blazor)
 
 ```bash
-dotnet add package Shiny.Blazor.Controls.Docking
+dotnet add package Shiny.Blazor.Controls.Kiosk
 ```
 
 `Program.cs`:
 
 ```csharp
-using Shiny.Blazor.Controls.Docking;
+using Shiny.Blazor.Controls.Kiosk.Docking;
 
 builder.Services
     .AddShinyDocking()
@@ -96,7 +96,7 @@ builder.Services
 `_Imports.razor`:
 
 ```razor
-@using Shiny.Blazor.Controls.Docking
+@using Shiny.Blazor.Controls.Kiosk.Docking
 ```
 
 Any razor page:
