@@ -1,6 +1,6 @@
 ---
 name: shiny-controls
-description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, BadgeView (content-wrapping corner badge with text/dot/count overflow and pulse), ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), Barcodes & QR codes (separate Shiny.Maui.Controls.Barcodes / Shiny.Blazor.Controls.Barcodes packages — BarcodeView and QRCodeView with 13 symbologies including QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-8/13, UPC-A/E, ITF — pure-managed ZXing.Net renderer, PNG output via built-in encoder on MAUI, SVG or PNG data-URI on Blazor, with a static BarcodeRenderer for raw bytes / SVG / data-URI from code), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, ParallaxCollectionView (MAUI) / ParallaxList (Blazor) — a scrollable list with a hero header that translates at a configurable fraction of the scroll offset, with optional collapse-to-sticky and fade, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Tray Icon for desktop (separate Shiny.Maui.Controls.TrayIcon package - cross-platform system tray / status-bar icon with context menus, click events, tooltips, and dynamic visibility on Windows/macOS AppKit/MacCatalyst/Linux), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
+description: Generate UI for .NET MAUI (Shiny.Maui.Controls) and Blazor (Shiny.Blazor.Controls) - includes TableView with 14 cell types, TreeView with lazy loading and configurable expand/collapse icons, FloatingPanel/OverlayHost/ShinyContentPage (bottom/top overlay panels) with detents and header peek, ShinyDurationPicker (duration picker with FloatingPanel), FrostedGlassView (native blur/glass effect), Toast service (code-invoked toast notifications with queue/stack, auto-dismiss, spinner, progress bar, pill/fill modes), PillView status badges, BadgeView (content-wrapping corner badge with text/dot/count overflow and pulse), ImageViewer with pinch/pan/double-tap zoom, ImageEditor with crop/rotate/draw/text/undo/redo/export, ChatView with bubbles/typing/load-more/input-bar and custom MessageTemplate/MessageTemplateSelector for per-message rendering, SecurityPin entry, Fab and FabMenu (floating action button and expanding action menu), Scheduler views (calendar grid, agenda timeline, event list), Markdown controls (MarkdownView renderer, MarkdownEditor with toolbar), Barcodes & QR codes (separate Shiny.Maui.Controls.Barcodes / Shiny.Blazor.Controls.Barcodes packages — BarcodeView and QRCodeView with 13 symbologies including QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-8/13, UPC-A/E, ITF — pure-managed ZXing.Net renderer, PNG output via built-in encoder on MAUI, SVG or PNG data-URI on Blazor, with a static BarcodeRenderer for raw bytes / SVG / data-URI from code), AutoCompleteEntry with debounced search and dropdown suggestions, CountryPicker with flag/dial code, AddressEntry with geocoding, SignaturePad for capturing signatures with canvas drawing and PNG export, TextEntry with animated floating placeholder/customizable border/tool slots/validation hints/character count, Slider with two-color gradient track and blended thumb, ProgressBar with gradient fill and Vista-style shimmer pulse sweep, ParallaxCollectionView (MAUI) / ParallaxList (Blazor) — a scrollable list with a hero header that translates at a configurable fraction of the scroll offset, with optional collapse-to-sticky and fade, Overlay/LoadingOverlay (full-screen overlay with configurable color/opacity, custom content template, and built-in loading mode with indeterminate spinner or determinate progress bar), SkeletonView (content-wrapping skeleton loader that shows animated shimmer placeholders while IsBusy is true, with built-in line placeholders or a custom placeholder template), Desktop add-on (separate Shiny.Maui.Controls.Desktop package) combining Tray Icon (cross-platform system tray / status-bar icon with context menus, click events, tooltips, and dynamic visibility on Windows/macOS AppKit/MacCatalyst/Linux) and Docking (Visual-Studio-style dockable tool windows, tabbed groups, splitters, auto-hide rails, and tear-off floating windows; companion Shiny.Blazor.Controls.Docking for Blazor), Feedback Service (extensible IFeedbackService with haptic default, replaceable with TTS/sound/analytics), and UseFeedback support across all interactive controls
 auto_invoke: true
 triggers:
   - tableview
@@ -270,6 +270,28 @@ triggers:
   - background app
   - tray menu
   - tray context menu
+  - docking
+  - dock host
+  - dockhost
+  - dockable
+  - tool window
+  - tool windows
+  - tabbed panel
+  - tabbed group
+  - dock panel
+  - dockpanel
+  - visual studio docking
+  - visual studio layout
+  - vs docking
+  - tear off
+  - tear-off
+  - floating window
+  - floating panel docking
+  - splitter
+  - dock splitter
+  - auto-hide rail
+  - auto-hide panel
+  - blazor docking
   - barcode
   - barcodes
   - barcode view
@@ -332,6 +354,7 @@ references:
   - skeleton.md
   - badge.md
   - tray-icon.md
+  - docking.md
   - barcodes.md
   - feedback-service.md
 ---
@@ -376,7 +399,9 @@ The library contains:
 - **ParallaxCollectionView** (MAUI) / **ParallaxList** (Blazor): A scrollable list with a hero header that translates at a configurable fraction of the scroll offset (`ParallaxFactor`, default 0.5 = half speed). Optional `CollapseToSticky` clamps the header to a `MinHeaderHeight` minimum, and `FadeHeaderOnScroll` fades it out as it scrolls. MAUI wraps a real `CollectionView` (`ItemTemplate`, `EmptyView`, `SelectionMode`, `SelectedItem`, `ScrollTo`, custom `ItemsLayout`) in a `Grid` and drives the hero translation from `CollectionView.Scrolled`. Blazor uses a CSS-positioned hero plus a tiny JS scroll listener that mutates `transform`/`opacity` directly (rAF-throttled) so parallax runs at native scroll framerate without Razor re-renders. Both hosts fire a `Scrolled` event with `ParallaxScrollEventArgs(verticalOffset, headerTranslation, headerVisibleHeight)` for driving sticky titles, fading nav chrome, etc. No platform handlers
 - **StaggeredGrid**: Pinterest-style masonry/waterfall layout with variable-height items in configurable columns. Items with HeightRequest on the root template view use that value directly for measurement. Uses native staggered layout managers on MAUI and CSS column-count on Blazor
 - **VirtualizedGrid**: Full-featured grouped grid with sticky section headers, virtualization, orientation-aware column counts, cell padding, load-more button (renders as footer at end of data) with custom template support, and item visibility tracking. Uses native grid layouts on MAUI and CSS Grid on Blazor
-- **Tray Icon (Desktop)**: A separate `Shiny.Maui.Controls.TrayIcon` package adds a cross-platform system tray / status-bar icon for MAUI desktop apps. Supports Windows (`Shell_NotifyIcon`), macOS AppKit (`NSStatusItem`, native `net10.0-macos` build), MacCatalyst (AppKit bridged via the Objective-C runtime), and Linux (`libayatana-appindicator3` + GTK 3 — requires the system library installed). API: `ITrayIconFactory` resolved from DI, then `ITrayIcon` with `SetIcon(Func<Stream>)` (PNG or ICO bytes — Windows auto-wraps PNG into ICO), `Tooltip`, `Title` (macOS/Linux label, ignored on Windows), `IsVisible`, `IsTemplateImage` (macOS auto-tint), `SetMenu(TrayMenu)`, `ShowMenu()`, and `PrimaryClick`/`SecondaryClick`/`DoubleClick` events. Menus are built fluently with `TrayMenu.Build(b => b.Item(...).Check(...).Separator().Submenu(...))` — `TrayMenuItem`, `TrayCheckMenuItem`, `TraySeparator`, and `TraySubmenu`. Mutating any item's `Label`/`IsEnabled`/`IsVisible` rebuilds the native menu automatically. No Blazor equivalent — tray icons are a desktop OS concept
+- **Desktop (Tray Icon + Docking)**: A single desktop-only add-on package `Shiny.Maui.Controls.Desktop` bundles two features that share the desktop TFM matrix (Windows + macOS AppKit + MacCatalyst + Linux):
+  - **Tray Icon** (`using Shiny.Maui.Controls.Desktop.TrayIcon;`) — cross-platform system tray / status-bar icon. Windows (`Shell_NotifyIcon`), macOS AppKit (`NSStatusItem`, native `net10.0-macos` build), MacCatalyst (AppKit bridged via the Objective-C runtime), Linux (`libayatana-appindicator3` + GTK 3 — requires the system library installed). API: `ITrayIconFactory` resolved from DI, then `ITrayIcon` with `SetIcon(Func<Stream>)` (PNG or ICO bytes — Windows auto-wraps PNG into ICO), `Tooltip`, `Title` (macOS/Linux label, ignored on Windows), `IsVisible`, `IsTemplateImage` (macOS auto-tint), `SetMenu(TrayMenu)`, `ShowMenu()`, and `PrimaryClick`/`SecondaryClick`/`DoubleClick` events. Menus are built fluently with `TrayMenu.Build(b => b.Item(...).Check(...).Separator().Submenu(...))` — `TrayMenuItem`, `TrayCheckMenuItem`, `TraySeparator`, and `TraySubmenu`. Mutating any item's `Label`/`IsEnabled`/`IsVisible` rebuilds the native menu automatically. No Blazor equivalent — tray icons are a desktop OS concept. Registered with `.UseTrayIcon()` in `MauiProgram.cs`
+  - **Docking** (`using Shiny.Maui.Controls.Desktop.Docking;`) — Visual-Studio-style window docking for MAUI desktop, with a companion `Shiny.Blazor.Controls.Docking` package for Blazor. `DockHostView` attaches to any existing `ContentPage` (not a `ContentPage` subclass) and orchestrates `DockGroupView`, `DockTabStrip`, and `DockSplitter` building blocks. Public surface includes `IDockHost` (per-window controller — `LoadAsync`, `Snapshot`, `ShowPanelAsync`, `IsLocked`), `IDockableContentFactory` (async `Task<View> CreateAsync(string instanceId, ...)`, registered with `.AddDockPanel<TView>("panel-id")`), `IDockLayoutStore` (bring-your-own persistence — no default implementation ships), `IDockLayoutMigrator` (forward-only schema migrations), `IDockEvents` (`LayoutChanged`, `PanelActivated`, `DragStarted/Completed/Cancelled`), and `IDockCommandScope` (scopes Ctrl+W, Ctrl+Tab MRU, Ctrl+Alt+PgUp/Dn to the dock surface). The layout schema is a pure POCO tree (`DockRoot`, `DockWindowState`, `DockSplit`, `DockGroup`, `DockTab`, `DockEmpty`) with a source-generated `System.Text.Json` context and `SchemaVersion` + `MinReadableVersion` for migration; `DockSerialization.Serialize`/`Deserialize` round-trip layouts to JSON. v0.1 ships the package surface (in-window only); drag-drop with VS-style diamond drop indicator (v0.2), auto-hide rails + persistence (v0.3), tear-off floating windows on Windows/AppKit/GTK (v0.4) follow. Registered with `.UseShinyDocking()` + `.AddDockPanel<TView>("id")` on MAUI, `services.AddShinyDocking() + .AddDockPanel<TComponent>("id")` on Blazor
 - **Feedback Service**: All interactive controls fire events through `IFeedbackService`. Default `HapticFeedbackService` provides tactile feedback. Replace with `SetCustomFeedback<T>()` in `UseShinyControls()` for TTS, sounds, analytics, or custom responses. The `control` parameter is the actual control instance (use pattern matching like `control is ChatView`), and `args` carries context — `ChatMessage` for ChatView events, native `EventArgs` for standard MAUI controls. Standard MAUI control integration is pluggable and AOT-compatible via `MauiControlFeedbackBuilder` — use `AddDefaultMauiControlFeedback()` for all built-in hooks, add custom hooks with `Hook<TControl>(eventName, subscribe, unsubscribe)`, or use `AddMauiControlFeedback()` for only the hooks you configure
 
 ## When to Use This Skill
@@ -466,19 +491,27 @@ Invoke this skill when the user wants to:
 - Show or hide a tray icon at runtime without recreating it
 - Make a tray icon auto-adapt to the macOS light/dark menu bar via template images
 - Use Linux AppIndicator (`libayatana-appindicator`) for tray icons on GNOME/KDE
+- Build a Visual-Studio-style dockable UI with tool windows, tabbed groups, splitters, auto-hide rails, and tear-off floating windows in a MAUI desktop app
+- Add a docking host (`DockHostView` for MAUI / `<DockHost />` for Blazor) to an existing page without subclassing ContentPage
+- Register dockable panels by stable string ID (`AddDockPanel<TView>("solution-explorer")`) so layout JSON can resolve them back to actual views
+- Persist a dock layout to disk and reload it on app start, with schema versioning and forward migrations via `IDockLayoutMigrator`
+- Implement a bring-your-own `IDockLayoutStore` (e.g. backed by Shiny.Stores, a file, or a remote service) to save/load `DockRoot` snapshots
+- Observe dock layout/drag/activation events through `IDockEvents` for telemetry or undo-stack integration
+- Lock the dock layout for read-only / kiosk modes via `IDockHost.IsLocked = true`
 
 ## Library Overview
 
 ### .NET MAUI
 
-**NuGet**: `Shiny.Maui.Controls` (+ `Shiny.Maui.Controls.Markdown`, `Shiny.Maui.Controls.MermaidDiagrams`)
+**NuGet**: `Shiny.Maui.Controls` (+ `Shiny.Maui.Controls.Markdown`, `Shiny.Maui.Controls.MermaidDiagrams`, `Shiny.Maui.Controls.Barcodes`, `Shiny.Maui.Controls.Desktop` for tray icon + docking)
 **Namespace**: `Shiny.Maui.Controls`
 **XAML Namespace**: `http://shiny.net/maui/controls` (prefix: `shiny`)
+**Desktop add-on namespaces**: `Shiny.Maui.Controls.Desktop.TrayIcon`, `Shiny.Maui.Controls.Desktop.Docking` (extension methods `UseTrayIcon`, `UseShinyDocking`, `AddDockPanel<T>` live in `Shiny`)
 
 ### Blazor
 
-**NuGet**: `Shiny.Blazor.Controls` (+ `Shiny.Blazor.Controls.Markdown`, `Shiny.Blazor.Controls.MermaidDiagrams`)
-**Namespaces**: `Shiny.Blazor.Controls`, `Shiny.Blazor.Controls.Cells`, `Shiny.Blazor.Controls.Sections`, `Shiny.Blazor.Controls.Scheduler`, `Shiny.Blazor.Controls.Chat`, `Shiny.Blazor.Controls.Markdown`, `Shiny.Blazor.Controls.MermaidDiagrams`
+**NuGet**: `Shiny.Blazor.Controls` (+ `Shiny.Blazor.Controls.Markdown`, `Shiny.Blazor.Controls.MermaidDiagrams`, `Shiny.Blazor.Controls.Barcodes`, `Shiny.Blazor.Controls.Docking` for the Blazor docking host)
+**Namespaces**: `Shiny.Blazor.Controls`, `Shiny.Blazor.Controls.Cells`, `Shiny.Blazor.Controls.Sections`, `Shiny.Blazor.Controls.Scheduler`, `Shiny.Blazor.Controls.Chat`, `Shiny.Blazor.Controls.Markdown`, `Shiny.Blazor.Controls.MermaidDiagrams`, `Shiny.Blazor.Controls.Docking`
 
 ## Setup
 

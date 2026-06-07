@@ -1,6 +1,6 @@
 # Tray Icon (Desktop)
 
-`Shiny.Maui.Controls.TrayIcon` is a **separate, MAUI-only** add-on package that adds a cross-platform system tray / status-bar icon to your MAUI desktop app.
+The tray icon API ships in the **`Shiny.Maui.Controls.Desktop`** add-on package — a desktop-only library that also contains the [Docking](./docking.md) host. It's MAUI-only; tray icons are a desktop OS concept and there is no Blazor equivalent.
 
 Supported platforms:
 
@@ -9,18 +9,17 @@ Supported platforms:
 - **MacCatalyst** — bridges to AppKit at runtime via the Objective-C runtime
 - **Linux** — `libayatana-appindicator3` + GTK 3 (native dependency must be installed: `libayatana-appindicator3-1`, `libgtk-3-0`)
 
-There is **no Blazor equivalent** — tray icons are a desktop OS concept.
-
 ## Setup
 
 ```bash
-dotnet add package Shiny.Maui.Controls.TrayIcon
+dotnet add package Shiny.Maui.Controls.Desktop
 ```
 
 In `MauiProgram.cs`:
 
 ```csharp
 using Shiny;
+using Shiny.Maui.Controls.Desktop.TrayIcon;   // ITrayIcon, ITrayIconFactory, TrayMenu, TrayMenuItem, ...
 
 var builder = MauiApp.CreateBuilder();
 builder
@@ -29,6 +28,8 @@ builder
 ```
 
 `UseTrayIcon()` registers `ITrayIconFactory` as a singleton — the correct per-platform factory is picked automatically. On Android, iOS, or any other unsupported runtime, `Create()` throws `PlatformNotSupportedException`, so guard your code with platform checks if the same MAUI app runs on mobile too.
+
+> **Note:** Prior to the Desktop package merger this lived in `Shiny.Maui.Controls.TrayIcon` under the `Shiny.Maui.Controls.TrayIcon` namespace. Update your `using` directive to `Shiny.Maui.Controls.Desktop.TrayIcon`. The extension method `UseTrayIcon()` is unchanged and still lives in the `Shiny` namespace.
 
 ## Creating a tray icon
 
