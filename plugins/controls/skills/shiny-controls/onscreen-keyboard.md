@@ -9,19 +9,7 @@ Two packages, same shape:
 | **`Shiny.Maui.Controls.Desktop`** (`Shiny.Maui.Controls.Desktop.OnScreenKeyboard` namespace) | .NET MAUI desktop apps. Bundled with [Tray Icon](./tray-icon.md) and [Docking](./docking.md) under the desktop-only TFM matrix |
 | **`Shiny.Blazor.Controls.Kiosk`** (`Shiny.Blazor.Controls.Kiosk.OnScreenKeyboard` namespace) | Blazor apps. Bundled with [Docking](./docking.md) under the kiosk-shaped Blazor add-on |
 
-Scope intentionally narrow: English US-QWERTY, dispatch into the host app's own text fields, no IME / dead keys / language switching in v0.1. The 80% case for kiosks, not a replacement for the OS on-screen keyboard.
-
-## v0.1 status
-
-v0.1 is **planned, not yet implemented.** The public surface below is the v0.1 contract — write to it today and it'll keep working as the rendering lights up.
-
-| Phase | Lands |
-|---|---|
-| **v0.1** (~2 wks) | US-QWERTY, three layers (lowercase / Shift / 123-symbols), bottom-docked, auto-show on focus / auto-hide on blur, press-and-hold autorepeat, full AutomationPeer / ARIA tree. **MAUI:** managed dispatch via `Text` mutation at `CursorPosition`. **Blazor:** `document.execCommand('insertText', char)` after focus restore, via a JS module |
-| v0.2 | Floating mode (reuses `IFloatingDockWindow` from Docking v0.4), key-press sounds via `IFeedbackService`, theme-token surface stable |
-| v0.3 | JSON layout data files — AZERTY / QWERTZ / Dvorak addable without code changes |
-| v0.4 | Pluggable `IKeyDispatcher` with optional native synthetic-key dispatch (opt-in, documents macOS Accessibility prompt) |
-| v0.5 | Dead-key composition (`` ` `` + `e` → `è`) and a word-prediction hook |
+Scope intentionally narrow: English US-QWERTY, dispatch into the host app's own text fields, no IME / dead keys / language switching. The 80% case for kiosks, not a replacement for the OS on-screen keyboard.
 
 ## Setup (.NET MAUI)
 
@@ -146,15 +134,15 @@ Two implementation details that make or break a touch OSK:
 
 **1. No focus stealing.** Every key uses `pointerdown` + `preventDefault()` (Blazor) or `Focusable = false` + intercepted `PointerPressed` (MAUI). Without this, the target input loses its caret the moment the user taps a key — single biggest cause of "the OSK doesn't work" bug reports.
 
-**2. Caret-position tracking.** `Text` mutation at `CursorPosition` (MAUI) and `execCommand('insertText')` (Blazor) both handle the easy case cleanly, but selection-replace (user selects "abc" and types "x" → result "x", not "abcx") needs bookkeeping. v0.1 tracks `SelectionStart`/`SelectionLength` and replaces the range when present.
+**2. Caret-position tracking.** `Text` mutation at `CursorPosition` (MAUI) and `execCommand('insertText')` (Blazor) both handle the easy case cleanly, but selection-replace (user selects "abc" and types "x" → result "x", not "abcx") needs bookkeeping. The OSK tracks `SelectionStart`/`SelectionLength` and replaces the range when present.
 
-## Limitations (v0.1)
+## Limitations
 
-- **MAUI inputs only / DOM inputs only.** OSK dispatches into the host's text inputs. No injection into other-app popups, WebView contents, or other-process windows. For kiosk apps this is the desired behaviour. Opt-in system-wide dispatch arrives in v0.4 via a pluggable `IKeyDispatcher`.
-- **Shadow DOM** — `focusin` doesn't pierce shadow roots. Web Components with internal `<input>` elements aren't supported in v0.1.
+- **MAUI inputs only / DOM inputs only.** OSK dispatches into the host's text inputs. No injection into other-app popups, WebView contents, or other-process windows. For kiosk apps this is the desired behaviour.
+- **Shadow DOM** — `focusin` doesn't pierce shadow roots. Web Components with internal `<input>` elements aren't supported.
 - **Rich editors** (Quill, ProseMirror, Monaco) — `execCommand('insertText')` works against `<input>` / `<textarea>` / simple contenteditable but gets weird inside complex editor frameworks. Best-effort, no guarantee.
 - **Enter key** dispatches `keydown`/`keyup` `Enter` (so form submit fires). Does NOT insert `\n`. Configurable.
-- **No IME, no dead keys, no language switching** until v0.5 / v0.3 respectively.
+- **No IME, no dead keys, no language switching.**
 
 ## Theming
 
@@ -173,7 +161,7 @@ Every key exposes the appropriate automation role:
 - **Linux GTK**: ATK role `KEY` via the underlying `GtkButton`
 - **Blazor**: ARIA `role="button"` + `aria-keyshortcuts`, contained in `role="application"` so screen readers don't fight the typing flow
 
-Designed in v0.1, not retrofitted — the AutomationPeer tree is hard to add cleanly later.
+The AutomationPeer / ARIA tree is built in from the start, not retrofitted.
 
 ## When to use this skill
 
@@ -192,11 +180,11 @@ Invoke the OSK skill when the user wants any of:
 
 Do NOT invoke this skill when:
 
-- The user wants the **OS's** on-screen keyboard (`osk.exe` / TabTip) — that's a different, simpler "launch the system OSK" wrapper, not in v1
-- The user needs IME / multilingual input / dead-key composition (out of v0.1 scope)
-- The user wants to inject keystrokes into other apps / WebView contents / windows in other processes (out of v0.1 scope — opt-in `IKeyDispatcher` arrives in v0.4)
+- The user wants the **OS's** on-screen keyboard (`osk.exe` / TabTip) — that's a different, simpler "launch the system OSK" wrapper, not part of this package
+- The user needs IME / multilingual input / dead-key composition
+- The user wants to inject keystrokes into other apps / WebView contents / windows in other processes
 
 ## Related
 
 - [Tray Icon](./tray-icon.md) — ships in the same `Shiny.Maui.Controls.Desktop` package
-- [Docking](./docking.md) — once Docking v0.4 floating windows land, the OSK can be hosted in a floating dock window for "always on top" kiosk use
+- [Docking](./docking.md) — the OSK can be hosted in a floating dock window for "always on top" kiosk use

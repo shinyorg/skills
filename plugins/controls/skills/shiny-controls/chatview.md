@@ -109,6 +109,7 @@ public class ChatParticipant
 | `MessageTemplate` | `DataTemplate?` | `null` | Single template for all message content (MAUI only) |
 | `MessageTemplateSelector` | `DataTemplateSelector?` | `null` | Per-type template selector (MAUI only) |
 | `UseFeedback` | `bool` | `true` | Haptic feedback on interactions (MAUI only) |
+| `AdjustForKeyboard` | `bool` | `true` | iOS-only: chat adds bottom padding equal to the on-screen keyboard overlap so the input bar stays visible. **Set `False` when ChatView is hosted inside a FloatingPanel** — otherwise the chat-level padding, the panel's focus-driven detent animation, and MAUI's `KeyboardAutoManagerScroll` fight each other and the Entry drops keystrokes. (MAUI only) |
 
 ## Commands (MAUI ICommand) / Events (Blazor EventCallback)
 
