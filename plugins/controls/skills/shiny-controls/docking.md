@@ -7,20 +7,7 @@ A Visual-Studio-style window-docking system for desktop apps — dockable tool w
 | **`Shiny.Maui.Controls.Desktop`** (`Shiny.Maui.Controls.Desktop.Docking` namespace) | .NET MAUI desktop apps. Combined with the [Tray Icon](./tray-icon.md) feature in the same package since both share the desktop TFM matrix (`net10.0;-windows;-maccatalyst;-macos` + Linux GTK4 path) |
 | **`Shiny.Blazor.Controls.Kiosk`** (`Shiny.Blazor.Controls.Kiosk.Docking` namespace) | Blazor apps. WASM-supported in v1; Blazor Server / `BlazorWebView` will be supported as the contracts stabilize. The package also hosts a forthcoming on-screen keyboard — both features share the kiosk-shaped TFM-free Blazor surface |
 
-Mobile (iOS / Android) is **out of scope by design**. Tear-off floating windows on macOS Catalyst are limited to in-app floating only in v1 — native AppKit (`net10.0-macos`) and Windows get full tear-off via `NSPanel` / `AppWindow`; native GTK4 windows on Linux.
-
-## v0.1 status
-
-v0.1 ships the package surface — the layout schema, the contracts, registration extensions, and a `DockHostView` (MAUI) / `<DockHost />` (Blazor) skeleton you can drop into a page. **Visual drag-drop, splitter rendering, auto-hide rails, and floating windows are not implemented yet.** Roadmap:
-
-| Phase | Lands |
-|---|---|
-| v0.2 | `DockDragCoordinator` (single-window), VS-style diamond drop indicator, tab tear-off + merge between groups, document-area vs tool-area enforcement, tab overflow (scroll + chevron), diagnostic overlay (Ctrl+Shift+D) |
-| v0.3 | `AutoHideRail` (left/right/top/bottom), pin/unpin animation, `IDockLayoutStore` reference JSON round-trip, schema migrations, workspace perspectives (named layout presets) |
-| v0.4 | `IFloatingDockWindow` + per-platform impls — Windows/AppKit/GTK tear-off, cross-window drag via mouse-down capture, per-monitor DPI on Windows, z-order persistence |
-| v0.5 | Layout locking, reset-to-default, drop-from-external (OS file drop), tab pinning, telemetry surface stable — 1.0 candidate |
-
-Write to the v0.1 public surface today and your code will keep working as the rendering lights up underneath.
+Mobile (iOS / Android) is **out of scope by design**. Tear-off floating windows on macOS Catalyst are limited to in-app floating — native AppKit (`net10.0-macos`) and Windows get full tear-off via `NSPanel` / `AppWindow`; native GTK4 windows on Linux.
 
 ## Setup (.NET MAUI)
 
@@ -105,7 +92,7 @@ Any razor page:
 <DockHost />
 ```
 
-Each panel is a regular Razor component (`ComponentBase` subclass). v1 supports in-app floating only; popping panels out into separate browser windows is roadmap (will use `SharedWorker` for cross-window coordination, since `BroadcastChannel` cannot teleport component instances between Blazor runtime instances).
+Each panel is a regular Razor component (`ComponentBase` subclass). Blazor docking supports in-app floating; popping panels out into separate browser windows is not supported (Blazor runtime instances cannot share component instances across windows).
 
 ## Public Surface
 
@@ -267,12 +254,12 @@ Invoke the docking skill when the user asks for any of:
 - A **dock host** / `DockHostView` / `<DockHost />` attached to a page
 - A way to **register panels** by ID so layouts can be saved and reloaded
 - Saving and restoring dock layouts to/from JSON, with schema versioning and migrations
-- Tab tear-off / merge / reorder / drag-drop between groups (roadmap from v0.2)
-- Auto-hide rails on the left/right/top/bottom edges (roadmap from v0.3)
-- Tear-off floating windows on Windows, macOS AppKit, or Linux GTK4 (roadmap from v0.4)
+- Tab tear-off / merge / reorder / drag-drop between groups
+- Auto-hide rails on the left/right/top/bottom edges
+- Tear-off floating windows on Windows, macOS AppKit, or Linux GTK4
 - Layout locking, kiosk mode, read-only layout
 - Workspace perspectives (Debugging / Design / Review preset layouts)
-- Blazor docking (in-app floating in v1, pop-out via separate browser window on the roadmap)
+- Blazor docking (in-app floating)
 - Avoiding global mouse hooks on macOS for cross-window drag (the architecture uses implicit mouse-down capture instead — no Accessibility entitlement required, App Store compatible)
 - Adding a docking control to a `Shiny.Maui.Controls`-based app without subclassing `ContentPage`
 

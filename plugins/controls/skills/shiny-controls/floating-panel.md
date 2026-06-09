@@ -121,11 +121,23 @@ Custom detent: `new DetentValue(0.33)` for 33% height.
 |---|---|
 | `AnimateToDetentAsync(DetentValue)` | Programmatically animate to a specific detent |
 
+## Gotchas — input controls (Entry / Editor / SearchBar) inside a panel
+
+This section captures patterns to watch for when a panel contains a text-input control. If a user reports "can't tap / can't type / entry only works when the panel is fully expanded," check these in order:
+
+1. **Do NOT re-introduce `scrollView.IsEnabled = (currentHeight ≈ highestHeight)` gating.** A prior version disabled the inner ScrollView whenever the panel was below the topmost detent. On iOS/Android, `IsEnabled=false` on a parent disables hit-testing for the entire subtree — the Entry could not receive focus or keystrokes until the panel was pulled to the top detent. The drag-vs-scroll gesture concern that gate tried to solve is moot because the pan recognizer is already restricted to `dragHandleContainer` only. Leave `scrollView.IsEnabled` alone.
+2. **Don't fight platform keyboard avoidance from `OnInputFocused`.** When the Entry is already at (or above) the highest detent, do NOT trigger another `AnimateToDetentAsync(...)` on focus — the simultaneous `HeightRequest` animation, MAUI's `KeyboardAutoManagerScroll`, and any chat-level padding adjustment will all run together and drop keystrokes on iOS. Current code short-circuits when `currentDetentIndex >= sortedDetents.Count - 1`; keep that guard.
+3. **Pan gesture must stay scoped to the drag handle.** It is currently attached only to `dragHandleContainer` (FloatingPanel.cs, ctor). Do not move it to the panel root, the Border, the inner Grid, or "the whole header." That would intercept taps meant for an Entry sitting elsewhere in the panel.
+4. **ChatView inside a panel needs `AdjustForKeyboard="False"`.** ChatView's iOS keyboard handler adds bottom padding equal to the keyboard overlap. When the chat is nested in a FloatingPanel, this fights the panel's height animation and MAUI's autoscroll. See the chatview skill.
+5. **Watch the negative bottom `Margin` for safe-area extension.** `ApplyBottomSafeAreaExtension` sets `Margin = new Thickness(0, 0, 0, -bottomInset)` so the panel paints into the iOS home-indicator zone. UIKit hit-testing clips to parent bounds by default, so anything you place in that extended strip will not receive touches. Keep interactive controls above the safe-area inset.
+6. **`HookInputViews` walks Layout/ContentView/ScrollView/Border children.** Custom controls that are none of these will not have their inner Entry hooked, so `ExpandOnInputFocus` will not fire for them. If you add a new control that wraps inputs differently (e.g., a `View`-derived custom shell), extend the traversal.
+7. **Don't set `HeightRequest` on the panel's content larger than the panel viewport.** If a child control has a fixed height taller than the resolved detent, controls near the bottom of that content (e.g., an input bar) end up below the visible area. Either drop the explicit `HeightRequest` and let the layout fill, or raise the detent / use `FitContent="True"`.
+
 ## FloatingPanel Features
 
 - **Drag handle gesture**: Pan gesture restricted to the drag handle only — content scrolls normally with no gesture conflicts
 - **Height animation**: Panel animates `HeightRequest` instead of `TranslationY`, so it only occupies the space it needs — no phantom touch areas
-- **Keyboard handling**: Automatically expands when an Entry/Editor is focused, restores when keyboard dismissed
+- **Keyboard handling**: Automatically expands when an Entry/Editor is focused (unless already at the highest detent — see Gotchas above), restores when keyboard dismissed
 - **Backdrop**: Shared backdrop managed by OverlayHost; dims proportionally to panel position
 - **Multiple panels**: Multiple FloatingPanels can coexist in the same OverlayHost without blocking each other or content underneath
 - **Locked mode**: When `IsLocked="True"`, all user-initiated dismissal is blocked (drag, header tap to close, backdrop tap to close) — the panel can only be closed via code. Header tap still opens the panel
