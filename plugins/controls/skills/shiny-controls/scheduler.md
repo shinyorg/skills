@@ -188,8 +188,11 @@ Vertically scrolling event list grouped by day with infinite scroll forward/back
 | `DefaultEventColor` | `Color` | `CornflowerBlue` |
 | `DayHeaderBackgroundColor` | `Color` | `Transparent` |
 | `DayHeaderTextColor` | `Color` | `Black` |
+| `StickyDayHeaders` | `bool` | `true` |
 | `AllowPan` | `bool` | `true` |
 | `AllowZoom` | `bool` | `false` |
+
+`StickyDayHeaders` pins the current day group's header to the top of the list while scrolling (input-transparent — scroll gestures pass through it). Disable it for a plain grouped list. `EventItemTemplate` and `DayHeaderTemplate` re-apply immediately when changed at runtime.
 
 ## Default Templates
 
@@ -333,6 +336,30 @@ var myEventTemplate = new DataTemplate(() =>
     return grid;
 });
 ```
+
+## Blazor
+
+All three views ship as Razor components in `Shiny.Blazor.Controls` (namespace `Shiny.Blazor.Controls.Scheduler`) with the same `ISchedulerEventProvider` interface and models. Differences: colors are CSS strings, `SelectedDate` binds via `@bind-SelectedDate` (`SelectedDateChanged` callback), and there are no `DataTemplate` properties.
+
+The Blazor `SchedulerAgendaView` has full feature parity with MAUI:
+
+```razor
+<SchedulerAgendaView Provider="provider"
+                     @bind-SelectedDate="selectedDate"
+                     DaysToShow="3"
+                     DatePickerMode="AgendaDatePickerMode.Calendar"
+                     ShowAdditionalTimezones="true"
+                     AdditionalTimezones="additionalTimezones"
+                     ShowCurrentTimeMarker="true"
+                     CurrentTimeMarkerColor="#EF4444"
+                     DefaultEventColor="#6366F1"
+                     TimeSlotHeight="60"
+                     Use24HourTime="false" />
+```
+
+Blazor agenda parameters: `Provider`, `SelectedDate` (+`SelectedDateChanged`), `DaysToShow` (1–7, clamped), `ShowCarouselDatePicker`, `DatePickerMode` (`None` / `Carousel` / `Calendar` — `Calendar` renders a full month picker with ‹/› navigation and today highlight), `ShowAdditionalTimezones`, `AdditionalTimezones` (`IList<TimeZoneInfo>` — extra time columns with UTC offset labels), `ShowCurrentTimeMarker`, `CurrentTimeMarkerColor` (default `#EF4444`), `DefaultEventColor` (default `#6366F1`), `TimeSlotHeight`, `MinDate`, `MaxDate`, `Use24HourTime`. Overlapping events lay out side-by-side with proportional widths; the current time marker refreshes itself every minute without re-rendering the component.
+
+Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`SelectedDateChanged`), `DaysPerPage`, `DefaultEventColor`, `DayHeaderBackgroundColor`, `DayHeaderTextColor`, `MinDate`, `MaxDate`.
 
 ## Scheduler Important Notes
 
