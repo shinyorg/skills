@@ -69,6 +69,8 @@ And one of two ways to get **children**:
 |---|---|---|---|
 | `EnableDragDrop` | `bool` | `false` | Adds drag source + drop target gestures to each row. Drops onto descendants are rejected automatically. |
 
+`TreeItemDroppedEventArgs.Position` is a `TreeDropPosition`: `Above` / `Below` (reorder among the target's siblings — pointer in the outer 25% of the row) or `Into` (move into a folder — pointer in the middle 50% of a row whose item has children). Rows show drop indicators while dragging: a horizontal line for above/below, a highlight + border for into.
+
 ### Events + Commands (MAUI)
 | Event | Command | Args |
 |---|---|---|
@@ -198,7 +200,7 @@ Without icons set, the control renders ▼ / ▶ / ↻ glyphs colored by `Chevro
 
 ## Drag & Drop Reorder
 
-The TreeView never touches your data — your handler does the move:
+The TreeView never touches your data — your handler does the move, switching on `Position`:
 
 ```csharp
 void OnItemDropped(object? sender, TreeItemDroppedEventArgs e)
@@ -207,9 +209,21 @@ void OnItemDropped(object? sender, TreeItemDroppedEventArgs e)
     var tgt = (FileNode)e.TargetItem;
 
     var srcList = FindParentList(src);
-    var tgtList = FindParentList(tgt);
-    srcList.Remove(src);
-    tgtList.Insert(tgtList.IndexOf(tgt) + 1, src);
+    if (e.Position == TreeDropPosition.Into)
+    {
+        // Move into the target folder
+        srcList.Remove(src);
+        tgt.Children ??= new();
+        tgt.Children.Add(src);
+    }
+    else
+    {
+        // Reorder among the target's siblings
+        var tgtList = FindParentList(tgt);
+        srcList.Remove(src);
+        var idx = tgtList.IndexOf(tgt);
+        tgtList.Insert(e.Position == TreeDropPosition.Above ? idx : idx + 1, src);
+    }
 
     // Re-flatten the tree with the new order
     Tree.ItemsSource = null;
@@ -218,6 +232,8 @@ void OnItemDropped(object? sender, TreeItemDroppedEventArgs e)
 ```
 
 Drops onto descendants of the source are rejected automatically (no cycles).
+
+**Platform notes (MAUI):** iOS / Android / Windows use the platform drag/drop APIs. Mac Catalyst, macOS AppKit, and Linux GTK4 use a pan-gesture fallback (Catalyst's `DragGestureRecognizer` is broken, the labs hosts don't implement it) — same events, same behavior.
 
 ## Blazor
 
@@ -271,7 +287,36 @@ await tree.CollapseAsync(item);
 await tree.ExpandAllAsync();
 tree.CollapseAll();
 await tree.RefreshAsync(item);
-await tree.ReloadAsync();
+await tree.ReloadAsync();        // rebuilds from data, preserving expansion/selection for items that still exist
+var node = tree.FindNode(item);
+```
+
+### Blazor drag & drop
+
+Blazor drag/drop runs on **native HTML5 drag events** registered by a small JS module (`tree-view.js`, auto-initialized when `EnableDragDrop="true"`) — not Blazor's synthetic events, which can't call `dataTransfer.setData()` and therefore break Safari/Firefox. `ItemDropped` receives `TreeItemDroppedEventArgs<TItem>` with `SourceItem`, `TargetItem`, and `Position` (`BlazorTreeDropPosition.Above` / `Below` / `Into`). After mutating your data, call `ReloadAsync()` (preserves expansion/selection) — and `ExpandAsync(target)` after an `Into` drop to reveal the moved item:
+
+```csharp
+async Task OnDropped(TreeItemDroppedEventArgs<FileNode> e)
+{
+    var srcList = FindParentList(e.SourceItem);
+    if (e.Position == BlazorTreeDropPosition.Into)
+    {
+        srcList.Remove(e.SourceItem);
+        e.TargetItem.Children ??= new();
+        e.TargetItem.Children.Add(e.SourceItem);
+    }
+    else
+    {
+        var tgtList = FindParentList(e.TargetItem);
+        srcList.Remove(e.SourceItem);
+        var idx = tgtList.IndexOf(e.TargetItem);
+        tgtList.Insert(e.Position == BlazorTreeDropPosition.Above ? idx : idx + 1, e.SourceItem);
+    }
+
+    await tree.ReloadAsync();
+    if (e.Position == BlazorTreeDropPosition.Into)
+        await tree.ExpandAsync(e.TargetItem);
+}
 ```
 
 ## When to Use TreeView

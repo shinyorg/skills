@@ -25,14 +25,15 @@ var builder = MauiApp.CreateBuilder();
 builder
     .UseMauiApp<App>()
     .UseShinyDocking()
-    .AddDockPanel<SolutionExplorerPanel>("solution-explorer")
+    .AddDockPanel<SolutionExplorerPanel>("solution-explorer", displayName: "Explorer", icon: "📁")
     .AddDockPanel<OutputPanel>("output");
 ```
 
-Each call to `AddDockPanel<TView>("id")`:
+Each call to `AddDockPanel<TView>("id", displayName: …, icon: …)`:
 
 1. Registers `TView` as a transient service in DI.
 2. Registers an `IDockableContentFactory` keyed to the stable string ID you supply.
+3. Optionally sets the tab `displayName` (defaults to the panel ID) and an `icon` (emoji / unicode glyph) for the tab and collapsed edge bars. A panel view that implements `IDockableContent` overrides both per-instance.
 
 Persisted dock layouts reference panels by that ID — so you can rename the C# class without breaking saved layouts, and unknown IDs in a stored layout get parked in a "missing panels" tray rather than silently dropped.
 
@@ -43,9 +44,14 @@ Attach the host inside any existing `ContentPage` — `DockHostView` is a `Conte
              xmlns:docking="clr-namespace:Shiny.Maui.Controls.Desktop.Docking;assembly=Shiny.Maui.Controls.Desktop"
              x:Class="MyApp.DockingShellPage"
              Title="IDE">
-    <docking:DockHostView InitialLayout="{Binding StartupLayout}" />
+    <docking:DockHostView x:Name="Dock"
+                          InitialLayout="{Binding StartupLayout}"
+                          LayoutStore="{Binding LayoutStore}"
+                          IsLocked="{Binding IsLayoutLocked}" />
 </ContentPage>
 ```
+
+`DockHostView` implements `IDockHost` directly — call `Dock.ShowPanelAsync(...)`, `Dock.ResetLayoutAsync()`, subscribe to `Dock.Events`, etc. from code-behind. Bindable properties: `InitialLayout` (`DockRoot?` — the layout to build when no persisted layout loads), `LayoutStore` (`IDockLayoutStore?` — when set, the host loads from it at startup and auto-saves layout changes, debounced by `SaveDebounceMs`), and `IsLocked` (`bool`).
 
 A dockable panel is just a regular `View`:
 
@@ -76,7 +82,7 @@ using Shiny.Blazor.Controls.Kiosk.Docking;
 
 builder.Services
     .AddShinyDocking()
-    .AddDockPanel<SolutionExplorerPanel>("solution-explorer")
+    .AddDockPanel<SolutionExplorerPanel>("solution-explorer", displayName: "Explorer", icon: "📁")
     .AddDockPanel<OutputPanel>("output");
 ```
 
@@ -89,10 +95,41 @@ builder.Services
 Any razor page:
 
 ```razor
-<DockHost />
+<DockHost @ref="host"
+          InitialLayout="@layout"
+          LayoutStore="@layoutStore"
+          IsLocked="@locked" />
 ```
 
+Component parameters: `InitialLayout` (`DockRoot?`), `IsLocked` (`bool`), `LayoutStore` (`IDockLayoutStore?` — loaded at startup, auto-saved with debounce on every layout change), and `BackgroundColor` (CSS color override). The component implements `IDockHost` — capture it with `@ref` to call `ShowPanelAsync` / `ResetLayoutAsync` / `Snapshot` and subscribe to `Events` (e.g. in `OnAfterRender`).
+
 Each panel is a regular Razor component (`ComponentBase` subclass). Blazor docking supports in-app floating; popping panels out into separate browser windows is not supported (Blazor runtime instances cannot share component instances across windows).
+
+### Defining an initial layout
+
+```csharp
+readonly DockRoot layout = new()
+{
+    MainWindow = new DockWindowState
+    {
+        LeftRail = new DockGroup { Tabs = { new DockTab { PanelTypeId = "solution-explorer" } } },
+        DocumentArea = new DockSplit
+        {
+            Orientation = DockOrientation.Vertical,
+            Ratio = 0.7,
+            First = new DockGroup
+            {
+                Tabs =
+                {
+                    new DockTab { PanelTypeId = "editor" },
+                    new DockTab { PanelTypeId = "readme" }
+                }
+            },
+            Second = new DockGroup { Tabs = { new DockTab { PanelTypeId = "output" } } }
+        }
+    }
+};
+```
 
 ## Public Surface
 
@@ -109,14 +146,18 @@ DockWindowState
 ├── bool IsMaximized + bool IsFullScreen
 ├── DockNode DocumentArea                         (structurally distinct document well)
 ├── DockNode? LeftRail + TopRail + RightRail + BottomRail
+├── double? LeftRailSize + TopRailSize + RightRailSize + BottomRailSize
+├── List<DockArea> CollapsedRails                 (legacy whole-rail collapse — converted to per-panel on load)
+├── List<DockCollapsedPanel> CollapsedTabs        (per-panel edge-bar collapse: which panel, which edge)
 └── string? ActivePanelId                         (for focus restoration on load)
 
 DockNode = DockSplit | DockGroup | DockEmpty       (System.Text.Json polymorphic, $kind discriminator)
 DockSplit  { Orientation, Ratio (0..1), First, Second }
-DockGroup  { GroupId, List<DockTab> Tabs, int ActiveTabIndex, List<int> FocusHistory (MRU) }
+DockGroup  { GroupId, List<DockTab> Tabs, int ActiveTabIndex, List<int> FocusHistory (MRU), bool IsCollapsed }
 DockEmpty  { }
 
-DockTab    { PanelTypeId, PanelInstanceId, bool IsPinned }
+DockTab            { PanelTypeId, PanelInstanceId, bool IsPinned }
+DockCollapsedPanel { DockArea Area, DockTab Tab }
 ```
 
 `DockSerialization.Serialize(DockRoot)` and `DockSerialization.Deserialize(string)` use a source-generated `JsonSerializerContext` (AOT-safe). Schema versioning is built in from day one: bump `SchemaVersion`, write an `IDockLayoutMigrator` for each step, and stored layouts migrate forward as users upgrade.
@@ -137,6 +178,7 @@ public interface IDockHost
     Task HidePanelAsync(string panelInstanceId, CancellationToken ct = default);
     Task ActivatePanelAsync(string panelInstanceId, CancellationToken ct = default);
     Task ResetLayoutAsync(CancellationToken ct = default);
+    Task SetRailCollapsedAsync(DockArea area, bool collapsed, CancellationToken ct = default);
 }
 
 public interface IDockableContent
@@ -156,6 +198,8 @@ public interface IDockableContent
 public interface IDockableContentFactory
 {
     string PanelTypeId { get; }
+    string DisplayName => PanelTypeId;     // tab title (default interface member)
+    string? Icon => null;                  // optional emoji / unicode glyph
     Task<View> CreateAsync(string instanceId, CancellationToken ct = default);   // MAUI
     // (Blazor variant returns Task<RenderFragment>)
 }
@@ -200,13 +244,26 @@ public interface IDockCommandScope                 // for routing Ctrl+W / Ctrl+
 | `DockTabStrip` | Tab strip with overflow (scroll + chevron) and drag-to-reorder/tear-off |
 | `DockSplitter` | Draggable splitter between two adjacent dock children; reports position as a 0..1 ratio so layouts survive resize |
 
+## Interactions (what ships, end-to-end)
+
+- **Tab drag** — drop on another group's center to merge, on a group edge (left/right/top/bottom) to split, within the tab strip to reorder, or outside the host to tear off a floating window. Drop zones render as a colored overlay while dragging.
+- **Floating windows** — independent dockable windows with their own bounds, persisted in `DockRoot.FloatingWindows`. Move via the header, resize via the corner grip, re-dock with the ⇤ button, close with ×.
+- **Splitters** — drag to resize; `DockSplit.Ratio` persists and is clamped to 0.08–0.92 so neither side can vanish.
+- **Per-panel collapse** — collapse a tab to a slim edge bar (icon + rotated title); click to restore. `SetRailCollapsedAsync(area, collapsed)` collapses/restores a whole rail at once. Collapsed state persists via `CollapsedTabs`.
+- **Locked mode** — `IsLocked = true` disables drag, resize, collapse, and close; switching between existing tabs still works.
+- **Events** — wire `host.Events.LayoutChanged / PanelActivated / DragStarted / DragCompleted / DragCancelled` for telemetry, autosave hooks, or undo stacks.
+
+## Panel lifecycle
+
+Every tab in the layout has a unique `PanelInstanceId` (GUID). The host creates content once per instance via the factory and keeps the same view/component instance alive when it's moved between groups, rails, or floating windows.
+
 ## Disposal contract
 
 When a panel is closed, the host disposes the content if it implements `IDisposable`. Tearing off to a floating window or moving between groups in the same window **does not** dispose — the same view instance is moved. This is intentional and documented because consumers will rely on whichever behavior ships first; retrofitting "recreated" → "preserved" would break every panel implementation.
 
 ## Persistence — bring-your-own store
 
-There is no default `IDockLayoutStore` in v1 — wire one up against whatever you already use. Two minimal patterns:
+There is no default `IDockLayoutStore` in v1 — wire one up against whatever you already use, then hand it to the host (`LayoutStore` bindable property on `DockHostView`, `LayoutStore` parameter on `<DockHost>`). The host loads from it at startup (falling back to `InitialLayout` when it returns `null`) and auto-saves every layout change, debounced by `SaveDebounceMs`. Two minimal patterns:
 
 ```csharp
 // File-backed
