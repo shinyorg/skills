@@ -2,40 +2,83 @@
 name: shiny-aiconversation
 description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), persistent message store, optional AI chat history lookup tool, and configurable sound effects
 auto_invoke: true
-when_to_use: Use when the user needs a .NET MAUI AI conversation service, chat client provider setup, persistent message storage, wake-word or speech-driven conversations, GitHub Copilot/OpenAI chat integration, or voice-selection tools.
 triggers:
-- "Set up an AI chat service in a .NET MAUI app"
-- "Register and configure IAiConversationService with dependency injection"
-- "Implement IChatClientProvider for a specific AI backend (OpenAI, GitHub Copilot, Azure, etc.)"
-- "Implement IMessageStore for persistent chat history"
-- "Add wake word detection to an app"
-- "Configure acknowledgement modes (None, AudioBlip, LessWordy, Full)"
-- "Set up sound effects for AI state transitions"
-- "Configure voice interruption with quiet words"
-- "Set up speech-to-text and text-to-speech options (culture, voice, speech rate, etc.)"
-- "Add the optional ChatLookupAITool for AI-driven history search"
-- "Enable voice selection tools so the AI can list voices, play samples, and switch its own voice"
-- "Build a chat UI that integrates with IAiConversationService"
-- "Handle AI state changes (Idle, Listening, Thinking, Responding)"
-- "Use TalkTo or ListenAndTalk for AI interactions"
-- "Check speech/microphone access before starting voice features"
+  - shiny ai
+  - shiny maui ai
+  - ai service
+  - aiservice
+  - iai service
+  - iaiservice
+  - chat client provider
+  - ichatclientprovider
+  - message store
+  - imessagestore
+  - wake word
+  - wakeword
+  - listen and talk
+  - speech to text
+  - text to speech
+  - ai acknowledgement
+  - aiacknowledgement
+  - audio blip
+  - ai chat message
+  - aichatmessage
+  - chat history
+  - ai tool lookup
+  - chat lookup
+  - talk to ai
+  - ai response
+  - ai state
+  - addshinyaiconversation
+  - add shiny ai conversation
+  - ai conversation service
+  - aiconversationservice
+  - iaiconversationservice
+  - ai service options
+  - aiserviceoptions
+  - quiet words
+  - quietwords
+  - voice interruption
+  - speech interruption
+  - expects response
+  - conversation continuation
+  - speech to text options
+  - text to speech options
+  - github copilot
+  - copilot chat
+  - addgithubcopilotchatclient
+  - addstaticopenaichatclient
+  - openai static
+  - openaistaticChatprovider
+  - request access
+  - requestaccess
+  - voice selection
+  - voice tools
+  - change voice
+  - play voice sample
+  - get available voices
+  - voiceselection
+  - addvoiceselectiontools
+  - add voice selection tools
+  - voice sampling
+  - tts voice
+  - switch voice
+references:
+  - ai-service.md
+  - registration.md
+  - message-store.md
+  - chat-client-provider.md
+  - chat-lookup-tool.md
+  - voice-selection-tools.md
 ---
 
 # Shiny.AiConversation Skill
-
-## Reference Docs
-
-- `reference/ai-service.md` - Service orchestration, lifecycle, and configuration details
-- `reference/registration.md` - DI registration patterns and setup options
-- `reference/message-store.md` - `IMessageStore` guidance and persistence patterns
-- `reference/chat-client-provider.md` - `IChatClientProvider` implementation guidance
-- `reference/chat-lookup-tool.md` - AI chat-history lookup tool behavior
-- `reference/voice-selection-tools.md` - Voice discovery, preview, and switching tools
 
 You are an expert in the Shiny.AiConversation library, a centralized AI service for .NET MAUI applications that integrates chat, speech recognition, wake word detection, text-to-speech, and persistent message storage.
 
 ## Library Overview
 
+**GitHub**: https://github.com/shinyorg/speech (Shiny.AiConversation lives under the `ai/` directory)
 **NuGet**: `Shiny.AiConversation`
 **Namespace**: `Shiny.AiConversation`
 **Infrastructure Namespace**: `Shiny.AiConversation.Infrastructure` (internal implementations)
