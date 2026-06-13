@@ -1,51 +1,160 @@
----
+--
 name: shiny-documentdb
-description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, IndexedDB (Blazor WASM), MySQL, SQL Server, and PostgreSQL with LINQ queries, spatial/geo queries, and AOT support
+description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, DuckDB, IndexedDB (Blazor WASM), MySQL, SQL Server, PostgreSQL, and Oracle with LINQ queries, spatial/geo queries, and AOT support
 auto_invoke: true
-when_to_use: Use when the user needs a schema-free .NET document store, provider-specific setup, LINQ queries, spatial queries, SQLCipher encryption, AI-tool exposure, or DocumentDb persistence patterns.
 triggers:
-- "Store and retrieve .NET objects as JSON documents in SQLite, IndexedDB, MySQL, SQL Server, or PostgreSQL"
-- "Query JSON documents with LINQ expressions or raw SQL"
-- "Set up a schema-free document database without migrations"
-- "Use AOT-safe document storage with `JsonTypeInfo<T>` overloads"
-- "Stream query results with `IAsyncEnumerable<T>`"
-- "Create JSON property indexes for faster queries"
-- "Project query results into DTOs at the SQL level"
-- "Compute aggregates (Max, Min, Sum, Average) across documents"
-- "Use aggregate projections with GROUP BY via `Sql.*` markers"
-- "Sort query results with expression-based OrderBy/OrderByDescending"
-- "Paginate query results with LIMIT/OFFSET"
-- "Use transactions for atomic document operations"
-- "Work with nested objects and child collections without table design"
-- "Map document types to dedicated tables (table-per-type)"
-- "Use a custom Id property instead of the default `Id`"
-- "Diff a modified object against a stored document (`GetDiff`)"
-- "Batch insert multiple documents efficiently (`BatchInsert`)"
-- "Choose between database providers (SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL)"
-- "Use IndexedDB for client-side storage in Blazor WebAssembly apps"
-- "Query documents by geographic proximity (within radius, bounding box, nearest neighbors)"
-- "Configure spatial indexing for `GeoPoint` properties (`MapSpatialProperty`)"
-- "Use SQLite R*Tree spatial indexes or CosmosDB native GeoJSON queries"
-- "Use optimistic concurrency with document-level version properties (`MapVersionProperty`)"
-- "Set up multi-tenancy with shared-table isolation (single database, `TenantId` column)"
-- "Set up multi-tenancy with tenant-per-database isolation (separate database per tenant)"
-- "Implement `ITenantResolver` for tenant context resolution"
-- "Back up SQLite, SQLCipher, or LiteDB databases to a file (`Backup`)"
-- "Clear all documents across all tables in SQLite (`ClearAllAsync`)"
-- "Expose document types as AI tools for LLM agents (`AddDocumentStoreAITools`)"
-- "Configure AI tool capabilities per type (ReadOnly, All, or individual flags)"
-- "Control field visibility for LLM access (AllowProperties, IgnoreProperties)"
-- "Use structured filter expressions in AI tool queries"
+  - document store
+  - document db
+  - DocumentStore
+  - SqliteDocumentStore
+  - IDocumentStore
+  - IDocumentQuery
+  - IDatabaseProvider
+  - json document
+  - schema-free
+  - sqlite document
+  - document database
+  - json store
+  - Shiny.DocumentDb
+  - Shiny.DocumentDb
+  - SqliteDatabaseProvider
+  - SqlCipherDatabaseProvider
+  - SqlCipherDocumentStore
+  - sqlcipher
+  - encrypted sqlite
+  - MySqlDatabaseProvider
+  - SqlServerDatabaseProvider
+  - PostgreSqlDatabaseProvider
+  - OracleDatabaseProvider
+  - Shiny.DocumentDb.Oracle
+  - oracle
+  - json_extract
+  - document query
+  - fluent query
+  - paginate
+  - PageResult
+  - PagedResults
+  - paged results
+  - dynamic sort
+  - sort by string
+  - OrderBy string
+  - MapTypeToTable
+  - table per type
+  - GetDiff
+  - JsonPatchDocument
+  - document diff
+  - BatchInsert
+  - batch insert
+  - LiteDbDocumentStore
+  - LiteDbDocumentStoreOptions
+  - Shiny.DocumentDb.LiteDb
+  - litedb
+  - CosmosDbDocumentStore
+  - CosmosDbDocumentStoreOptions
+  - Shiny.DocumentDb.CosmosDb
+  - cosmosdb
+  - cosmos db
+  - MongoDbDocumentStore
+  - MongoDbDocumentStoreOptions
+  - Shiny.DocumentDb.MongoDb
+  - mongodb
+  - mongo db
+  - MapTypeToCollection
+  - DuckDbDatabaseProvider
+  - Shiny.DocumentDb.DuckDb
+  - duckdb
+  - duck db
+  - analytical store
+  - GeoPoint
+  - GeoBoundingBox
+  - SpatialResult
+  - WithinRadius
+  - WithinBoundingBox
+  - NearestNeighbors
+  - MapSpatialProperty
+  - spatial query
+  - geo query
+  - geolocation
+  - ClearAllAsync
+  - Backup
+  - IndexedDbDocumentStore
+  - IndexedDbDocumentStoreOptions
+  - Shiny.DocumentDb.IndexedDb
+  - indexeddb
+  - indexed db
+  - blazor wasm
+  - blazor webassembly
+  - browser storage
+  - MapVersionProperty
+  - ConcurrencyException
+  - optimistic concurrency
+  - row versioning
+  - version property
+  - AddDocumentStore
+  - IDocumentStoreProvider
+  - FromKeyedServices
+  - keyed service
+  - named store
+  - multiple databases
+  - Shiny.DocumentDb.Extensions.DependencyInjection
+  - Shiny.DocumentDb.Extensions.AI
+  - DocumentStoreAITools
+  - DocumentAICapabilities
+  - AddDocumentStoreAITools
+  - IDocumentAIToolBuilder
+  - AI tool
+  - ai tools
+  - LLM tool
+  - function calling
+  - multi-tenant
+  - multi-tenancy
+  - tenant
+  - ITenantResolver
+  - TenantIdAccessor
+  - AddMultiTenantDocumentStore
+  - tenant per database
+  - shared table
+  - tenant isolation
+  - IObservableDocumentStore
+  - IChangeFeedDocumentStore
+  - NotifyOnChange
+  - WhenDocumentChanged
+  - SubscribeChanges
+  - DocumentChange
+  - DocumentChangeType
+  - ChangeBroadcaster
+  - change feed
+  - change observation
+  - change monitoring
+  - query monitoring
+  - reactive store
+  - MapIdProperty
+  - MapIdType
+  - custom Id type
+  - strongly-typed Id
+  - DocumentIdConverter
+  - UseGuidV7Ids
+  - v7 guid
+  - sortable guid
+  - sequential guid
+  - AddQueryFilter
+  - IgnoreQueryFilters
+  - QueryFilter
+  - query filter
+  - global query filter
+  - HasQueryFilter
+  - soft delete
+  - row-level security
 ---
 
 # Shiny DocumentDb Skill
 
-You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **SQL Server**, and **PostgreSQL**.
+You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **MongoDB**, **DuckDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **SQL Server**, **PostgreSQL**, and **Oracle**.
 
 ## When to Use This Skill
 
 Invoke this skill when the user wants to:
-- Store and retrieve .NET objects as JSON documents in SQLite, IndexedDB, MySQL, SQL Server, or PostgreSQL
+- Store and retrieve .NET objects as JSON documents in SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL, or Oracle
 - Query JSON documents with LINQ expressions or raw SQL
 - Set up a schema-free document database without migrations
 - Use AOT-safe document storage with `JsonTypeInfo<T>` overloads
@@ -55,19 +164,29 @@ Invoke this skill when the user wants to:
 - Compute aggregates (Max, Min, Sum, Average) across documents
 - Use aggregate projections with GROUP BY via `Sql.*` markers
 - Sort query results with expression-based OrderBy/OrderByDescending
+- Sort query results by a property name (string) — AOT-safe via `JsonTypeInfo<T>`, supports dotted paths, for dynamic UIs / REST `?sort=` query strings
 - Paginate query results with LIMIT/OFFSET
+- Return a `PagedResults<T> { Records, TotalCount, Page, PageSize }` envelope from a query in one call via `.PageResult(page, pageSize)`
 - Use transactions for atomic document operations
 - Work with nested objects and child collections without table design
 - Map document types to dedicated tables (table-per-type)
 - Use a custom Id property instead of the default `Id`
+- Use a custom Id **type** beyond Guid/int/long/string — e.g. `Ulid` or a strongly-typed wrapper (`MapIdType`)
 - Diff a modified object against a stored document (`GetDiff`)
 - Batch insert multiple documents efficiently (`BatchInsert`)
-- Choose between database providers (SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL)
+- Choose between database providers (SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL, Oracle)
 - Use IndexedDB for client-side storage in Blazor WebAssembly apps
 - Query documents by geographic proximity (within radius, bounding box, nearest neighbors)
 - Configure spatial indexing for `GeoPoint` properties (`MapSpatialProperty`)
 - Use SQLite R*Tree spatial indexes or CosmosDB native GeoJSON queries
 - Use optimistic concurrency with document-level version properties (`MapVersionProperty`)
+- Override the document Id property (`MapIdProperty`) without dedicating a table
+- Observe in-process document changes as an `IAsyncEnumerable<DocumentChange<T>>` (`IObservableDocumentStore.NotifyOnChange<T>`)
+- Watch a single document by Id (`WhenDocumentChanged<T>(id)`)
+- Monitor changes filtered by a query's predicates (`store.Query<T>().Where(...).NotifyOnChange()`)
+- Consume native database change feeds across writers (`IChangeFeedDocumentStore.SubscribeChanges<T>`)
+- Register global query filters (`AddQueryFilter<T>`) — soft-delete, row-level security, "active only" scopes (EF Core's `HasQueryFilter` equivalent)
+- Selectively disable filters with `IgnoreQueryFilters()` or `IgnoreQueryFilters("name")` per query
 - Set up multi-tenancy with shared-table isolation (single database, `TenantId` column)
 - Set up multi-tenancy with tenant-per-database isolation (separate database per tenant)
 - Implement `ITenantResolver` for tenant context resolution
@@ -89,19 +208,26 @@ Invoke this skill when the user wants to:
   - `Shiny.DocumentDb.MySql` — MySQL provider + DI extensions
   - `Shiny.DocumentDb.SqlServer` — SQL Server provider + DI extensions
   - `Shiny.DocumentDb.PostgreSql` — PostgreSQL provider + DI extensions
+  - `Shiny.DocumentDb.Oracle` — Oracle (23ai+) provider + DI extensions
   - `Shiny.DocumentDb.LiteDb` — LiteDB provider + DI extensions
   - `Shiny.DocumentDb.CosmosDb` — Azure Cosmos DB provider + DI extensions
+  - `Shiny.DocumentDb.MongoDb` — MongoDB provider + DI extensions
+  - `Shiny.DocumentDb.DuckDb` — DuckDB (embedded analytical) provider + DI extensions
   - `Shiny.DocumentDb.IndexedDb` — IndexedDB provider for Blazor WebAssembly + DI extensions
   - `Shiny.DocumentDb.Extensions.DependencyInjection` — generic (provider-agnostic) DI extensions
   - `Shiny.DocumentDb.Extensions.AI` — Microsoft.Extensions.AI tool surface (AIFunction tools for LLM agents)
+  - `Shiny.DocumentDb.Diagnostics` — OpenTelemetry metrics + tracing (instrumentation decorator over any provider)
 - **Provider dependencies**:
   - SQLite: `Microsoft.Data.Sqlite`
   - SQLCipher: `Microsoft.Data.Sqlite.Core` + `SQLitePCLRaw.bundle_e_sqlcipher`
   - MySQL: `MySqlConnector`
   - SQL Server: `Microsoft.Data.SqlClient`
   - PostgreSQL: `Npgsql`
+  - Oracle: `Oracle.ManagedDataAccess.Core` (requires Oracle Database 23ai+)
   - LiteDB: `LiteDB`
   - CosmosDB: `Microsoft.Azure.Cosmos`
+  - MongoDB: `MongoDB.Driver`
+  - DuckDB: `DuckDB.NET.Data.Full`
   - IndexedDB: `Microsoft.JSInterop` (browser JS interop)
 - **AI dependency**: `Microsoft.Extensions.AI.Abstractions`
 - **Target**: `net10.0`
@@ -146,6 +272,13 @@ var store = new DocumentStore(new DocumentStoreOptions
     DatabaseProvider = new PostgreSqlDatabaseProvider("Host=localhost;Database=mydb;Username=postgres;Password=pass")
 });
 
+// Oracle (requires Oracle Database 23ai or later)
+using Shiny.DocumentDb.Oracle;
+var store = new DocumentStore(new DocumentStoreOptions
+{
+    DatabaseProvider = new OracleDatabaseProvider("User Id=myuser;Password=pass;Data Source=localhost:1521/FREEPDB1")
+});
+
 // LiteDB
 using Shiny.DocumentDb.LiteDb;
 var store = new LiteDbDocumentStore(new LiteDbDocumentStoreOptions
@@ -160,6 +293,21 @@ var store = new CosmosDbDocumentStore(new CosmosDbDocumentStoreOptions
     ConnectionString = "AccountEndpoint=https://...;AccountKey=...",
     DatabaseName = "mydb",
     ContainerName = "documents"
+});
+
+// MongoDB
+using Shiny.DocumentDb.MongoDb;
+var store = new MongoDbDocumentStore(new MongoDbDocumentStoreOptions
+{
+    ConnectionString = "mongodb://localhost:27017",
+    DatabaseName = "mydb"
+});
+
+// DuckDB (embedded analytical store)
+using Shiny.DocumentDb.DuckDb;
+var store = new DocumentStore(new DocumentStoreOptions
+{
+    DatabaseProvider = new DuckDbDatabaseProvider("Data Source=mydata.duckdb")
 });
 ```
 
@@ -202,6 +350,18 @@ services.AddDocumentStore(opts =>
     opts.DatabaseProvider = new PostgreSqlDatabaseProvider("Host=localhost;Database=mydb;Username=postgres;Password=pass");
 });
 
+// Oracle (requires Oracle Database 23ai or later)
+services.AddDocumentStore(opts =>
+{
+    opts.DatabaseProvider = new OracleDatabaseProvider("User Id=myuser;Password=pass;Data Source=localhost:1521/FREEPDB1");
+});
+
+// DuckDB (embedded analytical)
+services.AddDocumentStore(opts =>
+{
+    opts.DatabaseProvider = new DuckDbDatabaseProvider("Data Source=mydata.duckdb");
+});
+
 // Full options configuration
 services.AddDocumentStore(opts =>
 {
@@ -214,7 +374,7 @@ services.AddDocumentStore(opts =>
 });
 ```
 
-> **Note:** LiteDB, CosmosDB, and IndexedDB have their own store and options types. Register them directly with the DI container (e.g. `services.AddSingleton<IDocumentStore, LiteDbDocumentStore>()`).
+> **Note:** LiteDB, CosmosDB, MongoDB, and IndexedDB have their own store and options types. Register them directly with the DI container (e.g. `services.AddSingleton<IDocumentStore, MongoDbDocumentStore>()`). DuckDB uses the standard `DocumentStoreOptions` / `IDatabaseProvider` pipeline like SQLite / PostgreSQL / SQL Server / MySQL / Oracle.
 
 #### Named stores (multiple databases)
 
@@ -321,7 +481,7 @@ var store = new DocumentStore(new DocumentStoreOptions
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `DatabaseProvider` | `IDatabaseProvider` (required) | — | The database provider (`SqliteDatabaseProvider`, `SqlCipherDatabaseProvider`, `MySqlDatabaseProvider`, `SqlServerDatabaseProvider`, `PostgreSqlDatabaseProvider`) |
+| `DatabaseProvider` | `IDatabaseProvider` (required) | — | The database provider (`SqliteDatabaseProvider`, `SqlCipherDatabaseProvider`, `MySqlDatabaseProvider`, `SqlServerDatabaseProvider`, `PostgreSqlDatabaseProvider`, `OracleDatabaseProvider`, `DuckDbDatabaseProvider`) |
 | `TableName` | `string` | `"documents"` | Default table name for all document types not mapped via `MapTypeToTable` |
 | `TypeNameResolution` | `TypeNameResolution` | `ShortName` | How type names are stored (`ShortName` or `FullName`) |
 | `JsonSerializerOptions` | `JsonSerializerOptions?` | `null` | JSON serialization settings. When a `JsonSerializerContext` is attached as the `TypeInfoResolver`, all methods auto-resolve type info from the context |
@@ -346,7 +506,7 @@ var store = new DocumentStore(new DocumentStoreOptions
 .MapVersionProperty<Order>("RowVersion", o => o.RowVersion, (o, v) => o.RowVersion = v)
 ```
 
-All provider options classes support `MapVersionProperty`: `DocumentStoreOptions`, `LiteDbDocumentStoreOptions`, `CosmosDbDocumentStoreOptions`, and `IndexedDbDocumentStoreOptions`.
+All provider options classes support `MapVersionProperty`: `DocumentStoreOptions` (covers SQLite/SQLCipher/PostgreSQL/SQL Server/MySQL/Oracle/DuckDB), `LiteDbDocumentStoreOptions`, `CosmosDbDocumentStoreOptions`, `MongoDbDocumentStoreOptions`, and `IndexedDbDocumentStoreOptions`.
 
 ### Behavior
 
@@ -409,19 +569,55 @@ var store = new DocumentStore(new DocumentStoreOptions
 
 ### Custom Id property
 
-By default every document type must have a property named `Id`. When mapping a type to a table, you can also specify a custom Id property via an expression. Custom Id requires a table mapping.
+By default every document type must have a property named `Id`. Override that with a custom property — by Guid, int, long, or string — using either `MapTypeToTable<T>(...)` (when combined with a dedicated table) or `MapIdProperty<T>(...)` (when the type stays in the default shared table). The two are independent: you can use both, either, or neither.
 
 ```csharp
 var store = new DocumentStore(new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
 }
+// Dedicated table + custom Id
 .MapTypeToTable<Sensor>("sensors", s => s.DeviceKey)      // Guid DeviceKey as Id
 .MapTypeToTable<Tenant>("tenants", t => t.TenantCode)     // string TenantCode as Id
+// Default shared table + custom Id
+.MapIdProperty<BlogPost>(p => p.Slug)                     // string Slug as Id
 );
 ```
 
-### MapTypeToTable overloads
+### Custom Id types (MapIdType)
+
+Document Ids are not limited to `Guid`/`int`/`long`/`string`. Register a converter with `MapIdType` to use any CLR type — a `Ulid` or a strongly-typed wrapper like `record struct OrderId(Guid Value)`. The Id is still stored as a string in every provider (no schema/on-disk change); the converter defines how it round-trips. Purely additive — built-in types need no registration and are unchanged.
+
+```csharp
+public readonly record struct OrderId(Guid Value)
+{
+    public static OrderId New() => new(Guid.NewGuid());
+}
+
+options.MapIdType(
+    toString:  (OrderId id) => id.Value.ToString("N"),
+    parse:     s => new OrderId(Guid.ParseExact(s, "N")),
+    isDefault: id => id.Value == Guid.Empty,   // when to auto-generate on Insert
+    generate:  OrderId.New);                   // optional; omit to require explicit Ids
+
+// or a reusable class:
+public sealed class OrderIdConverter : DocumentIdConverter<OrderId>
+{
+    public override string  ToStorageString(OrderId id) => id.Value.ToString("N");
+    public override OrderId FromStorageString(string s)  => new(Guid.ParseExact(s, "N"));
+    public override bool    IsDefault(OrderId id) => id.Value == Guid.Empty;
+    public override bool    TryGenerate(out OrderId id) { id = OrderId.New(); return true; }
+}
+options.MapIdType(new OrderIdConverter());
+```
+
+- `Insert`/`Get`/`Update`/`Remove`/`Upsert` all accept the strongly-typed Id.
+- Available on every provider's options class (Cosmos/Mongo/LiteDb/IndexedDb too).
+- **Sortable Guid Ids**: `options.UseGuidV7Ids()` auto-generates time-ordered **version 7** GUIDs (`Guid.CreateVersion7()`) instead of random v4 — BCL only, storage format unchanged, drop-in for existing data. (`long` is already a built-in for sequential integer keys.)
+- The Id also lives in the JSON `Data` blob — give the type a matching `System.Text.Json` converter so LINQ predicates on the Id (`Where(x => x.Id == value)`) line up with the stored string.
+- A converter with no `generate`/`TryGenerate` throws `InvalidOperationException` on a default-Id Insert (assign explicitly).
+
+### MapTypeToTable and MapIdProperty overloads
 
 | Overload | Description |
 |----------|-------------|
@@ -429,8 +625,12 @@ var store = new DocumentStore(new DocumentStoreOptions
 | `MapTypeToTable<T>(string tableName)` | Explicit table name |
 | `MapTypeToTable<T>(Expression<Func<T, object>> idProperty)` | Auto-derive table + custom Id |
 | `MapTypeToTable<T>(string tableName, Expression<Func<T, object>> idProperty)` | Explicit table + custom Id |
+| `MapIdProperty<T>(Expression<Func<T, object>> idProperty)` | Custom Id property only — type stays in the default shared table |
+| `MapIdProperty<T>(string propertyName)` | AOT-safe string overload |
+| `MapIdType<TId>(DocumentIdConverter<TId>)` | Register a custom Id **type** (converter instance) |
+| `MapIdType<TId>(toString, parse, isDefault?, generate?)` | Register a custom Id **type** (inline delegates) |
 
-All overloads return `DocumentStoreOptions` for fluent chaining. Duplicate table names throw `InvalidOperationException`.
+All overloads return the options instance for fluent chaining. Duplicate table names throw `InvalidOperationException`.
 
 ## AOT Setup
 
@@ -628,6 +828,9 @@ Raw SQL uses provider-specific JSON functions. The SQL syntax varies by provider
 | MySQL | `JSON_EXTRACT(Data, '$.name')` |
 | SQL Server | `JSON_VALUE(Data, '$.name')` |
 | PostgreSQL | `"Data"::jsonb->>'name'` |
+| Oracle | `JSON_VALUE(Data, '$.name')` |
+| DuckDB | `json_extract_string(Data, '$.name')` |
+| MongoDB / LiteDB / IndexedDB | Raw SQL is not supported — use the LINQ-based `Query<T>()` overload |
 
 ```csharp
 // SQLite example
@@ -704,6 +907,128 @@ Deletes all documents across all tables in the SQLite database, including spatia
 ```csharp
 var sqliteStore = new SqliteDocumentStore("Data Source=mydata.db");
 await sqliteStore.ClearAllAsync();
+```
+
+## Temporal History (System-Time Versioning)
+
+Opt-in append-only versioning per type. Enable with `MapTemporal<T>` on the options; every `Insert`/`Update`/`Upsert`/`Remove`/`SetProperty`/`RemoveProperty`/`BatchInsert` (including writes inside `RunInTransaction`) records a versioned snapshot to a per-type history sidecar. Only mapped types incur the extra write.
+
+```csharp
+options.MapTemporal<Order>(o =>
+{
+    o.Retention    = TimeSpan.FromDays(90);   // prune expired (closed) versions older than this
+    o.MaxVersions  = 50;                      // …or keep only the newest N versions per document
+    o.CaptureActor = () => currentUser.Id;    // optional "who" recorded per version
+});
+```
+
+### Provider support
+
+Implemented on **every** provider. Each persists versions to its own sidecar: relational stores (SQLite, SQLCipher, PostgreSQL, SQL Server, MySQL, Oracle, DuckDB) → `{table}_history` table; LiteDB / MongoDB → `{collection}_history` collection; CosmosDB → `{container}_history` container (partitioned by `/typeName`); IndexedDB → `{store}_history` object store.
+
+The history-query methods live on the **`ITemporalDocumentStore`** capability interface (`ITemporalDocumentStore : IDocumentStore`), **not** the base `IDocumentStore` — the same pattern as `IObservableDocumentStore` / `IChangeFeedDocumentStore`, and the `Backup`/`ClearAllAsync` precedent. History is an optional capability, not universal CRUD: promoting it to `IDocumentStore` would force every consumer to see methods that throw unless the type is `MapTemporal`-mapped, and force every backend to implement them. Resolve or cast to `ITemporalDocumentStore` (every store, relational and NoSQL, implements it). A history call for a type not passed to `MapTemporal<T>` throws `InvalidOperationException`.
+
+> **IndexedDB:** temporal adds new object stores, which IndexedDB only creates during a schema upgrade. Bump `options.Version` when adding `MapTemporal` to an already-deployed database (a fresh database needs no change).
+
+### Reading history
+
+```csharp
+// Per-document
+IReadOnlyList<DocumentVersion<Order>> history = await store.History<Order>(orderId);   // all versions, oldest first
+Order? then     = await store.AsOf<Order>(orderId, when);                              // state at a point in time (null if absent/removed)
+Order? restored = await store.Restore<Order>(orderId, version: 7);                     // reinstate a prior version as new current
+JsonPatchDocument<Order>? patch = await store.GetDiffBetween<Order>(orderId, 3, 7);    // RFC 6902 patch between versions
+
+// Fleet-wide (across all documents of the type)
+IReadOnlyList<Order> snapshot = await store.AsOfAll<Order>(when);                       // point-in-time snapshot of all live docs
+IReadOnlyList<DocumentVersion<Order>> byUser = await store.ChangesByActor<Order>("alice");
+IReadOnlyList<DocumentVersion<Order>> log    = await store.ChangesBetween<Order>(from, to);
+```
+
+`DocumentVersion<T>`: `Id`, `Version` (long, from 1), `ValidFrom`, `ValidTo` (null = current), `Operation` (`TemporalOperation.Inserted`/`Updated`/`Removed`), `Actor` (string?), `Document` (T?, **null** for `Removed` tombstones). All history methods accept an optional `JsonTypeInfo<T>` for AOT.
+
+### Behavior & limitations
+
+- `Remove` records a null-body tombstone, so `AsOf`/`AsOfAll` correctly exclude deleted documents.
+- For merge/partial writes (`Upsert`/`SetProperty`/`RemoveProperty`) the resulting document is read back so history stores the true post-image — incurred only for temporal-mapped types.
+- `Restore` writes a **new** current version (re-inserts if removed); it does not rewrite history. Aligns the version token when optimistic concurrency is mapped.
+- `Clear<T>` is a bulk delete and is **not** history-tracked — use `Remove<T>` per document when deletions must be tracked.
+- Retention (`Retention` by age, `MaxVersions` by count) prunes on every write; the current version is never pruned. Set at least one on SQLite/mobile.
+- On the relational providers the sidecar PK is `(Id, TypeName, Version)` with `(TypeName, ValidFrom, ValidTo)` and `(TypeName, Actor)` secondary indexes backing the fleet-wide queries; the document stores model the same versions natively and compute the selection in the provider.
+
+## Telemetry & Diagnostics
+
+`Shiny.DocumentDb.Diagnostics` adds OpenTelemetry-native metrics + tracing to any provider via a drop-in decorator. Register a store, then call `AddDocumentStoreInstrumentation()` **after** it, and subscribe from OTel with the meter/source name `Shiny.DocumentDb`:
+
+```csharp
+services.AddDocumentStore(o => o.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db"));
+services.AddDocumentStoreInstrumentation();
+
+services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddMeter("Shiny.DocumentDb"))
+    .WithTracing(t => t.AddSource("Shiny.DocumentDb"));
+```
+
+Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivitySource`. Emits, per the OTel database client semantic conventions: a `db.client.operation.duration` histogram (plus a `db.client.operations` counter and a `db.client.response.returned_rows` histogram), tagged `db.system.name` / `db.operation.name` / `db.collection.name` / `outcome` / `error.type`; and a `{system}.{operation}` `ActivityKind.Client` span per call with error status + exception capture. `db.system.name` is derived from the wrapped store, so one decorator covers all providers.
+
+- **Decorator type**: `InstrumentedDocumentStore` implements `IDocumentStore` + `ITemporalDocumentStore` + `IObservableDocumentStore` + `IChangeFeedDocumentStore` (faithful — casts/pattern-matches keep working); wrapped store is on `.Inner`. Construct directly (`new InstrumentedDocumentStore(inner, new DocumentStoreMetrics(meterFactory))`) when not using DI.
+- **Coverage**: CRUD, string `Query`/`QueryStream`, the fluent-query terminals (`ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`ExecuteDelete`/`ExecuteUpdate`/`Max`/`Min`/`Sum`/`Average`/`NearestVectors`), spatial/vector, all `ITemporalDocumentStore` ops, and `RunInTransaction` (inner ops become child spans of the transaction span).
+- **Not traced**: `NotifyOnChange`/`SubscribeChanges` (long-lived subscriptions, passed through); the fluent **builder** operators (no I/O); provider internals (raw SQL, RU, pool) — use the per-provider `Logging` option for raw SQL.
+- **Zero-cost** when nothing is listening. **Privacy**: only metadata (op, type name, outcome, counts) — never document bodies, ids, or parameter values. Keyed `AddDocumentStore(name, …)` registrations are not auto-decorated.
+
+### MongoDB-Specific Notes
+
+The `Shiny.DocumentDb.MongoDb` provider implements `IDocumentStore` natively over `MongoDB.Driver`. Documents are stored as a typed BSON envelope (`_id`, `id`, `typeName`, `data`, `createdAt`, `updatedAt`) inside a collection that defaults to `"documents"`. Map types to dedicated collections with `MapTypeToCollection`.
+
+- **Predicates evaluated in C#** — LINQ expressions are translated to a MongoDB filter at the type/sort/skip/take level; complex predicates are evaluated client-side after a typed find.
+- **Raw SQL throws** — `Query<T>(string)` and `QueryStream<T>(string)` throw `NotSupportedException`. Use the LINQ-based `Query<T>()` overload.
+- **`Upsert` deep-merges in C#** — null properties are stripped recursively (RFC 7396 semantics).
+- **`RunInTransaction` uses a compensating model** — single-node MongoDB cannot use ACID multi-document transactions without a replica set. The provider tracks inserts and deletes them on failure (matches the CosmosDB provider).
+- **`MapTypeToCollection<T>(...)`** — fluent options API with overloads for auto-derived collection names, explicit names, and custom Id expressions.
+- **No spatial** — MongoDB supports native geospatial indexing but the provider does not currently expose `WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`.
+- **Pre-configured client** — set `MongoDbDocumentStoreOptions.MongoClient` to share an existing `IMongoClient` (pooled, process-wide). When null, the provider creates one from `ConnectionString`.
+
+```csharp
+var store = new MongoDbDocumentStore(new MongoDbDocumentStoreOptions
+{
+    ConnectionString = "mongodb://localhost:27017",
+    DatabaseName = "mydb",
+    CollectionName = "documents", // default; only used for unmapped types
+    JsonSerializerOptions = ctx.Options,
+    UseReflectionFallback = false
+}
+.MapTypeToCollection<User>()
+.MapTypeToCollection<Order>("orders")
+.MapTypeToCollection<Sensor>("sensors", s => s.DeviceKey)
+.MapVersionProperty<Order>(o => o.RowVersion));
+```
+
+### DuckDB-Specific Notes
+
+The `Shiny.DocumentDb.DuckDb` provider uses [DuckDB](https://duckdb.org/) — an embedded analytical database — through the standard `IDatabaseProvider` pipeline. Documents are stored as `JSON` column rows alongside `Id`, `TypeName`, `CreatedAt`, `UpdatedAt`.
+
+- **Full LINQ → SQL translation** — same expression visitor used by the SQL providers, emitting `json_extract_string(Data, '$.path')` for property access and `json_merge_patch` for upsert.
+- **Native RFC 7396 merge** — DuckDB 0.10+ exposes `json_merge_patch`, so `Upsert` runs entirely server-side with deep-merge semantics (no read-merge-write round trip).
+- **`SetProperty`/`RemoveProperty`** — implemented via `json_merge_patch` because DuckDB has no `json_set`/`json_remove`. Path parts are folded into a merge-patch document on the server.
+- **JSON extension auto-loaded** — `InitializeConnectionAsync` runs `INSTALL json; LOAD json;` on every connection.
+- **Raw SQL supported** — use `json_extract_string(Data, '$.path')` in `Query<T>("...", parameters)` calls.
+- **No spatial** — the DuckDB `spatial` extension exists but the provider does not currently wire it into `WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`.
+- **Best fit** — analytical workloads, on-device aggregates, embedded reporting, file-based collaboration with Parquet/CSV import via DuckDB's native ingestion (outside the document API).
+
+```csharp
+var store = new DocumentStore(new DocumentStoreOptions
+{
+    DatabaseProvider = new DuckDbDatabaseProvider("Data Source=mydata.duckdb"),
+    JsonSerializerOptions = ctx.Options,
+    UseReflectionFallback = false
+});
+
+// Same fluent query API as every other SQL provider
+var top = await store.Query<Order>()
+    .Where(o => o.Status == "Shipped")
+    .OrderByDescending(o => o.Total)
+    .Paginate(0, 100)
+    .ToList();
 ```
 
 ### SQLite in Blazor WebAssembly
@@ -814,8 +1139,8 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | Method | Description |
 |--------|-------------|
 | `.Where(predicate)` | Filter by LINQ expression. Multiple calls combine with AND. |
-| `.OrderBy(selector)` | Sort ascending by property. |
-| `.OrderByDescending(selector)` | Sort descending by property. |
+| `.OrderBy(selector)` / `.OrderByDescending(selector)` | Sort by property (expression). |
+| `.OrderBy(name, jsonTypeInfo)` / `.OrderByDescending(name, jsonTypeInfo)` | Sort by property name (string) — AOT-safe via `JsonTypeInfo<T>`. Supports dotted paths. |
 | `.GroupBy(selector)` | Group by property (for aggregate projections). |
 | `.Paginate(offset, take)` | Limit results with SQL LIMIT/OFFSET. |
 | `.Select(selector, resultTypeInfo?)` | Project into a different shape via `json_object`. |
@@ -834,6 +1159,7 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | `.Min(selector)` | `Task<TValue>` | Minimum value of a property. |
 | `.Sum(selector)` | `Task<TValue>` | Sum of a property. |
 | `.Average(selector)` | `Task<double>` | Average of a property. |
+| `.PageResult(page, pageSize, zeroBased?)` | `Task<PagedResults<T>>` | Run the query and return records + total count in one envelope. 1-based by default. |
 
 ### Common Patterns
 
@@ -941,6 +1267,64 @@ await foreach (var user in store.Query<User>()
 }
 ```
 
+### `PageResult` — records + total count
+
+For UI/REST responses use `.PageResult(page, pageSize)` to materialize the page slice *and* the total matching count in a single envelope. 1-based by default; pass `zeroBased: true` for 0-based indexing.
+
+```csharp
+public record PagedResults<T>(
+    IEnumerable<T> Records,
+    int TotalCount,
+    int Page,
+    int PageSize
+);
+
+// 1-based (default)
+var result = await store.Query<User>()
+    .Where(u => u.Active)
+    .OrderBy(u => u.Name)
+    .PageResult(page: 1, pageSize: 20);
+
+// 0-based opt-in
+var result = await store.Query<User>()
+    .OrderBy(u => u.Name)
+    .PageResult(page: 0, pageSize: 20, zeroBased: true);
+```
+
+- `TotalCount` reflects the current `Where` predicates (and any global query filters) — pagination state is ignored when counting.
+- Overrides any prior `.Paginate(...)` call on the query.
+- `pageSize` must be > 0; `page` must be `>= 1` (or `>= 0` when `zeroBased: true`). Otherwise throws `ArgumentOutOfRangeException`.
+
+### Dynamic sort columns (string-based OrderBy)
+
+When the sort column is determined at runtime (e.g. a column-header click, a `?sort=` query string), use the string-based overloads. They are AOT-safe: resolution walks `JsonTypeInfo.Properties` and synthesizes an `Expression.Property(parameter, PropertyInfo)` tree — no `Type.GetProperty(string)` reflection on `T`, no `Expression.Compile()`.
+
+```csharp
+// Sort by CLR name
+var results = await store.Query<User>().OrderBy("Name", ctx.User).ToList();
+
+// Or by JSON name (after the naming policy)
+var results = await store.Query<User>().OrderBy("name", ctx.User).ToList();
+
+// Descending
+var results = await store.Query<User>().OrderByDescending("Age", ctx.User).ToList();
+
+// Dotted path for nested properties
+var orders = await store.Query<Order>().OrderBy("ShippingAddress.City", ctx.Order).ToList();
+
+// Driven by an external value
+string sort = request.Query["sort"]; // e.g. "Name", "Age", "ShippingAddress.City"
+var results = await store.Query<User>()
+    .Where(u => u.Active)
+    .OrderBy(sort, ctx.User)
+    .ToList();
+```
+
+Matching rules:
+- Case-insensitive match against either the CLR property name (`PropertyInfo.Name`) or the JSON property name (`JsonPropertyInfo.Name` after the naming policy).
+- Dotted segments traverse nested types; each nested type must also be registered in your `JsonSerializerContext`.
+- Unknown segments throw `ArgumentException`. Null / empty / whitespace paths throw `ArgumentNullException` / `ArgumentException`.
+
 ## Expression Query Patterns
 
 The expression visitor translates LINQ expressions to `json_extract` SQL. Property names are resolved from `JsonTypeInfo` metadata, so `[JsonPropertyName]` and naming policies are respected.
@@ -1009,7 +1393,15 @@ o => o.Lines.Count() > 1
 // Count matching elements (with predicate)
 o => o.Lines.Count(l => l.Quantity >= 3) >= 1
 // (SELECT COUNT(*) FROM json_each(...) WHERE ...) >= 1
+
+// Property form — collection .Count / array .Length map to the same
+// array-length function as .Count() (works on every provider)
+o => o.Lines.Count == 0
+o => o.Tags.Count > 1
+// json_array_length(Data, '$.lines') = 0   /   ... > 1
 ```
+
+`string.Length` and dictionary `.Count` are **not** array lengths and throw `NotSupportedException` (instead of silently generating a dead query) — use `.Count()` / `.Any()` for collection length.
 
 ### DateTime and DateTimeOffset
 
@@ -1208,7 +1600,7 @@ await foreach (var user in store.Query<User>()
 }
 ```
 
-**Note:** Streaming methods hold the internal semaphore for the duration of enumeration. Consume results promptly and avoid interleaving other store operations within the same `await foreach` loop.
+**Note:** Streaming on shared-connection providers (SQLite, SQLCipher, DuckDB) holds the per-store semaphore for the lifetime of enumeration — calling other store methods inside the same `await foreach` will block until it completes. On pooled providers (PostgreSQL, MySQL, SQL Server, Oracle) the streaming reader uses one connection from the driver pool and does not block concurrent ops on the same store, but interleaving writes can still surprise consumers expecting a stable snapshot.
 
 ## Index Management
 
@@ -1254,7 +1646,177 @@ await store.RunInTransaction(async tx =>
 });
 ```
 
-The `tx` parameter is an `IDocumentStore` scoped to the transaction. All operations within the callback share the same database transaction.
+The `tx` parameter is an `IDocumentStore` scoped to the transaction. All operations within the callback share the same database transaction. `RunInTransaction` pins one connection for the duration of the user callback so every nested op runs against the same physical connection.
+
+## Concurrency Model
+
+A single `DocumentStore` instance is safe to share across threads on every provider; what differs is how operations are serialized internally.
+
+| Provider | Connection model | Concurrency on one store |
+|---|---|---|
+| SQLite, SQLCipher, DuckDB | Single long-lived `DbConnection` + `SemaphoreSlim` (shared mode) | Ops queue on the semaphore. The underlying engines lock the whole database on writes, so multi-flighting buys nothing. |
+| PostgreSQL, MySQL, SQL Server, Oracle | Per-op `DbConnection` opened from the ADO.NET driver pool | Ops execute concurrently up to the pool's max size. No store-level semaphore. |
+| CosmosDB, MongoDB | Provider's documented thread-safe client (`CosmosClient`, `IMongoClient`) | Ops execute concurrently. Clients are pooled internally. |
+| LiteDB, IndexedDB | Single-process / single-tab engines | Concurrent multi-process or multi-tab writes are not safe. |
+
+Providers opt into shared mode via `IDatabaseProvider.RequiresSingleConnection => true` (SQLite and DuckDB do so today). Custom providers default to pooled mode.
+
+Table init (`CREATE TABLE IF NOT EXISTS`, index DDL, tenant column/index, spatial sidecars) is exactly-once per table per process — backed by a `ConcurrentDictionary<string, Lazy<Task>>`. Concurrent first-touch callers wait on the same init task; failures evict the cached task so the next call can retry.
+
+## Change Monitoring (IObservableDocumentStore)
+
+Stores that implement `IObservableDocumentStore` expose an `IAsyncEnumerable<DocumentChange<T>>` of insert/update/remove/clear events for documents written through *this* store instance. Use it to drive reactive UI from local writes. Supported on `DocumentStore` (SQLite, SQLCipher, MySQL, SQL Server, PostgreSQL, Oracle) and `LiteDbDocumentStore`. Cosmos, MongoDB, IndexedDB, and DuckDB do not implement it.
+
+### NotifyOnChange<T>
+
+```csharp
+using var cts = new CancellationTokenSource();
+
+_ = Task.Run(async () =>
+{
+    await foreach (var change in store.NotifyOnChange<User>(cts.Token))
+    {
+        Console.WriteLine($"{change.ChangeType} {change.Id} {change.Document?.Name}");
+    }
+});
+
+await store.Insert(new User { Id = "u1", Name = "Alice", Age = 25 });
+await store.Update(new User { Id = "u1", Name = "Alice", Age = 26 });
+await store.Remove<User>("u1");
+
+cts.Cancel(); // unsubscribes; the await foreach exits
+```
+
+### WhenDocumentChanged<T>(id) — single document
+
+```csharp
+var observable = (IObservableDocumentStore)store;
+await foreach (var change in observable.WhenDocumentChanged<Order>("ord-1", ct))
+{
+    // Only events for ord-1 (plus Cleared, which affects every doc).
+}
+```
+
+### Per-query monitoring: IDocumentQuery<T>.NotifyOnChange()
+
+Every fluent query exposes `.NotifyOnChange(ct)` — it filters the change stream by the query's `Where` predicates. `OrderBy`, `Paginate`, and `GroupBy` are ignored. Throws after `Select(...)`.
+
+```csharp
+var pending = store.Query<Order>().Where(o => o.Status == "Pending");
+
+await foreach (var change in pending.NotifyOnChange(ct))
+{
+    // Only inserts/updates where the new document matches Status == "Pending".
+}
+```
+
+### DocumentChange<T>
+
+| Property | Description |
+|---|---|
+| `ChangeType` | `Inserted`, `Updated`, `Removed`, or `Cleared` |
+| `Id` | Affected document Id (empty for `Cleared`) |
+| `Document` | Populated for `Inserted` / full-document `Updated`; `null` for `Removed`, `Cleared`, `SetProperty`, `RemoveProperty` |
+
+### Transaction buffering
+
+Changes performed inside `RunInTransaction` are buffered and emitted *after* commit. A rollback discards the buffered events.
+
+```csharp
+await store.RunInTransaction(async tx =>
+{
+    await tx.Insert(new User { Id = "u1", Name = "Alice" });
+    await tx.Insert(new User { Id = "u2", Name = "Bob" });
+    // Subscribers see nothing yet.
+});
+// Subscribers receive both events here, in order.
+```
+
+### Property-level paths emit Document == null
+
+`SetProperty`, `RemoveProperty`, `Remove`, and `Clear` do not materialize the document, so `DocumentChange<T>.Document` is `null` for those events. For per-query monitoring, those events are passed through unconditionally so the consumer can re-query if needed.
+
+### Cancellation / unsubscribe
+
+Cancel the token passed to `NotifyOnChange` (or break out of the `await foreach`). The underlying channel is unregistered automatically when the iterator exits.
+
+## Global Query Filters
+
+EF Core-style `HasQueryFilter` equivalent. Register a predicate on `DocumentStoreOptions` (or the provider-specific options class) and it's AND-applied to every query of `T` — including single-document operations, bulk operations, and per-query change monitoring. `Insert`/`BatchInsert`/`Upsert` are intentionally unfiltered (matches EF Core). Raw SQL (`Query<T>(string)` / `QueryStream<T>(string)`) is unfiltered.
+
+### Registration
+
+```csharp
+var store = new DocumentStore(new DocumentStoreOptions
+{
+    DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
+}
+.AddQueryFilter<User>(u => !u.IsDeleted)                          // unnamed
+.AddQueryFilter<Order>("tenant", o => o.TenantId == tenantCtx.Current) // named
+.AddQueryFilter<Order>("status", o => o.Status != "Archived"));
+```
+
+`AddQueryFilter<T>` is available on `DocumentStoreOptions`, `LiteDbDocumentStoreOptions`, `CosmosDbDocumentStoreOptions`, `MongoDbDocumentStoreOptions`, and `IndexedDbDocumentStoreOptions`.
+
+### Opting out per query
+
+```csharp
+// Disable every filter
+var all = await store.Query<User>().IgnoreQueryFilters().ToList();
+
+// Disable a specific named filter (others still apply)
+var anyTenant = await store.Query<Order>().IgnoreQueryFilters("tenant").ToList();
+```
+
+`IgnoreQueryFilters` must be called **before** `Select(...)` — calling it on a projected query throws.
+
+### Captured variables re-read per query
+
+```csharp
+options.AddQueryFilter<Order>("tenant", o => o.TenantId == tenantCtx.Current);
+
+tenantCtx.Current = "acme";
+await store.Query<Order>().ToList();   // filters by acme
+
+tenantCtx.Current = "globex";
+await store.Query<Order>().ToList();   // re-translated, filters by globex
+```
+
+### Filtered vs unfiltered paths
+
+| Path | Filtered? |
+|---|---|
+| `Query<T>()` + all terminals, `query.NotifyOnChange()` | Yes |
+| `Get<T>` / `GetDiff<T>` | Yes — returns null if filter rejects |
+| `Update<T>` | Yes — throws "not found" if filter rejects |
+| `SetProperty<T>` / `RemoveProperty<T>` / `Remove<T>` | Yes — returns false if filter rejects |
+| `Clear<T>` / `Count<T>` | Yes |
+| `Insert<T>` / `BatchInsert<T>` / `Upsert<T>` | **No** — matches EF Core |
+| `Query<T>(rawSql)` / `QueryStream<T>(rawSql)` | **No** — matches EF Core's FromSqlRaw |
+
+### Caveats
+
+- **`JsonTypeInfo<T>` is required** for SQL providers (the filter is translated by the expression visitor). Configure a `JsonSerializerContext` on `JsonSerializerOptions` or the registered filter throws `InvalidOperationException` at first use.
+- **Spatial sidecars** are not aware of per-row filter rejections on bulk Remove/Clear. Mix soft-delete with spatial cautiously.
+
+## Native Change Feeds (IChangeFeedDocumentStore)
+
+For changes from *any* writer (other processes, connections, store instances), use `IChangeFeedDocumentStore.SubscribeChanges<T>`. Backed by the database's native mechanism:
+
+| Provider | Mechanism |
+|---|---|
+| PostgreSQL | `LISTEN` / `NOTIFY` with row-level triggers (true push) |
+| SQL Server | Change Tracking, optionally with `SqlDependency` query notifications (`SqlServerChangeFeedOptions`) |
+| Cosmos DB | Native Change Feed API |
+
+Provisioning (triggers, enabling Change Tracking) is automatic and idempotent. SQLite, LiteDB, IndexedDB, MySQL, Oracle, and DuckDB throw `NotSupportedException`.
+
+```csharp
+await using var sub = await store.SubscribeChanges<User>(async (change, ct) =>
+{
+    // Handle each change as it arrives. Dispose `sub` to stop.
+});
+```
 
 ## AI Tool Integration (Shiny.DocumentDb.Extensions.AI)
 
@@ -1362,15 +1924,18 @@ Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWi
 2. **Set `UseReflectionFallback = false` for AOT** — get clear `InvalidOperationException` instead of opaque AOT failures for unregistered types.
 3. **Derive from `JsonSerializerContext`** — add `[JsonSerializable(typeof(T))]` for each type; do NOT add `[JsonSerializerContext]` attribute.
 4. **Include projection and aggregate result types** in the JSON context — if using `.Select(u => new UserSummary { ... })`, register `UserSummary`.
-5. **Use the fluent query builder** — `store.Query<T>().Where(...).OrderBy(...).Paginate(...).ToList()` is the primary query pattern.
+5. **Use the fluent query builder** — `store.Query<T>().Where(...).OrderBy(...).Paginate(...).ToList()` is the primary query pattern. For UI/REST responses prefer `.PageResult(page, pageSize)` over `.Paginate(...).ToList()` + a separate `.Count()` — it returns records + total in one call.
+5a. **For dynamic sort columns use `OrderBy(string, JsonTypeInfo<T>)`** — never build expressions from `Type.GetProperty(string)` yourself; the string overload resolves through source-generated `JsonTypeInfo.Properties` and stays AOT/trim-safe. Supports case-insensitive CLR or JSON names and dotted paths.
 6. **Use streaming for large result sets** — prefer `.ToAsyncEnumerable()` over `.ToList()` when processing results incrementally.
 7. **Create indexes for frequently queried properties** — `store.CreateIndexAsync<T>(expr, jsonTypeInfo)` for up to 30x faster queries.
 8. **Use `Dictionary<string, object?>` for AOT-safe raw SQL parameters** — anonymous objects work but dictionaries are fully AOT-compatible.
 9. **Keep index management separate** — index methods are on `DocumentStore`, not `IDocumentStore`; cast or use the concrete type.
 10. **Use `MapTypeToTable` for isolation** — when types have different lifecycles or access patterns, give them dedicated tables.
-11. **Custom Id requires table mapping** — there is no overload for custom Id without `MapTypeToTable`. This is by design.
+11. **Custom Id is independent of table mapping** — use `MapIdProperty<T>(x => x.Slug)` to override the Id while keeping the type in the default shared table, or `MapTypeToTable<T>(tableName, idProperty)` to do both at once.
+21. **Change monitoring uses `IAsyncEnumerable`, not `IObservable`** — consume `store.NotifyOnChange<T>(ct)` with `await foreach` (or `query.NotifyOnChange(ct)` for per-query). Wrap the loop in a background `Task.Run` if you need to keep doing work while events arrive; cancel the token to unsubscribe.
+22. **Distinguish in-process vs native change feeds** — `IObservableDocumentStore.NotifyOnChange<T>` only sees writes through this store instance. To observe other writers, use `IChangeFeedDocumentStore.SubscribeChanges<T>` (Postgres / SQL Server / Cosmos only).
 12. **DI registration uses the extensions package** — install `Shiny.DocumentDb.Extensions.DependencyInjection` and call `services.AddDocumentStore(opts => { opts.DatabaseProvider = ...; })`. There are no provider-specific DI methods.
-13. **Raw SQL is provider-specific** — LINQ expressions work identically across all providers, but raw SQL queries (`store.Query<T>("sql")`) use provider-specific JSON functions. Prefer the fluent query builder for portable code.
+13. **Raw SQL is provider-specific** — LINQ expressions work identically across all providers, but raw SQL queries (`store.Query<T>("sql")`) use provider-specific JSON functions. Prefer the fluent query builder for portable code. MongoDB, LiteDB, and IndexedDB do not accept raw SQL at all.
 14. **Spatial queries require `MapSpatialProperty`** — call `options.MapSpatialProperty<T>(x => x.Location)` at setup to register which `GeoPoint` property drives spatial indexing. Only SQLite and CosmosDB support spatial; other providers throw `NotSupportedException`.
 15. **Backup is on concrete types, not `IDocumentStore`** — use `SqliteDocumentStore.Backup()`, `SqlCipherDocumentStore.Backup()`, or `LiteDbDocumentStore.Backup()` directly. Cast or store the concrete type.
 16. **`ClearAllAsync` is SQLite-only** — available on `SqliteDocumentStore` only, deletes all documents across all tables including spatial sidecar data.
