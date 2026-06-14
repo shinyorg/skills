@@ -73,6 +73,7 @@ A floating panel overlay system for .NET MAUI. Panels slide in from the bottom o
 | `ExpandOnInputFocus` | `bool` | `true` | Auto-expands to highest detent when an input is focused |
 | `IsLocked` | `bool` | `false` | Prevents all user dismissal (drag, header tap close, backdrop tap); panel can only be closed via code. Header tap still opens the panel |
 | `FitContent` | `bool` | `false` | Measures content and auto-computes a single detent to fit it (ignores Detents when true) |
+| `IsContentScrollEnabled` | `bool` | `true` | Wraps the content in a `ScrollView`. Set **`False`** when the content already scrolls itself (a `TableView`, `CollectionView`, etc.) — nesting scroll-views collapses the inner one to near-zero height, so its rows render blank |
 | `UseFeedback` | `bool` | `true` | Feedback on open, close, and detent snap |
 
 ## OverlayHost Properties
@@ -199,4 +200,18 @@ This section captures patterns to watch for when a panel contains a text-input c
         <Label Text="Custom Panel" TextColor="White" />
     </VerticalStackLayout>
 </shiny:FloatingPanel>
+```
+
+The panel **opens at the smallest detent** and drags up to larger ones. To open **full-screen by default**, give
+it a single `Full` detent (`DetentValue.Full`, ratio `1.0`):
+
+```xml
+<shiny:FloatingPanel.Detents>
+    <shiny:DetentValue Ratio="1.0" />
+</shiny:FloatingPanel.Detents>
+```
+
+```csharp
+// or from code
+panel.Detents = new ObservableCollection<DetentValue> { DetentValue.Full };
 ```

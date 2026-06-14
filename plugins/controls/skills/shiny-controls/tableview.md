@@ -184,9 +184,18 @@ Opens hour/minute pickers with hr/min labels in a FloatingPanel on tap. Requires
 | `ValueTextColor` | `Color?` | `null` |
 
 ### TextPickerCell
-Opens native dropdown/spinner picker on tap.
+Opens native dropdown/spinner picker on tap. Bind by index (`SelectedIndex`) or by value (`SelectedItem`,
+two-way) — a `SelectedItem` set from code/binding is reflected in the cell's value label and picker selection
+(it stays in sync even when `ItemsSource` is populated asynchronously). Use `DisplayMember` to show a property
+of complex items.
 
 ```xml
+<!-- by value, with a display member -->
+<shiny:TextPickerCell Title="Lens" ItemsSource="{Binding Cameras}"
+                    DisplayMember="Name"
+                    SelectedItem="{Binding SelectedCamera, Mode=TwoWay}" />
+
+<!-- by index -->
 <shiny:TextPickerCell Title="Color" ItemsSource="{Binding Colors}"
                     SelectedIndex="{Binding SelectedColorIndex, Mode=TwoWay}" />
 ```
@@ -195,7 +204,7 @@ Opens native dropdown/spinner picker on tap.
 |---|---|---|
 | `ItemsSource` | `IList?` | `null` |
 | `SelectedIndex` | `int` | `-1` |
-| `SelectedItem` | `object?` | `null` |
+| `SelectedItem` | `object?` (two-way; reflects in the value label) | `null` |
 | `DisplayMember` | `string?` | `null` |
 | `PickerTitle` | `string?` | `null` |
 | `SelectedCommand` | `ICommand?` | `null` |

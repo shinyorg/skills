@@ -63,32 +63,42 @@ dotnet add package Shiny.Blazor.Controls.Camera
 ```
 
 ```csharp
-protected override async void OnAppearing()
+// The preview auto-starts when the view is added (IsActive defaults true) and the control requests camera
+// permission itself — handle a denial (or any error) via CameraError. Toggle IsActive for lifecycle; it is
+// safe to set any time (unlike StartAsync/RequestPermissionAsync, which need the handler already connected).
+this.Camera.CameraError += (_, e) => status = e.Message;   // e.g. "Camera permission denied"
+
+protected override void OnAppearing()
 {
     base.OnAppearing();
-    if (await this.Camera.RequestPermissionAsync())
-        await this.Camera.StartAsync();
+    this.Camera.IsActive = true;    // resume (no-op on first show — it already auto-started)
 }
 
-protected override async void OnDisappearing()
+protected override void OnDisappearing()
 {
     base.OnDisappearing();
-    await this.Camera.StopAsync();
+    this.Camera.IsActive = false;   // release the camera while off-screen
 }
 
-// Capture a still photo
+// Capture a still photo — the current Filter is baked into the JPEG, so preview and photo match
 CameraPhoto photo = await this.Camera.CapturePhotoAsync();   // photo.Data is JPEG bytes
 
-// Record video (audio optional, defaults on)
+// Record video (audio optional, defaults on). NOTE: recorded video is NOT filtered (it records the raw feed)
 await this.Camera.StartVideoRecordingAsync(new VideoRecordingOptions { IncludeAudio = true });
 CameraVideo video = await this.Camera.StopVideoRecordingAsync();   // video.FilePath
 
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
-// Live filter
+// Live filter — applied to the preview AND to captured photos (Apple + Android; not recorded video, not Windows)
 this.Camera.Filter = CameraFilter.Noir;
 ```
+
+> `RequestPermissionAsync()` / `StartAsync()` / `StopAsync()` / `GetAvailableCamerasAsync()` are still available
+> for explicit control, but they route through the platform handler and **no-op (return `false`/empty) if the
+> handler isn't connected yet** — e.g. when called in `OnAppearing` on first show. Don't gate startup on them;
+> prefer `IsActive` + `CameraError`. Call `GetAvailableCamerasAsync()` once the view is loaded (e.g. from a
+> `Loaded`/handler-ready hook) so the lens list isn't empty.
 
 ### Selecting a specific camera
 
@@ -116,7 +126,8 @@ var faces = new FaceAnalyzer();                               // Apple Vision / 
 faces.FacesDetected += (_, e) => status = $"{e.Faces.Count} face(s)";
 
 var motion = new MotionAnalyzer();                            // pure-managed frame differencing
-motion.MotionChanged += (_, e) => status = e.InMotion ? "Motion" : "Still";
+motion.MotionChanged += (_, e) =>                             // e.Regions = a box per distinct moving area
+    status = e.InMotion ? $"Motion in {e.Regions.Count} area(s)" : "Still";
 
 Camera.Analyzers.Add(barcode);
 Camera.Analyzers.Add(faces);
@@ -124,6 +135,24 @@ Camera.Analyzers.Add(motion);
 ```
 
 Analyzer events are raised on the UI thread (the pipeline marshals them), so handlers can touch UI directly.
+
+### Enabling / disabling analyzers
+
+`Analyzers` is an observable collection — **add or remove at runtime and the running pipeline picks it up live**
+(seamless on Apple/Windows; Android rebinds its capture use-cases automatically). To turn an analyzer off
+*without losing its bindings/state*, set **`FrameAnalyzer.IsEnabled`** (bool, default `true`) instead of
+removing it — its command/event bindings stay wired and it resumes instantly when re-enabled. When **every**
+analyzer is disabled the camera behaves as if it had none (so, e.g., Android can record video again).
+
+```xml
+<cam:CameraView Facing="Back">
+    <!-- toggle live from a switch; binding + state are preserved while off -->
+    <cam:BarcodeAnalyzer BarcodeDetectedCommand="{Binding ScanCommand}"
+                         IsEnabled="{Binding IsToggled, Source={x:Reference ScanSwitch}}" />
+</cam:CameraView>
+```
+
+`IsEnabled` (run or not) is distinct from `ShowBoundingBox` (run, but draw nothing).
 
 ### Declaring analyzers in XAML + Commands (MVVM)
 
@@ -147,8 +176,9 @@ Each analyzer exposes the command matching its event: `BarcodeDetectedCommand`, 
 
 ### Controlling the overlay per analyzer
 
+- `IsEnabled` (bool, default `true`) — run the analyzer or not (see *Enabling / disabling analyzers* above).
 - `ShowBoundingBox` (bool, default `true`) — set `False` to run an analyzer purely for its event/command
-  and draw nothing.
+  and draw nothing. Every built-in analyzer honors it, so it disables box rendering for any of them.
 - `OverlayProvider` (code-level `Func<TArgs, IReadOnlyList<OverlayBox>?>`) — return the exact boxes to draw
   for a detection, or `null` for none. When unset, the analyzer draws its own default styled box.
 
@@ -170,6 +200,15 @@ Drop a `CameraOverlayView` over the `CameraView` in the same cell and point it a
 ```
 
 (Low-level alternative: a `GraphicsView` + `CameraOverlayDrawable`, fed from `Camera.OverlaysChanged` — only needed for custom rendering.)
+
+### Motion — localized regions
+
+`MotionAnalyzer` clusters movement into **separate regions**, so motion in two spots yields two boxes rather
+than one box spanning both. `MotionChanged` carries `MotionEventArgs.Regions` (one normalized `RectF` per
+moving area) plus `Region` (their union, for back-compat) and `Intensity` (0..1). Tune detection with
+`PixelThreshold` / `AreaThreshold` (overall trigger), `SampleStride` (speed), and `GridColumns` /
+`CellThreshold` (how finely motion is split into regions). Boxes still honor `ShowBoundingBox` and
+`OverlayProvider`.
 
 ### Documents — typed events (Invoice, DriversLicense, HealthCard)
 
@@ -250,9 +289,9 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 | `IsTorchOn` | `bool` | `false` | Continuous torch |
 | `FlashMode` | `CameraFlashMode` | `Off` | Still-capture flash (`Off`/`On`/`Auto`) |
 | `ScaleMode` | `PreviewScaleMode` | `AspectFill` | `AspectFill` / `AspectFit` |
-| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` |
+| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` — applied to preview + captured photos (not recorded video; no-op on Windows) |
 | `ShowDetectionOverlay` | `bool` | `true` | Surface overlay boxes for the overlay |
-| `Analyzers` | `IList<IFrameAnalyzer>` | empty | Frame analyzers |
+| `Analyzers` | `IList<IFrameAnalyzer>` | empty | Frame analyzers — add/remove live; toggle one via its `IsEnabled` |
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest aggregated overlay boxes (read-only) |
 
@@ -262,19 +301,21 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 ## Code-Generation Rules
 
 - XAML namespace is `xmlns:cam="http://shiny.net/maui/camera"`; prefix `cam` is the assembly default.
-- Always `await RequestPermissionAsync()` before `StartAsync()`; `StopAsync()` in `OnDisappearing`. Add the platform permission entries (see Installation) — omitting `NSCameraUsageDescription` crashes iOS instantly.
+- The preview auto-starts (`IsActive` defaults `true`) and requests permission itself — handle denials via `CameraError` and toggle `IsActive` for lifecycle. `RequestPermissionAsync`/`StartAsync`/`GetAvailableCamerasAsync` route through the handler and no-op/return empty if called before the view is rendered (e.g. in `OnAppearing` on first show), so **don't gate startup on `RequestPermissionAsync()`** — that returns `false` when the handler isn't connected yet and looks like a denied permission. Add the platform permission entries (see Installation) — omitting `NSCameraUsageDescription` crashes iOS instantly.
 - `CameraView` is the native preview surface. To draw boxes, layer a `CameraOverlayView` over it in the same `Grid` cell with `Camera="{x:Reference Camera}"` — don't try to draw inside the `CameraView` itself.
 - Subscribe to each analyzer's **typed event** for results (`BarcodeAnalyzer.BarcodeDetected`, `FaceAnalyzer.FacesDetected`, `MotionAnalyzer.MotionChanged`, `OcrAnalyzer.TextRecognized`, `*Analyzer.DocumentDetected`). Don't read semantic data off `OverlaysChanged` — that channel is presentation only.
 - `OverlayBox.Rect` is normalized (0..1), upright, mirror-corrected. The overlay converts via `CoordinateTransform.MapToView(...)` — never assume raw pixel coordinates.
 - `BarcodeAnalyzer` is pure-managed (ZXing) and works on every platform; `DriversLicenseAnalyzer` (PDF417/AAMVA) is also pure-managed. `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `HealthCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
-- Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so typed events marshal to the UI thread, they get `ShowBoundingBox`, and their `Command`s bind in XAML. Raise results with `Emit(raiseEvent, command, args)` and return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)`.
+- Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so typed events marshal to the UI thread, they get `IsEnabled` + `ShowBoundingBox`, and their `Command`s bind in XAML. Raise results with `Emit(raiseEvent, command, args)` and return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` — that path already suppresses boxes when `ShowBoundingBox` is `false`.
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix and can be declared inside `<cam:CameraView>` (content property = `Analyzers`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`.
 - Invoice/health-card parsing is **best-effort rules** — swap accuracy in via a custom `IDocumentParser<T>`. Driver's-license parsing is deterministic (AAMVA).
 - Use `QRCodeView`/`BarcodeView` from `Shiny.Maui.Controls.Barcodes` to *render* (generate) a code; use the CameraView `BarcodeAnalyzer` to *scan* one. They are different packages for different jobs.
 
 ## Common Pitfalls
 
-- **Android: video + analyzers together** — CameraX caps concurrent use-cases, so the camera binds either `ImageAnalysis` (when `Analyzers` is non-empty) or `VideoCapture`, not both. `StartVideoRecordingAsync` throws a clear error while analyzers are attached. Clear `Camera.Analyzers` to record.
+- **Android: video + analyzers together** — CameraX caps concurrent use-cases, so the camera binds either `ImageAnalysis` (while any analyzer is **enabled**) or `VideoCapture`, not both. To record, disable every analyzer (`IsEnabled = false`) or clear `Camera.Analyzers` — the camera rebinds automatically; `StartVideoRecordingAsync` throws a clear error while an enabled analyzer is attached.
+- **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there).
+- **"Camera permission denied" but the preview works** — you're gating on `RequestPermissionAsync()` in `OnAppearing` before the handler is connected (it returns `false` → looks denied, and the early-return also leaves the lens list empty). Don't gate on it; rely on auto-start + `CameraError`, and load cameras once the view is loaded.
 - **Android minSdk** — CameraX requires API 23+. Set `<SupportedOSPlatformVersion>` to 23 or higher in the consuming app or you'll get a manifest-merge error.
 - **macOS** — best-effort host; multiple webcams enumerate via `GetAvailableCamerasAsync()`; FaceTime + USB devices report an `External`/unspecified facing, so use `CameraId` rather than `Facing` to choose.
 - **Blazor barcode on Firefox/Safari** — `BarcodeDetector` is Chromium-only; feature-detect and provide a fallback if you need universal coverage. Filters (CSS) and capture/record work everywhere.
