@@ -9,6 +9,9 @@ triggers:
   - SqliteDocumentStore
   - IDocumentStore
   - IDocumentQuery
+  - WhereIn
+  - WhereNotIn
+  - NullHandling
   - IDatabaseProvider
   - json document
   - schema-free
@@ -38,6 +41,10 @@ triggers:
   - dynamic sort
   - sort by string
   - OrderBy string
+  - Where string
+  - dynamic filter
+  - interpolated filter
+  - FilterInterpolatedStringHandler
   - MapTypeToTable
   - table per type
   - GetDiff
@@ -1239,11 +1246,15 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | Method | Description |
 |--------|-------------|
 | `.Where(predicate)` | Filter by LINQ expression. Multiple calls combine with AND. |
+| `.Where(filter[, jsonTypeInfo])` | Filter by a runtime filter string (e.g. `"Age >= 30 and Status == 'open'"`) — AOT-safe. `and`/`or`/`not`, comparisons, `is [not] null`, `in (…)`, `contains/startsWith/endsWith`. |
+| `.WhereIn(selector, values[, nulls])` / `.WhereNotIn(selector, values[, nulls])` | Set-membership filter (`IN` / `NOT IN`) from an in-memory collection. The collection is lowered to the store's native construct (`IN` / `$in`), not expanded into the filter text. `nulls` is a `NullHandling` (`Ignore` default / `Raw` / `Match`). Empty set ⇒ `WhereIn` matches nothing, `WhereNotIn` matches everything. Also takes a string property name overload. |
 | `.OrderBy(selector)` / `.OrderByDescending(selector)` | Sort by property (expression). |
-| `.OrderBy(name, jsonTypeInfo)` / `.OrderByDescending(name, jsonTypeInfo)` | Sort by property name (string) — AOT-safe via `JsonTypeInfo<T>`. Supports dotted paths. |
+| `.OrderBy(name[, jsonTypeInfo])` / `.OrderByDescending(name[, jsonTypeInfo])` | Sort by property name (string) — AOT-safe via `JsonTypeInfo<T>`. Supports dotted paths. |
+| `.OrderBy(name, direction[, jsonTypeInfo])` | Sort by property name with a runtime direction string (`asc`/`ascending`/`desc`/`descending`, case-insensitive; empty → ascending). |
 | `.GroupBy(selector)` | Group by property (for aggregate projections). |
 | `.Paginate(offset, take)` | Limit results with SQL LIMIT/OFFSET. |
 | `.Select(selector, resultTypeInfo?)` | Project into a different shape via `json_object`. |
+| `.Project(fields[, jsonTypeInfo])` | Project a runtime-chosen field list (e.g. `"name,email"`) into `IDocumentQuery<JsonObject>` — AOT-safe. For REST sparse fieldsets; no DTO required. |
 
 ### Terminal Methods (execute SQL)
 
@@ -1270,6 +1281,17 @@ var users = await store.Query<User>().ToList();
 // Filter
 var results = await store.Query<User>()
     .Where(u => u.Age > 25)
+    .ToList();
+
+// Set membership (IN / NOT IN) from an in-memory collection
+var statuses = new[] { "Open", "Pending", "Review" };
+var open = await store.Query<Order>()
+    .WhereIn(o => o.Status, statuses)
+    .ToList();
+
+// NOT IN, treating a null in the set as "also exclude null fields"
+var assigned = await store.Query<Order>()
+    .WhereNotIn(o => o.AssignedTo, new string?[] { "alice", null }, NullHandling.Match)
     .ToList();
 
 // Filter + sort
@@ -1399,6 +1421,8 @@ var result = await store.Query<User>()
 
 When the sort column is determined at runtime (e.g. a column-header click, a `?sort=` query string), use the string-based overloads. They are AOT-safe: resolution walks `JsonTypeInfo.Properties` and synthesizes an `Expression.Property(parameter, PropertyInfo)` tree — no `Type.GetProperty(string)` reflection on `T`, no `Expression.Compile()`.
 
+> **`jsonTypeInfo` is optional** on every string overload (`Where`, `OrderBy`, `OrderByDescending`, `Project`). When omitted, the query reuses the `JsonTypeInfo<T>` it resolved at creation (from `Query(ctx.User)` or the registered context), so `store.Query(ctx.User).OrderBy("Name")` works without re-passing it.
+
 ```csharp
 // Sort by CLR name
 var results = await store.Query<User>().OrderBy("Name", ctx.User).ToList();
@@ -1418,12 +1442,80 @@ var results = await store.Query<User>()
     .Where(u => u.Active)
     .OrderBy(sort, ctx.User)
     .ToList();
+
+// Direction as a runtime string too (e.g. "?sort=name&dir=desc").
+// Accepts "asc"/"ascending"/"desc"/"descending" (case-insensitive);
+// an empty/null/whitespace direction defaults to ascending.
+string dir = request.Query["dir"];
+var results = await store.Query<User>()
+    .OrderBy(sort, dir, ctx.User)
+    .ToList();
 ```
 
 Matching rules:
 - Case-insensitive match against either the CLR property name (`PropertyInfo.Name`) or the JSON property name (`JsonPropertyInfo.Name` after the naming policy).
 - Dotted segments traverse nested types; each nested type must also be registered in your `JsonSerializerContext`.
 - Unknown segments throw `ArgumentException`. Null / empty / whitespace paths throw `ArgumentNullException` / `ArgumentException`.
+- The `OrderBy(name, direction, jsonTypeInfo)` overload parses the direction string and delegates to the `OrderBy` / `OrderByDescending` string overloads — same AOT-safe resolution. An unrecognized direction throws `ArgumentException`.
+
+### Dynamic filter strings (string-based Where)
+
+When the filter is supplied at runtime (a REST `?filter=`, a saved view, an admin search), use `Where(string, JsonTypeInfo<T>)`. It parses a small expression language into the same expression tree a compiled predicate produces, so it runs through the normal translator and stays AOT/trim-safe (no `Compile()`; fields resolved through `JsonTypeInfo`).
+
+```csharp
+var open = await store.Query<User>()
+    .Where("Age >= 30 and Status == 'open'", ctx.User)
+    .ToList();
+
+// Combines with compiled predicates
+var results = await store.Query<User>()
+    .Where(u => u.Active)
+    .Where(request.Filter, ctx.User)
+    .ToList();
+```
+
+Grammar:
+- `and` / `or` / `not` and parentheses.
+- Comparisons `==` (or `=`), `!=` (or `<>`), `>`, `>=`, `<`, `<=`. Relational ops are rejected for `string`/`bool`/`Guid`.
+- `field is null` / `field is not null` (and `field == null`).
+- `field in (a, b, c)`.
+- String functions `contains(field, 'x')`, `startsWith(field, 'x')`, `endsWith(field, 'x')`.
+- Field names follow the string-`OrderBy` rules (case-insensitive CLR/JSON name, dotted paths). String literals use single/double quotes; double the quote to escape. Literals are coerced to the field's CLR type. Syntax errors / unknown fields throw `ArgumentException`.
+
+When the filter *shape* is fixed but its *values* come from code, prefer the interpolated overload `Where(FilterInterpolatedStringHandler, JsonTypeInfo<T>)` — write `Where($"…")`. Each `{value}` hole is captured as a typed argument and bound as a parameter (never formatted into the text), so **don't quote interpolated string values and don't build the filter with string concatenation** — that reintroduces the injection/quoting problems this overload removes.
+
+```csharp
+var status = request.Query["status"];
+var minAge = 30;
+
+var open = await store.Query<User>()
+    .Where($"Age >= {minAge} and Status == {status}", ctx.User)  // {status} needs no quotes; injection-safe
+    .ToList();
+```
+
+- An interpolated `$"..."` literal binds to this overload; a plain `string` variable binds to the raw `Where(string)` overload. So pass the raw `?filter=` text as a `string` to parse it, and use `$"..."` only to inject values.
+- Holes are valid only where a literal would appear — comparison RHS, `in (...)` list, or string-function argument (`contains(Email, {fragment})`) — never as a field name. Values coerce to the field's CLR type; a `null` value becomes an `is null` check.
+
+### Runtime field projection (string-based Project)
+
+`Project(fields, JsonTypeInfo<T>)` selects a runtime-chosen field list and returns `IDocumentQuery<JsonObject>` — no DTO needed. Ideal for REST sparse fieldsets (`?fields=name,email`).
+
+```csharp
+IReadOnlyList<JsonObject> rows = await store.Query<User>()
+    .Where("Age >= 30", ctx.User)
+    .OrderBy("Name", ctx.User)
+    .Project("Name, Email", ctx.User)
+    .ToList();
+
+var name = rows[0]["name"]!.GetValue<string>();
+
+// Pagination / Count / Any / streaming work on the projected query.
+var page = await store.Query<User>().Project("name,email", ctx.User).PageResult(1, 20);
+```
+
+- Emits `json_object('name', json_extract(Data,'$.name'), …)` from the resolved JSON paths.
+- Output keys are the **leaf JSON name** (`ShippingAddress.City` → `city`); duplicate leaf names throw `ArgumentException`.
+- After `Project` the query is terminal-shaped: `ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`Paginate` work; `Where`/`OrderBy`/`Select`/aggregates throw. Supported on the SQL providers; others throw `NotSupportedException`.
 
 ## Expression Query Patterns
 
@@ -2025,7 +2117,8 @@ Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWi
 3. **Derive from `JsonSerializerContext`** — add `[JsonSerializable(typeof(T))]` for each type; do NOT add `[JsonSerializerContext]` attribute.
 4. **Include projection and aggregate result types** in the JSON context — if using `.Select(u => new UserSummary { ... })`, register `UserSummary`.
 5. **Use the fluent query builder** — `store.Query<T>().Where(...).OrderBy(...).Paginate(...).ToList()` is the primary query pattern. For UI/REST responses prefer `.PageResult(page, pageSize)` over `.Paginate(...).ToList()` + a separate `.Count()` — it returns records + total in one call.
-5a. **For dynamic sort columns use `OrderBy(string, JsonTypeInfo<T>)`** — never build expressions from `Type.GetProperty(string)` yourself; the string overload resolves through source-generated `JsonTypeInfo.Properties` and stays AOT/trim-safe. Supports case-insensitive CLR or JSON names and dotted paths.
+5a. **For dynamic sort columns use `OrderBy(string, JsonTypeInfo<T>)`** — never build expressions from `Type.GetProperty(string)` yourself; the string overload resolves through source-generated `JsonTypeInfo.Properties` and stays AOT/trim-safe. Supports case-insensitive CLR or JSON names and dotted paths. When the direction is also runtime-driven, use `OrderBy(string name, string direction, JsonTypeInfo<T>)` (`asc`/`desc`/`ascending`/`descending`, empty → ascending).
+5b. **For runtime filters/projections use `Where(string, JsonTypeInfo<T>)` and `Project(string, JsonTypeInfo<T>)`** — both resolve fields through `JsonTypeInfo` and never `Compile()`, staying AOT/trim-safe. `Where` parses a small expression DSL; `Project` returns `IDocumentQuery<JsonObject>` for DTO-less sparse fieldsets. When injecting runtime *values* into a filter, use the interpolated `Where($"…")` overload so `{value}` holes are bound as parameters — never concatenate values into the filter string.
 6. **Use streaming for large result sets** — prefer `.ToAsyncEnumerable()` over `.ToList()` when processing results incrementally.
 7. **Create indexes for frequently queried properties** — `store.CreateIndexAsync<T>(expr, jsonTypeInfo)` for up to 30x faster queries.
 8. **Use `Dictionary<string, object?>` for AOT-safe raw SQL parameters** — anonymous objects work but dictionaries are fully AOT-compatible.
