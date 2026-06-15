@@ -12,6 +12,14 @@ triggers:
   - WhereIn
   - WhereNotIn
   - NullHandling
+  - DocumentFunctions
+  - Soundex
+  - HasFlag
+  - flag enum query
+  - bitwise enum
+  - scalar function
+  - ToLower query
+  - Math.Abs query
   - IDatabaseProvider
   - json document
   - schema-free
@@ -714,6 +722,21 @@ You can still pass `JsonTypeInfo<T>` explicitly when needed (e.g., for types not
 await store.Insert(new User { Id = "alice-1", Name = "Alice" }, ctx.User);
 ```
 
+## Scalar functions in `Where` predicates
+
+The relational providers (SQLite, SQLCipher, DuckDB, MySQL, SQL Server, PostgreSQL, Oracle) translate these to native SQL. LiteDB/IndexedDB evaluate them in-memory, so they always work there too.
+
+- **String**: `s.ToLower()`/`ToUpper()`, `s.Length`, `s.Trim()`/`TrimStart()`/`TrimEnd()`, `s.Substring(start[, len])`, `s.Replace(a, b)`, `s.IndexOf(x)`, `string.IsNullOrEmpty(s)`, `a + b`, plus the existing `Contains`/`StartsWith`/`EndsWith`.
+- **Math**: `Math.Abs/Round/Ceiling/Floor/Sqrt/Pow/Sign`. (`Ceiling`/`Floor`/`Sqrt`/`Pow` need the SQLite math extension; `Abs`/`Round` are always available.)
+- **Flag enums** (stored numerically — the default): `x.Permissions.HasFlag(Permissions.Write)` or `(x.Permissions & Permissions.Write) == Permissions.Write`. Both lower to the same bitwise test (`BITAND` on Oracle) on the relational providers and Cosmos; MongoDB translates `HasFlag` to `$bitsAllSet`. Do **not** enable `JsonStringEnumConverter` if you need to query flags — bitwise tests require the numeric representation.
+- **Phonetic**: `DocumentFunctions.Soundex(x.Name)` → native `SOUNDEX()` (SQL Server/MySQL/Oracle) or a registered connection UDF (SQLite). Not translatable on Cosmos/Mongo — compute a stored Soundex field there instead.
+
+```csharp
+await store.Query<Account>().Where(a => a.Name.ToLower() == "alice").ToList();
+await store.Query<Account>().Where(a => a.Permissions.HasFlag(Permissions.Write)).ToList();
+await store.Query<Account>().Where(a => DocumentFunctions.Soundex(a.Name) == DocumentFunctions.Soundex("Smith")).ToList();
+```
+
 ## Document Types
 
 Every document type must have a public `Id` property of type `Guid`, `int`, `long`, or `string`. The Id is stored in both the database `Id` column and inside the JSON blob, so query results always include it.
@@ -1254,7 +1277,7 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | `.GroupBy(selector)` | Group by property (for aggregate projections). |
 | `.Paginate(offset, take)` | Limit results with SQL LIMIT/OFFSET. |
 | `.Select(selector, resultTypeInfo?)` | Project into a different shape via `json_object`. |
-| `.Project(fields[, jsonTypeInfo])` | Project a runtime-chosen field list (e.g. `"name,email"`) into `IDocumentQuery<JsonObject>` — AOT-safe. For REST sparse fieldsets; no DTO required. |
+| `.Project(fields[, jsonTypeInfo])` | Project a runtime-chosen field list (e.g. `"name,email"`) into `IDocumentQuery<JsonObject>` — AOT-safe. For REST sparse fieldsets; no DTO required. Supports scalar functions with an alias (`"lower(email) as email"`) on every provider. |
 
 ### Terminal Methods (execute SQL)
 
@@ -1511,11 +1534,17 @@ var name = rows[0]["name"]!.GetValue<string>();
 
 // Pagination / Count / Any / streaming work on the projected query.
 var page = await store.Query<User>().Project("name,email", ctx.User).PageResult(1, 20);
+
+// Scalar functions are allowed and require an alias.
+var shaped = await store.Query<User>()
+    .Project("name, lower(email) as email, length(name) as len, year(created) as yr", ctx.User)
+    .ToList();
 ```
 
-- Emits `json_object('name', json_extract(Data,'$.name'), …)` from the resolved JSON paths.
-- Output keys are the **leaf JSON name** (`ShippingAddress.City` → `city`); duplicate leaf names throw `ArgumentException`.
-- After `Project` the query is terminal-shaped: `ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`Paginate` work; `Where`/`OrderBy`/`Select`/aggregates throw. Supported on the SQL providers; others throw `NotSupportedException`.
+- Relational providers emit `json_object('name', json_extract(Data,'$.name'), …)`; CosmosDB/MongoDB/LiteDB/IndexedDB project client-side via the compile-free interpreter. Supported on **every** provider.
+- Output keys are the **leaf JSON name** (`ShippingAddress.City` → `city`) unless overridden with `as alias`; functions require an alias. Duplicate keys throw `ArgumentException`.
+- Functions are the same set as the string `Where` grammar (`lower`/`upper`/`length`/`trim`/`substring`/`replace`/`indexof`, `abs`/`round`/`ceiling`/`floor`/`sqrt`/`sign`, `year`/`month`/`day`/…, `soundex`).
+- After `Project` the query is terminal-shaped: `ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`Paginate` work; `Where`/`OrderBy`/`Select`/aggregates throw.
 
 ## Expression Query Patterns
 
