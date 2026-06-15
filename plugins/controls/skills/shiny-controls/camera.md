@@ -250,11 +250,54 @@ enum PassportSex { Unspecified, Male, Female }
 record DocumentField(string Label, string? Value, RectF? Bounds, float Confidence);   // each payload's Fields bag
 ```
 
+### Writing a custom document analyzer
+
+For an OCR-backed document, derive from **`DocumentAnalyzer<TDocument>`** and supply an **`IDocumentParser<TDocument>`** — don't derive from `FrameAnalyzer` directly. The base runs the shared OCR recognizer, calls your parser, raises the typed `DocumentDetected` (+ `DocumentDetectedCommand`) on the UI thread, draws the parser's boxes, and honors `IsEnabled`/`ShowBoundingBox`/`OverlayProvider`. You write only the payload + the parse rules. Three pieces:
+
+```csharp
+using Shiny.Controls.Camera;                  // RecognizedText, DocumentField, IDocumentParser<T>, OverlayBox
+using Shiny.Maui.Controls.Camera.Documents;   // DocumentAnalyzer<T>
+
+// 1) payload — nullable fields (only what was found is set) + a Fields bag for extras
+public record BusinessCard(string? Name, string? Company, string? Email, string? Phone, IReadOnlyList<DocumentField> Fields);
+
+// 2) parser — turn OCR'd lines into the payload + the boxes to draw. RecognizedText is already normalized + upright.
+public sealed partial class BusinessCardParser : IDocumentParser<BusinessCard>
+{
+    [GeneratedRegex(@"[\w.+-]+@[\w-]+\.[\w.-]+")] private static partial Regex Email();
+
+    public bool TryParse(IReadOnlyList<RecognizedText> text, out BusinessCard document, out IReadOnlyList<OverlayBox> boxes)
+    {
+        document = null!; boxes = [];
+        var emailLine = text.FirstOrDefault(t => Email().IsMatch(t.Text));
+        if (emailLine is null) return false;   // cheap "is this my document?" signal — bail fast, else clears overlay
+
+        var email = Email().Match(emailLine.Text).Value;
+        var name  = text.FirstOrDefault()?.Text;
+        var fields = new List<DocumentField> { new("Name", name, text.FirstOrDefault()?.BoundingBox), new("Email", email, emailLine.BoundingBox) };
+        document = new BusinessCard(name, null, email, null, fields);
+        boxes = fields.Where(f => f.Bounds is not null).Select(f => new OverlayBox(f.Bounds!.Value, Colors.Lime, f.Label)).ToList();
+        return true;
+    }
+}
+
+// 3) analyzer — one-liner; wires the parser
+public sealed class BusinessCardAnalyzer : DocumentAnalyzer<BusinessCard>
+{
+    public BusinessCardAnalyzer() : base(new BusinessCardParser()) { }
+    public BusinessCardAnalyzer(IDocumentParser<BusinessCard> parser) : base(parser) { }  // allow swap-in
+    public override string Id => "myapp.camera.businesscard";
+}
+```
+
+Rules: `TryParse` runs on the analysis thread (keep it fast, allocation-light, no UI); return `false` (lead with a cheap signal check) when it isn't your document so it doesn't misfire each frame; OCR is native so it needs iOS/Android/Windows/macOS (not bare `net10.0`); a remote/LLM parser is fine — the analyzer drops frames while busy (one in flight). To only change rules on a built-in type, skip the new analyzer and pass a parser to the existing one: `new InvoiceAnalyzer(new MyInvoiceParser())`.
+
 ## Basic Usage — Blazor
 
 ```razor
 <CameraView @ref="camera"
             Facing="CameraFacing.Back"
+            CameraId="@cameraId"
             EnableBarcode="true"
             ShowOverlay="true"
             Filter="filter"
@@ -265,17 +308,25 @@ record DocumentField(string Label, string? Value, RectF? Bounds, float Confidenc
 @code {
     CameraView? camera;
     CameraFilter filter = CameraFilter.None;
+    string? cameraId;
     string? status;
 
     void OnBarcode(CameraBarcode b) => status = $"{b.Format}: {b.Value}";
 
-    async Task Photo() { var jpeg = await camera!.CapturePhotoAsync(); }            // byte[]
+    // list/pick a lens — labels populate only after the camera has started (permission granted)
+    async Task LoadLenses()
+    {
+        var cams = await camera!.GetAvailableCamerasAsync();   // IReadOnlyList<CameraDevice> (Id, Name)
+        cameraId = cams.FirstOrDefault()?.Id;                  // bound to CameraId, overrides Facing
+    }
+
+    async Task Photo() { var jpeg = await camera!.CapturePhotoAsync(); }            // byte[] (filtered to match preview)
     async Task Rec()   { await camera!.StartRecordingAsync(includeAudio: true); }
     async Task Stop()  { var webm = await camera!.StopRecordingAsync(); }           // byte[] WebM
 }
 ```
 
-Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. The component also exposes `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) if you want to draw boxes yourself; `ShowOverlay="true"` already draws them on the JS canvas.
+Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. The component also exposes `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) if you want to draw boxes yourself; `ShowOverlay="true"` already draws them on the JS canvas. Changing `Facing`/`CameraId`/`EnableBarcode`/`ShowOverlay` while running re-acquires the stream automatically; `Filter` updates live and is baked into `CapturePhotoAsync` stills. **Only barcode detection runs in the browser** — face/motion/OCR/document analyzers are MAUI-native.
 
 ## Properties (MAUI `CameraView`)
 
