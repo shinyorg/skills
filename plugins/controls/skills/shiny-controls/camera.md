@@ -4,7 +4,7 @@ A cross-platform camera control for **.NET MAUI** (iOS, Android, Windows, macOS 
 
 - **MAUI core**: `Shiny.Maui.Controls.Camera` — `CameraView` (handler-based `View`) + `CameraOverlayView` (drop-in box overlay), backed by AVFoundation (Apple), CameraX (Android), Media Capture (Windows). Register with `.UseShinyCamera()`.
 - **Blazor core**: `Shiny.Blazor.Controls.Camera` — `<CameraView>` component over `getUserMedia` / `MediaRecorder` / `BarcodeDetector`.
-- **Analyzer add-ons** (MAUI): `Shiny.Maui.Controls.Camera.Barcode`, `.Camera.Face`, `.Camera.Motion`, `.Camera.Ocr`, `.Camera.Documents` (Invoice / DriversLicense / HealthCard). Add only what you need.
+- **Analyzer add-ons** (MAUI): `Shiny.Maui.Controls.Camera.Barcode`, `.Camera.Face`, `.Camera.Motion`, `.Camera.Ocr`, `.Camera.Documents` (Invoice / Receipt / DriversLicense / HealthCard / CreditCard / Passport). Add only what you need.
 - **Shared contracts**: `Shiny.Controls.Camera` namespace — `IFrameAnalyzer`, `FrameAnalyzer` (base), `OverlayBox`, `CameraFrame`, `CoordinateTransform`, the document building blocks (`RecognizedText`, `DocumentField`, `DocumentLineItem`, `DocumentDetectedEventArgs<T>`, `IDocumentParser<T>`), and the enums (`CameraFacing`, `CameraFilter`, `CameraFlashMode`, `PreviewScaleMode`).
 
 **Two channels per analyzer:** a typed *event* carries the semantic result; the *return value* of `AnalyzeAsync` is the styled `OverlayBox`es to draw. A returned set persists until the analyzer returns a different set (replace) or `null` (clear).
@@ -20,7 +20,7 @@ dotnet add package Shiny.Maui.Controls.Camera.Barcode
 dotnet add package Shiny.Maui.Controls.Camera.Face
 dotnet add package Shiny.Maui.Controls.Camera.Motion
 dotnet add package Shiny.Maui.Controls.Camera.Ocr
-dotnet add package Shiny.Maui.Controls.Camera.Documents   # Invoice / DriversLicense / HealthCard
+dotnet add package Shiny.Maui.Controls.Camera.Documents   # Invoice / Receipt / DriversLicense / HealthCard / CreditCard / Passport
 ```
 
 ```csharp
@@ -210,9 +210,9 @@ moving area) plus `Region` (their union, for back-compat) and `Intensity` (0..1)
 `CellThreshold` (how finely motion is split into regions). Boxes still honor `ShowBoundingBox` and
 `OverlayProvider`.
 
-### Documents — typed events (Invoice, DriversLicense, HealthCard)
+### Documents — typed events (Invoice, Receipt, DriversLicense, HealthCard, CreditCard, Passport)
 
-Each document type is its **own analyzer with its own strongly-typed event** (`DocumentDetected` typed to its payload). Every payload is a strong record with **nullable fields** (only what was found is set). Ships `InvoiceAnalyzer` (`Invoice`, order lines in `.Lines`), `DriversLicenseAnalyzer` (`DriversLicense`), `HealthCardAnalyzer` (`HealthCard`), `CreditCardAnalyzer` (`CreditCard`), `PassportAnalyzer` (`Passport`). Order lines come back as `Invoice.Lines`.
+Each document type is its **own analyzer with its own strongly-typed event** (`DocumentDetected` typed to its payload). Every payload is a strong record with **nullable fields** (only what was found is set). Ships `InvoiceAnalyzer` (`Invoice`, order lines in `.Lines`), `ReceiptAnalyzer` (`Receipt` — line items in `.Lines`, per-tax breakdown in `.Taxes`, plus subtotal/tip/discount/total), `DriversLicenseAnalyzer` (`DriversLicense`), `HealthCardAnalyzer` (`HealthCard`), `CreditCardAnalyzer` (`CreditCard`), `PassportAnalyzer` (`Passport`).
 
 ```csharp
 var invoice = new InvoiceAnalyzer();                         // OCR + rules
@@ -233,7 +233,8 @@ Camera.Analyzers.Add(license);
 - **Driver's licenses** are decoded from the back's **PDF417 barcode** and parsed against the **AAMVA** standard — deterministic, no ML.
 - **Passports** parse the **MRZ** (the two `<<<` lines, ICAO TD3) → `Passport` (number, surname, given names, nationality, issuing country, DOB, expiry, sex) — MRZ parse is deterministic.
 - **Credit cards**: `CreditCard.Type` (Visa/Mastercard/Amex/…) and number validity come from the IIN prefix + Luhn (deterministic); name/expiry/company are best-effort OCR. `Cvv` is on the back and PCI-sensitive, so it's almost always `null` from a front scan.
-- **Invoices / health cards / credit cards** are OCR + best-effort rules. Swap the rules by passing a custom `IDocumentParser<T>`:
+- **Receipts** parse the merchant header, purchased line items (`Receipt.Lines`), a **per-tax breakdown** (`Receipt.Taxes`, each with an optional rate) plus `Subtotal` / `Tax` (sum) / `Tip` / `Discount` / `Total`, and best-effort `PaymentMethod` / `CardLast4` / `Currency` / `Date` / `Time` — OCR + rules, so swap in a custom `IDocumentParser<Receipt>` for accuracy.
+- **Invoices / receipts / health cards / credit cards** are OCR + best-effort rules. Swap the rules by passing a custom `IDocumentParser<T>`:
   `new InvoiceAnalyzer(new MyInvoiceParser())`, where `MyInvoiceParser : IDocumentParser<Invoice>` returns the typed payload + the boxes to draw. (`OcrAnalyzer` itself just raises `TextRecognized` with raw `RecognizedText` blocks.)
 
 **Payload records** (all data properties nullable; enums default to `Unknown`/`Unspecified` — populated only when found):
@@ -241,6 +242,9 @@ Camera.Analyzers.Add(license);
 ```csharp
 record Invoice(string? Number, DateOnly? Date, decimal? Total, IReadOnlyList<InvoiceLine> Lines, IReadOnlyList<DocumentField> Fields);
 record InvoiceLine(string? Description, decimal? Quantity, decimal? UnitPrice, decimal? Amount, RectF? Bounds);
+record Receipt(string? Merchant, string? MerchantPhone, string? ReceiptNumber, DateOnly? Date, TimeOnly? Time, IReadOnlyList<ReceiptLine> Lines, decimal? Subtotal, IReadOnlyList<ReceiptTax> Taxes, decimal? Tax, decimal? Tip, decimal? Discount, decimal? Total, string? Currency, string? PaymentMethod, string? CardLast4, IReadOnlyList<DocumentField> Fields);
+record ReceiptLine(string? Description, decimal? Quantity, decimal? UnitPrice, decimal? Amount, RectF? Bounds);
+record ReceiptTax(string? Label, decimal? Rate, decimal? Amount, RectF? Bounds);
 record DriversLicense(string? Number, string? FirstName, string? LastName, DateOnly? DateOfBirth, DateOnly? Expiry, string? Address, IReadOnlyList<DocumentField> Fields);
 record HealthCard(string? Number, string? Name, DateOnly? Expiry, string? Issuer, IReadOnlyList<DocumentField> Fields);
 record CreditCard(CreditCardType Type, string? Number, DateOnly? Expiry, string? FirstName, string? LastName, string? CompanyName, string? Cvv, IReadOnlyList<DocumentField> Fields);
@@ -356,7 +360,7 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 - `CameraView` is the native preview surface. To draw boxes, layer a `CameraOverlayView` over it in the same `Grid` cell with `Camera="{x:Reference Camera}"` — don't try to draw inside the `CameraView` itself.
 - Subscribe to each analyzer's **typed event** for results (`BarcodeAnalyzer.BarcodeDetected`, `FaceAnalyzer.FacesDetected`, `MotionAnalyzer.MotionChanged`, `OcrAnalyzer.TextRecognized`, `*Analyzer.DocumentDetected`). Don't read semantic data off `OverlaysChanged` — that channel is presentation only.
 - `OverlayBox.Rect` is normalized (0..1), upright, mirror-corrected. The overlay converts via `CoordinateTransform.MapToView(...)` — never assume raw pixel coordinates.
-- `BarcodeAnalyzer` is pure-managed (ZXing) and works on every platform; `DriversLicenseAnalyzer` (PDF417/AAMVA) is also pure-managed. `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `HealthCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
+- `BarcodeAnalyzer` is pure-managed (ZXing) and works on every platform; `DriversLicenseAnalyzer` (PDF417/AAMVA) is also pure-managed. `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
 - Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so typed events marshal to the UI thread, they get `IsEnabled` + `ShowBoundingBox`, and their `Command`s bind in XAML. Raise results with `Emit(raiseEvent, command, args)` and return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` — that path already suppresses boxes when `ShowBoundingBox` is `false`.
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix and can be declared inside `<cam:CameraView>` (content property = `Analyzers`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`.
 - Invoice/health-card parsing is **best-effort rules** — swap accuracy in via a custom `IDocumentParser<T>`. Driver's-license parsing is deterministic (AAMVA).
@@ -380,7 +384,8 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 - **Detect/box faces** → add `FaceAnalyzer`.
 - **Trigger on movement (security cam)** → add `MotionAnalyzer` and handle `MotionChanged`.
 - **Read raw text** → add `OcrAnalyzer` and handle `TextRecognized`.
-- **Parse a receipt/invoice** → add `InvoiceAnalyzer` and handle `DocumentDetected` (`Invoice` with `.Lines`).
+- **Parse an invoice** → add `InvoiceAnalyzer` and handle `DocumentDetected` (`Invoice` with `.Lines`).
+- **Parse a receipt** → add `ReceiptAnalyzer` and handle `DocumentDetected` (`Receipt` with `.Lines`, `.Taxes`, subtotal/tip/total).
 - **Scan a driver's license / health card** → add `DriversLicenseAnalyzer` (deterministic AAMVA) or `HealthCardAnalyzer` from `.Camera.Documents`.
 - **Scan a passport** → add `PassportAnalyzer` (deterministic MRZ); **read a credit card** → add `CreditCardAnalyzer` (brand+number deterministic).
 - **Apply a live look** → set `Filter`.
