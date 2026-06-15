@@ -62,6 +62,74 @@ triggers:
   - health changes
   - AddHealthIntegration
   - Shiny.Health
+  - blood glucose
+  - body temperature
+  - basal body temperature
+  - respiratory rate
+  - vo2 max
+  - heart rate variability
+  - HRV
+  - lean body mass
+  - basal energy
+  - active energy
+  - floors climbed
+  - wheelchair pushes
+  - speed
+  - power
+  - sexual activity
+  - ovulation test
+  - cervical mucus
+  - intermenstrual bleeding
+  - workout
+  - exercise session
+  - nutrition
+  - macros
+  - GetBloodGlucose
+  - GetBodyTemperature
+  - GetBasalBodyTemperature
+  - GetRespiratoryRate
+  - GetVo2Max
+  - GetHeartRateVariability
+  - GetLeanBodyMass
+  - GetBasalEnergyBurned
+  - GetActiveEnergyBurned
+  - GetFloorsClimbed
+  - GetWheelchairPushes
+  - GetSpeed
+  - GetPower
+  - GetSexualActivity
+  - GetOvulationTests
+  - GetCervicalMucus
+  - GetIntermenstrualBleeding
+  - GetWorkouts
+  - GetNutrition
+  - SexualActivityResult
+  - OvulationTestResult
+  - CervicalMucusResult
+  - IntermenstrualBleedingResult
+  - WorkoutResult
+  - NutritionResult
+  - WorkoutType
+  - MealType
+  - SexualActivityProtection
+  - OvulationTestOutcome
+  - CervicalMucusAppearance
+  - AI tools
+  - AI agent
+  - LLM tools
+  - tool calling
+  - function calling
+  - Microsoft.Extensions.AI
+  - AIFunction
+  - AITool
+  - IChatClient
+  - chat tools
+  - Shiny.Health.Extensions.AI
+  - AddHealthAITools
+  - HealthAITools
+  - IHealthAIToolBuilder
+  - HealthAICapabilities
+  - health agent
 ---
 
 # Shiny Health Skill
@@ -88,7 +156,8 @@ Invoke this skill when the user wants to:
 
 Shiny Health provides:
 - A single `IHealthService` interface that works on both iOS and Android
-- Read and write support for all 12 cross-platform health metrics
+- Read and write support for 30+ cross-platform health metrics spanning activity, body, vitals,
+  nutrition, reproductive/cycle tracking, and workouts
 - Real-time observation of health data changes via `IAsyncEnumerable<HealthResult>`
 - Time-bucketed aggregate queries at minute, hour, or day intervals
 - Permission management with read/write granularity via `PermissionType`
@@ -206,14 +275,42 @@ public enum Interval { Minutes, Hours, Days }
 // Available health data types
 public enum DataType
 {
+    // numeric (NumericHealthResult)
     StepCount, HeartRate, Calories, Distance,
     Weight, Height, BodyFatPercentage, RestingHeartRate,
     BloodPressure, OxygenSaturation, SleepDuration, Hydration,
-    MenstruationFlow
+    BloodGlucose, BodyTemperature, BasalBodyTemperature, RespiratoryRate,
+    Vo2Max, HeartRateVariability, LeanBodyMass, BasalEnergyBurned,
+    ActiveEnergyBurned, FloorsClimbed, WheelchairPushes, Speed, Power,
+
+    // categorical / event-based
+    MenstruationFlow, SexualActivity, OvulationTest, CervicalMucus, IntermenstrualBleeding,
+
+    // structured records
+    Workout, Nutrition
 }
 
 // Menstrual flow level (categorical). None is iOS-only; Android maps it to Unspecified.
 public enum MenstrualFlow { Unspecified, None, Light, Medium, Heavy }
+
+// Reproductive / cycle-tracking enums
+public enum SexualActivityProtection { Unspecified, Protected, Unprotected }
+public enum OvulationTestOutcome { Inconclusive, Positive, High, Negative }
+public enum CervicalMucusAppearance { Unspecified, Dry, Sticky, Creamy, Watery, EggWhite }
+
+// Workout activity (subset mapped on both platforms; unmapped -> Other) and meal type
+public enum WorkoutType { Other, Running, Walking, Hiking, Cycling, Swimming, Rowing, Elliptical,
+    StairClimbing, StrengthTraining, HighIntensityIntervalTraining, Yoga, Pilates, Tennis,
+    Basketball, Soccer, Baseball, Golf, Boxing, MartialArts, Dancing }
+public enum MealType { Unknown, Breakfast, Lunch, Dinner, Snack }
+
+// Categorical / structured result records
+public record SexualActivityResult(DateTimeOffset Start, DateTimeOffset End, SexualActivityProtection Protection) : HealthResult(DataType.SexualActivity, Start, End);
+public record OvulationTestResult(DateTimeOffset Start, DateTimeOffset End, OvulationTestOutcome Outcome) : HealthResult(DataType.OvulationTest, Start, End);
+public record CervicalMucusResult(DateTimeOffset Start, DateTimeOffset End, CervicalMucusAppearance Appearance) : HealthResult(DataType.CervicalMucus, Start, End);
+public record IntermenstrualBleedingResult(DateTimeOffset Start, DateTimeOffset End) : HealthResult(DataType.IntermenstrualBleeding, Start, End);
+public record WorkoutResult(DateTimeOffset Start, DateTimeOffset End, WorkoutType Workout, double? TotalEnergyKilocalories = null, double? TotalDistanceMeters = null, string? Title = null) : HealthResult(DataType.Workout, Start, End);
+public record NutritionResult(DateTimeOffset Start, DateTimeOffset End, MealType Meal = MealType.Unknown, string? Name = null, double? EnergyKilocalories = null, double? ProteinGrams = null, double? CarbohydratesGrams = null, double? TotalFatGrams = null, double? FiberGrams = null, double? SugarGrams = null, double? SodiumGrams = null, double? CholesterolGrams = null) : HealthResult(DataType.Nutrition, Start, End);
 
 // Result for single-value metrics
 public record NumericHealthResult(
@@ -303,9 +400,38 @@ public interface IHealthService
 | Oxygen Saturation | % | OxygenSaturation | OxygenSaturationRecord |
 | Sleep Duration | hours | SleepAnalysis (category) | SleepSessionRecord |
 | Hydration | liters | DietaryWater | HydrationRecord |
+| Blood Glucose | mg/dL | BloodGlucose | BloodGlucoseRecord |
+| Body Temperature | °C | BodyTemperature | BodyTemperatureRecord |
+| Basal Body Temperature | °C | BasalBodyTemperature | BasalBodyTemperatureRecord |
+| Respiratory Rate | breaths/min | RespiratoryRate | RespiratoryRateRecord |
+| VO2 Max | mL/kg/min | VO2Max | Vo2MaxRecord |
+| Heart Rate Variability | ms | HeartRateVariabilitySDNN | HeartRateVariabilityRmssdRecord¹ |
+| Lean Body Mass | kg | LeanBodyMass | LeanBodyMassRecord |
+| Basal Energy Burned | kcal | BasalEnergyBurned | BasalMetabolicRateRecord |
+| Active Energy Burned | kcal | ActiveEnergyBurned | ActiveCaloriesBurnedRecord |
+| Floors Climbed | count | FlightsClimbed | FloorsClimbedRecord |
+| Wheelchair Pushes | count | PushCount | WheelchairPushesRecord |
+| Speed | m/s | WalkingSpeed² | SpeedRecord |
+| Power | watts | CyclingPower² | PowerRecord |
 | Menstruation Flow | flow level | MenstrualFlow (category) | MenstruationFlowRecord |
+| Sexual Activity | protection enum | SexualActivity (category) | SexualActivityRecord |
+| Ovulation Test | result enum | OvulationTestResult (category) | OvulationTestRecord |
+| Cervical Mucus | appearance enum | CervicalMucusQuality (category) | CervicalMucusRecord |
+| Intermenstrual Bleeding | event | IntermenstrualBleeding (category) | IntermenstrualBleedingRecord |
+| Workout | session | HKWorkout | ExerciseSessionRecord |
+| Nutrition | food/macros | Food correlation (dietary types) | NutritionRecord |
 
-> **Menstruation flow is different from the other metrics**: it is categorical (a `MenstrualFlow` level, not a `double`) and event-based, so it uses `MenstruationFlowResult`, has no `Interval` bucketing, and is read via `GetMenstruationFlow(start, end)`. iOS exposes a `None` level and an `IsCycleStart` flag (persisted via HealthKit cycle metadata); Health Connect has no `None` value (mapped to `Unspecified`) and ignores `IsCycleStart`.
+> ¹ **HRV caveat**: iOS reports SDNN, Health Connect reports RMSSD - both are HRV in milliseconds but computed differently, so the values are not directly comparable across platforms.
+> ² **Speed/Power caveat**: Health Connect's `SpeedRecord`/`PowerRecord` are generic; iOS has no generic equivalents, so Speed maps to walking speed and Power maps to cycling power.
+
+> **The categorical, event-based, and structured metrics differ from the numeric ones**: they use their own
+> result records (`SexualActivityResult`, `OvulationTestResult`, `CervicalMucusResult`, `IntermenstrualBleedingResult`,
+> `WorkoutResult`, `NutritionResult`, plus `MenstruationFlowResult`), have **no `Interval` bucketing**, and are
+> read via dedicated methods (`GetSexualActivity`, `GetOvulationTests`, `GetCervicalMucus`,
+> `GetIntermenstrualBleeding`, `GetWorkouts`, `GetNutrition`). On Android, a `WorkoutResult`'s energy/distance are
+> `null` on read (Health Connect stores those as separate records from the exercise session).
+
+> **Menstruation flow is different from the other numeric metrics**: it is categorical (a `MenstrualFlow` level, not a `double`) and event-based, so it uses `MenstruationFlowResult`, has no `Interval` bucketing, and is read via `GetMenstruationFlow(start, end)`. iOS exposes a `None` level and an `IsCycleStart` flag (persisted via HealthKit cycle metadata); Health Connect has no `None` value (mapped to `Unspecified`) and ignores `IsCycleStart`.
 
 ## Usage Examples
 
@@ -521,9 +647,46 @@ await foreach (var result in health.Observe(DataType.HeartRate, pollingInterval:
 7. **Menstruation flow is special** - It is categorical and event-based: use `MenstruationFlowResult`/`MenstrualFlow`, read with `GetMenstruationFlow(start, end)` (no `Interval`), and remember `None`/`IsCycleStart` are iOS-only
 8. **Register early** - Call `AddHealthIntegration()` in `MauiProgram.cs` during app startup
 
+## AI Tool Integration (Shiny.Health.Extensions.AI)
+
+The optional `Shiny.Health.Extensions.AI` package exposes `IHealthService` as `Microsoft.Extensions.AI` tool functions (`AIFunction`s) for LLM agents. It uses a small set of **parameterized** tools (one read tool covers all numeric metrics via a `metric` enum arg, not one tool per metric). Read-only by default; write is opt-in per area. AOT-compatible (hand-built schemas, `JsonNode` results — no reflection).
+
+```csharp
+using Shiny.Health;
+using Shiny.Health.Extensions.AI;
+
+builder.Services.AddHealthIntegration();          // registers IHealthService
+builder.Services.AddHealthAITools(tools => tools
+    .AddAllMetrics()                                          // read all numeric metrics
+    .AddMetric(DataType.Weight, HealthAICapabilities.ReadWrite)
+    .AddBloodPressure(HealthAICapabilities.ReadWrite)
+    .AddCycleTracking()                                       // read cycle records
+    .AddWorkouts(HealthAICapabilities.ReadWrite)
+    .AddNutrition()
+);
+
+// resolve the bundle and pass the tools to any IChatClient
+var tools = sp.GetRequiredService<HealthAITools>().Tools;
+var response = await chatClient.GetResponseAsync(
+    messages,
+    new ChatOptions { Tools = [.. tools] }
+);
+```
+
+Key types:
+- `AddHealthAITools(Action<IHealthAIToolBuilder>)` — DI extension; throws if nothing is added.
+- `IHealthAIToolBuilder` — `AddMetric(DataType, capabilities)`, `AddAllMetrics(...)`, `AddBloodPressure(...)`, `AddCycleTracking(...)`, `AddWorkouts(...)`, `AddNutrition(...)`. `AddMetric` throws for non-numeric `DataType`s.
+- `HealthAICapabilities` `[Flags]` — `None`, `Read` (default), `Write`, `ReadWrite`.
+- `HealthAITools` — resolve from DI; `.Tools` is `IReadOnlyList<AITool>`.
+
+Generated tools (only for opted-in areas; enum args constrained to what you allowed): `get_health_metric`, `write_health_metric`, `get_blood_pressure`, `write_blood_pressure`, `get_cycle_records` (`kind` enum), `write_menstruation_flow`, `get_workouts`, `write_workout`, `get_nutrition`, `write_nutrition`. Dates are ISO-8601; `interval` is `minutes`/`hours`/`days`.
+
+> The AI tools assume permissions are already granted — they do **not** trigger the platform permission UI (needs a foreground activity). Call `IHealthService.RequestPermissions(...)` from the app before invoking the agent.
+
 ## Common Packages
 
 ```bash
-dotnet add package Shiny.Health          # Core health data library
-dotnet add package Shiny.Core            # Required dependency
+dotnet add package Shiny.Health                 # Core health data library
+dotnet add package Shiny.Health.Extensions.AI   # Optional: Microsoft.Extensions.AI tool surface for LLM agents
+dotnet add package Shiny.Core                   # Required dependency
 ```
