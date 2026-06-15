@@ -90,7 +90,7 @@ CameraVideo video = await this.Camera.StopVideoRecordingAsync();   // video.File
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
-// Live filter — applied to the preview AND to captured photos (Apple + Android; not recorded video, not Windows)
+// Live filter — applied to the preview AND to captured photos (Apple + Android API 31+; not recorded video, not Windows)
 this.Camera.Filter = CameraFilter.Noir;
 ```
 
@@ -230,10 +230,11 @@ Camera.Analyzers.Add(invoice);
 Camera.Analyzers.Add(license);
 ```
 
-- **Driver's licenses** are decoded from the back's **PDF417 barcode** and parsed against the **AAMVA** standard — deterministic, no ML.
+- **Driver's licenses** are decoded from the back's **PDF417 barcode** and parsed against the **AAMVA** standard — deterministic, no ML. Works for US states and the Canadian provinces that emit an AAMVA PDF417 (BC, AB, SK, MB, NS, NB, PEI, NL); dates auto-switch to Canadian `CCYYMMDD` order (inferred from the country element or the province code `DAJ`, surfaced as `DriversLicense.Jurisdiction`). **Ontario and Quebec licences carry no PDF417 barcode, so they don't scan** — use a custom OCR-backed `DocumentAnalyzer` for those.
 - **Passports** parse the **MRZ** (the two `<<<` lines, ICAO TD3) → `Passport` (number, surname, given names, nationality, issuing country, DOB, expiry, sex) — MRZ parse is deterministic.
 - **Credit cards**: `CreditCard.Type` (Visa/Mastercard/Amex/…) and number validity come from the IIN prefix + Luhn (deterministic); name/expiry/company are best-effort OCR. `Cvv` is on the back and PCI-sensitive, so it's almost always `null` from a front scan.
 - **Receipts** parse the merchant header, purchased line items (`Receipt.Lines`), a **per-tax breakdown** (`Receipt.Taxes`, each with an optional rate) plus `Subtotal` / `Tax` (sum) / `Tip` / `Discount` / `Total`, and best-effort `PaymentMethod` / `CardLast4` / `Currency` / `Date` / `Time` — OCR + rules, so swap in a custom `IDocumentParser<Receipt>` for accuracy.
+- **Health cards** are OCR + best-effort rules tuned for **Canadian** cards: the parser detects the issuing province from on-card keywords and applies that province's number format — Quebec/RAMQ (4 letters + 8 digits), Ontario/OHIP (10 digits + 2-letter version code), BC PHN (10), Alberta/AHCIP (9), etc. — surfacing `HealthCard.Province` and a `Plan` field. Unknown layouts fall back to the longest plausible digit run.
 - **Invoices / receipts / health cards / credit cards** are OCR + best-effort rules. Swap the rules by passing a custom `IDocumentParser<T>`:
   `new InvoiceAnalyzer(new MyInvoiceParser())`, where `MyInvoiceParser : IDocumentParser<Invoice>` returns the typed payload + the boxes to draw. (`OcrAnalyzer` itself just raises `TextRecognized` with raw `RecognizedText` blocks.)
 
@@ -245,8 +246,8 @@ record InvoiceLine(string? Description, decimal? Quantity, decimal? UnitPrice, d
 record Receipt(string? Merchant, string? MerchantPhone, string? ReceiptNumber, DateOnly? Date, TimeOnly? Time, IReadOnlyList<ReceiptLine> Lines, decimal? Subtotal, IReadOnlyList<ReceiptTax> Taxes, decimal? Tax, decimal? Tip, decimal? Discount, decimal? Total, string? Currency, string? PaymentMethod, string? CardLast4, IReadOnlyList<DocumentField> Fields);
 record ReceiptLine(string? Description, decimal? Quantity, decimal? UnitPrice, decimal? Amount, RectF? Bounds);
 record ReceiptTax(string? Label, decimal? Rate, decimal? Amount, RectF? Bounds);
-record DriversLicense(string? Number, string? FirstName, string? LastName, DateOnly? DateOfBirth, DateOnly? Expiry, string? Address, IReadOnlyList<DocumentField> Fields);
-record HealthCard(string? Number, string? Name, DateOnly? Expiry, string? Issuer, IReadOnlyList<DocumentField> Fields);
+record DriversLicense(string? Number, string? FirstName, string? LastName, DateOnly? DateOfBirth, DateOnly? Expiry, string? Address, string? Jurisdiction, IReadOnlyList<DocumentField> Fields);
+record HealthCard(string? Number, string? Name, DateOnly? Expiry, string? Issuer, string? Province, IReadOnlyList<DocumentField> Fields);
 record CreditCard(CreditCardType Type, string? Number, DateOnly? Expiry, string? FirstName, string? LastName, string? CompanyName, string? Cvv, IReadOnlyList<DocumentField> Fields);
 enum CreditCardType { Unknown, Visa, Mastercard, Amex, Discover, DinersClub, JCB, UnionPay, Maestro }
 record Passport(string? Number, string? Surname, string? GivenNames, string? Nationality, string? IssuingCountry, DateOnly? DateOfBirth, DateOnly? Expiry, PassportSex Sex, IReadOnlyList<DocumentField> Fields);
@@ -344,7 +345,7 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 | `IsTorchOn` | `bool` | `false` | Continuous torch |
 | `FlashMode` | `CameraFlashMode` | `Off` | Still-capture flash (`Off`/`On`/`Auto`) |
 | `ScaleMode` | `PreviewScaleMode` | `AspectFill` | `AspectFill` / `AspectFit` |
-| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` — applied to preview + captured photos (not recorded video; no-op on Windows) |
+| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` — applied to preview + captured photos (live preview needs Android API 31+; not recorded video; no-op on Windows) |
 | `ShowDetectionOverlay` | `bool` | `true` | Surface overlay boxes for the overlay |
 | `Analyzers` | `IList<IFrameAnalyzer>` | empty | Frame analyzers — add/remove live; toggle one via its `IsEnabled` |
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
@@ -369,7 +370,7 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 ## Common Pitfalls
 
 - **Android: video + analyzers together** — CameraX caps concurrent use-cases, so the camera binds either `ImageAnalysis` (while any analyzer is **enabled**) or `VideoCapture`, not both. To record, disable every analyzer (`IsEnabled = false`) or clear `Camera.Analyzers` — the camera rebinds automatically; `StartVideoRecordingAsync` throws a clear error while an enabled analyzer is attached.
-- **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there).
+- **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there). On **Android the live-preview filter needs API 31+** (it uses `RenderEffect`); on older Android the preview is unfiltered but captured photos are still filtered. The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
 - **"Camera permission denied" but the preview works** — you're gating on `RequestPermissionAsync()` in `OnAppearing` before the handler is connected (it returns `false` → looks denied, and the early-return also leaves the lens list empty). Don't gate on it; rely on auto-start + `CameraError`, and load cameras once the view is loaded.
 - **Android minSdk** — CameraX requires API 23+. Set `<SupportedOSPlatformVersion>` to 23 or higher in the consuming app or you'll get a manifest-merge error.
 - **macOS** — best-effort host; multiple webcams enumerate via `GetAvailableCamerasAsync()`; FaceTime + USB devices report an `External`/unspecified facing, so use `CameraId` rather than `Facing` to choose.
