@@ -202,5 +202,5 @@ public partial class SignatureViewModel : ObservableObject
 - The canvas resets automatically after signing or cancelling
 - On MAUI, `SignCommand` receives `SignatureImageEventArgs` with an `ImageStream` (PNG)
 - On Blazor, `Signed` callback receives `byte[]` (raw PNG bytes)
-- Set `ExportWidth`/`ExportHeight` to control the resolution of the exported PNG
+- Set `ExportWidth`/`ExportHeight` to control the resolution of the exported PNG. The drawn signature (captured in the on-screen canvas coordinate space) is scaled **uniformly to fit and centered** within those dimensions, so the whole signature is preserved without clipping or aspect-ratio distortion even when the canvas and the export size differ — if the aspect ratios differ the image is letterboxed with the background color
 - Panel closes automatically after sign or cancel
