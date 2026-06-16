@@ -210,9 +210,16 @@ moving area) plus `Region` (their union, for back-compat) and `Intensity` (0..1)
 `CellThreshold` (how finely motion is split into regions). Boxes still honor `ShowBoundingBox` and
 `OverlayProvider`.
 
+The **event is debounced**: `MotionChanged` fires `InMotion=true` only after `EnterFrames` consecutive
+frames above threshold (default 3) and `InMotion=false` only after `ExitFrames` below it (default 5) — so a
+single noisy frame or a brief pause mid-movement doesn't fire it. Raise `EnterFrames` if motion is still too
+twitchy. The **overlay boxes are not debounced** — they track every frame so they stay responsive.
+
 ### Documents — typed events (Invoice, Receipt, DriversLicense, HealthCard, CreditCard, Passport)
 
 Each document type is its **own analyzer with its own strongly-typed event** (`DocumentDetected` typed to its payload). Every payload is a strong record with **nullable fields** (only what was found is set). Ships `InvoiceAnalyzer` (`Invoice`, order lines in `.Lines`), `ReceiptAnalyzer` (`Receipt` — line items in `.Lines`, per-tax breakdown in `.Taxes`, plus subtotal/tip/discount/total), `DriversLicenseAnalyzer` (`DriversLicense`), `HealthCardAnalyzer` (`HealthCard`), `CreditCardAnalyzer` (`CreditCard`), `PassportAnalyzer` (`Passport`).
+
+**Fields accumulate across frames.** A document that reveals its fields gradually (number, then name, then expiry) is **merged** over up to `AccumulationFrames` frames (default 5) and `DocumentDetected` fires **once** with the richest combined record — not a stream of partials. It fires early when the parser reports the read complete, and won't re-fire while the same document stays in view; `ResetAfterEmptyFrames` (default 5) re-arms once the document leaves the frame. Set `AccumulationFrames = 1` for the old fire-every-frame behavior. (`DriversLicenseAnalyzer` is PDF417/AAMVA — complete in one read — so it isn't accumulated.)
 
 ```csharp
 var invoice = new InvoiceAnalyzer();                         // OCR + rules
@@ -297,6 +304,41 @@ public sealed class BusinessCardAnalyzer : DocumentAnalyzer<BusinessCard>
 
 Rules: `TryParse` runs on the analysis thread (keep it fast, allocation-light, no UI); return `false` (lead with a cheap signal check) when it isn't your document so it doesn't misfire each frame; OCR is native so it needs iOS/Android/Windows/macOS (not bare `net10.0`); a remote/LLM parser is fine — the analyzer drops frames while busy (one in flight). To only change rules on a built-in type, skip the new analyzer and pass a parser to the existing one: `new InvoiceAnalyzer(new MyInvoiceParser())`.
 
+**Opt into frame accumulation** (optional): `IDocumentParser<T>` has two default interface methods you can override so the analyzer merges your document across frames before firing instead of emitting every partial read. `Merge(accumulated, incoming)` fills in fields seen on later frames (typically `accumulated.X ?? incoming.X`, and `return incoming` when it's a *different* document); `IsComplete(document)` lets it fire early once the key fields are present. The defaults (replace + never-complete) preserve the legacy fire-every-`AccumulationFrames`-frames behavior, so existing custom parsers keep working untouched.
+
+```csharp
+public BusinessCard Merge(BusinessCard a, BusinessCard b) => a with
+{
+    Name = a.Name ?? b.Name, Company = a.Company ?? b.Company,
+    Email = a.Email ?? b.Email, Phone = a.Phone ?? b.Phone,
+    Fields = a.Fields.Count >= b.Fields.Count ? a.Fields : b.Fields
+};
+public bool IsComplete(BusinessCard d) => d.Email is not null && d.Phone is not null;
+```
+
+### Capture & stop on detection
+
+Capture a still and/or stop the session the moment an analyzer confirms a detection — no manual wiring:
+
+```xml
+<cam:CameraView x:Name="Camera" DetectionCaptured="OnDetectionCaptured">
+    <cam:PassportAnalyzer CaptureOnDetection="True" StopOnDetection="True" />
+</cam:CameraView>
+```
+
+```csharp
+void OnDetectionCaptured(object? sender, DetectionCapturedEventArgs e)
+{
+    var photo = e.Photo;                       // full-res still (null if only StopOnDetection)
+    if (e.Detection is Passport p) { /* … */ } // same payload the analyzer's typed event carried
+}
+```
+
+- `CaptureOnDetection` / `StopOnDetection` live on every analyzer (the `FrameAnalyzer` base). The trigger uses the **confirmed** detection — for documents that's the merged record; for `MotionAnalyzer` it's motion **starting** only.
+- Results arrive on `CameraView.DetectionCaptured` (`Analyzer`, `Detection`, `Photo`). The photo also raises the usual `MediaCaptured`.
+- The trigger **latches** so a flurry of detections (or several analyzers) fires once; `StartAsync()` re-arms it (capture-only without stop keeps firing).
+- Prefer the imperative path? Call `await Camera.CaptureAndStopAsync()` from any handler — grabs the still and stops, returns the `CameraPhoto`.
+
 ## Basic Usage — Blazor
 
 ```razor
@@ -351,8 +393,9 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest aggregated overlay boxes (read-only) |
 
-**Methods:** `RequestPermissionAsync` · `StartAsync` · `StopAsync` · `CapturePhotoAsync` → `CameraPhoto` · `StartVideoRecordingAsync` / `StopVideoRecordingAsync` → `CameraVideo` · `GetAvailableCamerasAsync` → `IReadOnlyList<CameraInfo>`.
-**Events:** `MediaCaptured` · `VideoCaptured` · `OverlaysChanged` (presentation only) · `CameraError`. For results, subscribe to each analyzer's own typed event (`BarcodeDetected`, `FacesDetected`, `MotionChanged`, `TextRecognized`, `DocumentDetected`).
+**Methods:** `RequestPermissionAsync` · `StartAsync` · `StopAsync` · `CapturePhotoAsync` → `CameraPhoto` · `CaptureAndStopAsync` → `CameraPhoto` (capture a still then stop) · `StartVideoRecordingAsync` / `StopVideoRecordingAsync` → `CameraVideo` · `GetAvailableCamerasAsync` → `IReadOnlyList<CameraInfo>`.
+**Events:** `MediaCaptured` · `VideoCaptured` · `DetectionCaptured` (`DetectionCapturedEventArgs`: `Analyzer`/`Detection`/`Photo`, from `CaptureOnDetection`/`StopOnDetection`) · `OverlaysChanged` (presentation only) · `CameraError`. For results, subscribe to each analyzer's own typed event (`BarcodeDetected`, `FacesDetected`, `MotionChanged`, `TextRecognized`, `DocumentDetected`).
+**Analyzer props (every analyzer):** `IsEnabled` · `ShowBoundingBox` · `OverlayProvider` · `CaptureOnDetection` · `StopOnDetection`. Documents add `AccumulationFrames` / `ResetAfterEmptyFrames`; `MotionAnalyzer` adds `EnterFrames` / `ExitFrames`.
 
 ## Code-Generation Rules
 
