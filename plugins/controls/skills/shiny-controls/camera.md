@@ -119,7 +119,7 @@ using Shiny.Maui.Controls.Camera.Documents;
 using Shiny.Maui.Controls.Camera.Motion;
 using FaceAnalyzer = Shiny.Maui.Controls.Camera.Face.FaceAnalyzer;
 
-var barcode = new BarcodeAnalyzer();                          // ZXing.Net over luminance — all platforms
+var barcode = new BarcodeAnalyzer();                          // native scanner — Apple Vision / MLKit (iOS+Android)
 barcode.BarcodeDetected += (_, e) => status = $"{e.Format}: {e.Value}";
 
 var faces = new FaceAnalyzer();                               // Apple Vision / MLKit / Windows.FaceAnalysis
@@ -173,6 +173,19 @@ Each analyzer exposes the command matching its event: `BarcodeDetectedCommand`, 
 `FacesDetectedCommand`, `TextRecognizedCommand`, and `DocumentDetectedCommand` (documents). Bind a
 `Command<T>` whose `T` is that analyzer's event-args type. Commands are MAUI-only (Blazor uses
 `EventCallback`s).
+
+Restrict `BarcodeAnalyzer` to specific symbologies with `Formats` — settable inline in XAML as a
+comma-separated list (a `TypeConverter` parses it; case-insensitive; omit = all). The filter is applied
+natively (Vision `Symbologies` / MLKit `SetBarcodeFormats`):
+
+```xml
+<cam:BarcodeAnalyzer BarcodeDetectedCommand="{Binding ScanCommand}"
+                     Formats="QrCode,Ean13,Code128" />
+```
+
+In code it's an `IList<BarcodeFormat>?`: `new BarcodeAnalyzer { Formats = [BarcodeFormat.QrCode] }`. Set it
+before the analyzer starts scanning (constructor / XAML); on Android the scanner client is built on the first
+frame, so mutating `Formats` mid-session has no effect until the analyzer is re-created.
 
 ### Controlling the overlay per analyzer
 
@@ -237,7 +250,7 @@ Camera.Analyzers.Add(invoice);
 Camera.Analyzers.Add(license);
 ```
 
-- **Driver's licenses** are decoded from the back's **PDF417 barcode** and parsed against the **AAMVA** standard — deterministic, no ML. Works for US states and the Canadian provinces that emit an AAMVA PDF417 (BC, AB, SK, MB, NS, NB, PEI, NL); dates auto-switch to Canadian `CCYYMMDD` order (inferred from the country element or the province code `DAJ`, surfaced as `DriversLicense.Jurisdiction`). **Ontario and Quebec licences carry no PDF417 barcode, so they don't scan** — use a custom OCR-backed `DocumentAnalyzer` for those.
+- **Driver's licenses** are decoded from the back's **PDF417 barcode** (read with the native scanner — Apple Vision / Android MLKit) and parsed against the **AAMVA** standard — the parse is deterministic. Reads only on iOS/Android/macOS (the native scanner; a no-op on Windows and bare `net10.0`). Works for US states and the Canadian provinces that emit an AAMVA PDF417 (BC, AB, SK, MB, NS, NB, PEI, NL); dates auto-switch to Canadian `CCYYMMDD` order (inferred from the country element or the province code `DAJ`, surfaced as `DriversLicense.Jurisdiction`). **Ontario and Quebec licences carry no PDF417 barcode, so they don't scan** — use a custom OCR-backed `DocumentAnalyzer` for those.
 - **Passports** parse the **MRZ** (the two `<<<` lines, ICAO TD3) → `Passport` (number, surname, given names, nationality, issuing country, DOB, expiry, sex) — MRZ parse is deterministic.
 - **Credit cards**: `CreditCard.Type` (Visa/Mastercard/Amex/…) and number validity come from the IIN prefix + Luhn (deterministic); name/expiry/company are best-effort OCR. `Cvv` is on the back and PCI-sensitive, so it's almost always `null` from a front scan.
 - **Receipts** parse the merchant header, purchased line items (`Receipt.Lines`), a **per-tax breakdown** (`Receipt.Taxes`, each with an optional rate) plus `Subtotal` / `Tax` (sum) / `Tip` / `Discount` / `Total`, and best-effort `PaymentMethod` / `CardLast4` / `Currency` / `Date` / `Time` — OCR + rules, so swap in a custom `IDocumentParser<Receipt>` for accuracy.
@@ -404,7 +417,9 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 - `CameraView` is the native preview surface. To draw boxes, layer a `CameraOverlayView` over it in the same `Grid` cell with `Camera="{x:Reference Camera}"` — don't try to draw inside the `CameraView` itself.
 - Subscribe to each analyzer's **typed event** for results (`BarcodeAnalyzer.BarcodeDetected`, `FaceAnalyzer.FacesDetected`, `MotionAnalyzer.MotionChanged`, `OcrAnalyzer.TextRecognized`, `*Analyzer.DocumentDetected`). Don't read semantic data off `OverlaysChanged` — that channel is presentation only.
 - `OverlayBox.Rect` is normalized (0..1), upright, mirror-corrected. The overlay converts via `CoordinateTransform.MapToView(...)` — never assume raw pixel coordinates.
-- `BarcodeAnalyzer` is pure-managed (ZXing) and works on every platform; `DriversLicenseAnalyzer` (PDF417/AAMVA) is also pure-managed. `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
+- `BarcodeAnalyzer` and `DriversLicenseAnalyzer` (PDF417/AAMVA) read with the **native scanner** — Apple Vision on iOS/macOS and Android MLKit — so they only produce results there; both are a **no-op on Windows and bare `net10.0`** (no native barcode scanner). `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
+- **OCR runs once per frame, shared.** Every OCR-backed analyzer (`OcrAnalyzer` + all the document analyzers) uses the same `TextRecognizer`, which caches its result on the frame instance — so enabling Invoice + Receipt + HealthCard + CreditCard + Passport together still does **one** OCR pass per frame, not five. The shared pass runs with Vision **language correction off** (it corrupts structured fields like license/MRZ/card numbers, totals, and dates by snapping codes to dictionary words); parsers fuzzy-match the raw text.
+- **Document analyzers deskew before OCR.** The document analyzers (not `OcrAnalyzer`) call `RecognizeDocumentAsync`, which detects the document, perspective-corrects (deskews) it, then OCRs the flat crop — a big accuracy win for angled cards/IDs, since flat text reads far more reliably. Per platform: **iOS/macOS** = Vision (`VNDetectDocumentSegmentationRequest`) + Core Image; **Windows** = OpenCvSharp (Canny → largest convex quad → `WarpPerspective`); **Android** = a dependency-free managed detector (Otsu + largest bright region + extreme corners) + native `Matrix.SetPolyToPoly` warp (no OpenCV, so the package stays trim/AOT-clean); **bare net10.0** = no-op. When no document is found it falls back to whole-frame OCR. The overlay becomes the detected document outline (`DocumentAnalyzer.BoxColor`). Everything keeps the live `CameraView` preview — this is a frame analyzer, not a modal scanner.
 - Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so typed events marshal to the UI thread, they get `IsEnabled` + `ShowBoundingBox`, and their `Command`s bind in XAML. Raise results with `Emit(raiseEvent, command, args)` and return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` — that path already suppresses boxes when `ShowBoundingBox` is `false`.
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix and can be declared inside `<cam:CameraView>` (content property = `Analyzers`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`.
 - Invoice/health-card parsing is **best-effort rules** — swap accuracy in via a custom `IDocumentParser<T>`. Driver's-license parsing is deterministic (AAMVA).
