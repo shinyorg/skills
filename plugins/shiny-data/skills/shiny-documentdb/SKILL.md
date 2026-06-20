@@ -18,6 +18,17 @@ triggers:
   - flag enum query
   - bitwise enum
   - scalar function
+  - vector search
+  - NearestVectors
+  - MapVectorProperty
+  - sqlite-vec
+  - VectorExtensionPreloaded
+  - EnableVectorExtension
+  - Shiny.DocumentDb.Sqlite.VectorSupport
+  - SqliteVec
+  - RegisterAutoExtension
+  - vector search ios
+  - vector search android
   - ToLower query
   - Math.Abs query
   - IDatabaseProvider
@@ -57,6 +68,18 @@ triggers:
   - table per type
   - GetDiff
   - JsonPatchDocument
+  - UnitOfWork
+  - CreateUnitOfWork
+  - SaveChanges
+  - unit of work
+  - transaction
+  - atomic writes
+  - IDocumentInterceptor
+  - IDocumentBulkInterceptor
+  - OnBeforeWrite
+  - OnAfterWrite
+  - interceptor
+  - write interceptor
   - document diff
   - BatchInsert
   - batch insert
@@ -786,14 +809,26 @@ var users = Enumerable.Range(1, 1000).Select(i => new User
     Id = $"user-{i}", Name = $"User {i}", Age = 20 + i
 });
 var count = await store.BatchInsert(users); // single transaction, prepared command reused
-
-// Inside a transaction — uses the existing transaction
-await store.RunInTransaction(async tx =>
-{
-    await tx.BatchInsert(moreUsers);
-    await tx.Insert(singleUser);
-});
 ```
+
+### Unit of work (grouping writes)
+
+To group several writes into one transaction, create a `UnitOfWork` from the store, queue
+`Add`/`AddRange`/`Update`/`Upsert`/`Remove`, then call `SaveChanges`. All commit or all roll back.
+Contiguous same-type inserts are coalesced into the batch-insert fast path. There is no
+`RunInTransaction` — `UnitOfWork` is the only way to open a transaction.
+
+```csharp
+var uow = store.CreateUnitOfWork();
+uow.Add(order)
+   .AddRange(orderLines)   // coalesced into one batch insert
+   .Update(customer)
+   .Remove<Cart>(cartId);
+await uow.SaveChanges();    // one transaction; rolls back entirely on failure
+```
+
+Only `IDocumentStore` is injected — the unit is created from it. A unit is a write buffer, not a
+change tracker: reads don't see operations buffered in an uncommitted unit.
 
 ### Get
 
@@ -909,15 +944,13 @@ var count = await store.Count<User>(
     new { minAge = 30 });
 ```
 
-### Transactions
+### Transactions (UnitOfWork)
 
 ```csharp
-await store.RunInTransaction(async tx =>
-{
-    await tx.Insert(new User { Id = "u1", Name = "Alice", Age = 25 });
-    await tx.Insert(new User { Id = "u2", Name = "Bob", Age = 30 });
-    // Commits on success, rolls back on exception
-});
+var uow = store.CreateUnitOfWork();
+uow.Add(new User { Id = "u1", Name = "Alice", Age = 25 })
+   .Add(new User { Id = "u2", Name = "Bob", Age = 30 });
+await uow.SaveChanges(); // commits on success, rolls back on exception
 ```
 
 ### Rekeying (SQLCipher only)
@@ -965,7 +998,7 @@ await sqliteStore.ClearAllAsync();
 
 ## Temporal History (System-Time Versioning)
 
-Opt-in append-only versioning per type. Enable with `MapTemporal<T>` on the options; every `Insert`/`Update`/`Upsert`/`Remove`/`SetProperty`/`RemoveProperty`/`BatchInsert` (including writes inside `RunInTransaction`) records a versioned snapshot to a per-type history sidecar. Only mapped types incur the extra write.
+Opt-in append-only versioning per type. Enable with `MapTemporal<T>` on the options; every `Insert`/`Update`/`Upsert`/`Remove`/`SetProperty`/`RemoveProperty`/`BatchInsert` (including writes inside a `UnitOfWork`) records a versioned snapshot to a per-type history sidecar. Only mapped types incur the extra write.
 
 ```csharp
 options.MapTemporal<Order>(o =>
@@ -1026,7 +1059,7 @@ services.AddOpenTelemetry()
 Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivitySource`. Emits, per the OTel database client semantic conventions: a `db.client.operation.duration` histogram (plus a `db.client.operations` counter and a `db.client.response.returned_rows` histogram), tagged `db.system.name` / `db.operation.name` / `db.collection.name` / `outcome` / `error.type`; and a `{system}.{operation}` `ActivityKind.Client` span per call with error status + exception capture. `db.system.name` is derived from the wrapped store, so one decorator covers all providers.
 
 - **Decorator type**: `InstrumentedDocumentStore` implements `IDocumentStore` + `ITemporalDocumentStore` + `IObservableDocumentStore` + `IChangeFeedDocumentStore` (faithful — casts/pattern-matches keep working); wrapped store is on `.Inner`. Construct directly (`new InstrumentedDocumentStore(inner, new DocumentStoreMetrics(meterFactory))`) when not using DI.
-- **Coverage**: CRUD, string `Query`/`QueryStream`, the fluent-query terminals (`ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`ExecuteDelete`/`ExecuteUpdate`/`Max`/`Min`/`Sum`/`Average`/`NearestVectors`), spatial/vector, all `ITemporalDocumentStore` ops, and `RunInTransaction` (inner ops become child spans of the transaction span).
+- **Coverage**: CRUD, string `Query`/`QueryStream`, the fluent-query terminals (`ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`ExecuteDelete`/`ExecuteUpdate`/`Max`/`Min`/`Sum`/`Average`/`NearestVectors`), spatial/vector, all `ITemporalDocumentStore` ops, and `UnitOfWork.SaveChanges` (inner ops become child spans of the transaction span).
 - **Not traced**: `NotifyOnChange`/`SubscribeChanges` (long-lived subscriptions, passed through); the fluent **builder** operators (no I/O); provider internals (raw SQL, RU, pool) — use the per-provider `Logging` option for raw SQL.
 - **Zero-cost** when nothing is listening. **Privacy**: only metadata (op, type name, outcome, counts) — never document bodies, ids, or parameter values. Keyed `AddDocumentStore(name, …)` registrations are not auto-decorated.
 
@@ -1037,7 +1070,7 @@ The `Shiny.DocumentDb.MongoDb` provider implements `IDocumentStore` natively ove
 - **Predicates evaluated in C#** — LINQ expressions are translated to a MongoDB filter at the type/sort/skip/take level; complex predicates are evaluated client-side after a typed find.
 - **Raw SQL throws** — `Query<T>(string)` and `QueryStream<T>(string)` throw `NotSupportedException`. Use the LINQ-based `Query<T>()` overload.
 - **`Upsert` deep-merges in C#** — null properties are stripped recursively (RFC 7396 semantics).
-- **`RunInTransaction` uses a compensating model** — single-node MongoDB cannot use ACID multi-document transactions without a replica set. The provider tracks inserts and deletes them on failure (matches the CosmosDB provider).
+- **`UnitOfWork` uses a compensating model** — single-node MongoDB cannot use ACID multi-document transactions without a replica set. The provider tracks inserts and deletes them on failure (matches the CosmosDB provider).
 - **`MapTypeToCollection<T>(...)`** — fluent options API with overloads for auto-derived collection names, explicit names, and custom Id expressions.
 - **No spatial** — MongoDB supports native geospatial indexing but the provider does not currently expose `WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`.
 - **Pre-configured client** — set `MongoDbDocumentStoreOptions.MongoClient` to share an existing `IMongoClient` (pooled, process-wide). When null, the provider creates one from `ConnectionString`.
@@ -1157,7 +1190,7 @@ siloBuilder
 ```
 
 - **Reminders (`IReminderTable`)** — `AddDocumentDbReminders(...)` (also calls Orleans' `AddReminders()`); default table `orleans_reminders`. Hash-ring range reads via a fluent query on the stored `GrainHash`; per-row version CAS. No multi-document transaction → works on **any** backend.
-- **Clustering / membership (`IMembershipTable`)** — `AddDocumentDbClustering(...)`; default table `orleans_membership`. Per-silo rows + a global table-version row are updated together inside `RunInTransaction`, each CAS-gated. **Requires multi-document transactions → relational or MongoDB replica set; Cosmos is NOT supported** (single-partition batches only).
+- **Clustering / membership (`IMembershipTable`)** — `AddDocumentDbClustering(...)`; default table `orleans_membership`. Per-silo rows + a global table-version row are updated together in a single `UnitOfWork`, each CAS-gated. **Requires multi-document transactions → relational or MongoDB replica set; Cosmos is NOT supported** (single-partition batches only).
 - **Grain directory (`IGrainDirectory`)** — `AddDocumentDbGrainDirectory("Default", ...)`; default table `orleans_graindirectory`. Per-row version CAS for register/unregister races; no transaction required.
 - Companion `.MongoDb`/`.CosmosDb` packages currently add grain-storage registration only; use `StoreFactory` to point reminders/membership/directory at a Mongo/Cosmos store. All three are covered by PostgreSQL integration tests.
 
@@ -1259,6 +1292,36 @@ Spatial sidecar data is automatically maintained — no manual steps needed:
 - **Insert/Update/Upsert**: Extracts `GeoPoint` from the document and upserts into spatial index
 - **Remove**: Deletes spatial data for that document
 - **Clear**: Removes all spatial data for that type
+
+## Vector / Similarity Search
+
+Embedding-similarity search via `store.NearestVectors<T>(query, k)`. Supported on PostgreSQL (`pgvector`), SQL Server 2025, Oracle 23ai, CosmosDB (DiskANN), MongoDB (Atlas `$vectorSearch`), DuckDB (`vss`), and **SQLite** (`sqlite-vec`). LiteDB, IndexedDB, and MySQL throw `NotSupportedException`.
+
+```csharp
+options.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536, metric: VectorDistance.Cosine);
+var hits = await store.NearestVectors<Doc>(queryEmbedding, k: 5);
+```
+
+### SQLite — loading `sqlite-vec`
+
+The SQLite provider needs the `sqlite-vec` native binary. **Recommended: add the `Shiny.DocumentDb.Sqlite.VectorSupport` package** — it ships the binaries for iOS (static `xcframework`), Android (`.so` per ABI), and desktop/Mac Catalyst, plus a one-call registration helper. This is the default answer for any iOS/Android/MAUI vector question.
+
+```csharp
+using Shiny.DocumentDb.Sqlite.VectorSupport;
+
+// Call once at startup, before opening a connection. Works on iOS, Android, and desktop alike.
+opts.DatabaseProvider = SqliteVec.CreateProvider($"Data Source={dbPath}");
+// (or call SqliteVec.RegisterAutoExtension() yourself, then set VectorExtensionPreloaded = true)
+```
+
+`RegisterAutoExtension()` is engine-aware, so it also works with **SQLCipher**: it registers `vec0` against whichever engine SQLitePCLRaw loaded (`e_sqlite3` or `e_sqlcipher`). For SQLCipher, call `SqliteVec.RegisterAutoExtension()` and set `VectorExtensionPreloaded = true` on your `SqlCipherDatabaseProvider` (`CreateProvider` returns a plain `SqliteDatabaseProvider`, so don't use it for the encrypted case).
+
+If you supply your own binary, two mutually complementary flags on `SqliteDatabaseProvider`:
+
+- **`EnableVectorExtension = true`** — loads at runtime via `SqliteConnection.LoadExtension("vec0")`. Ship the native binary on the load path. **Desktop/server only** — this path **cannot work on iOS** (Apple forbids `dlopen` of loose libraries; bundled `e_sqlite3` disables runtime loading) and usually fails on Android.
+- **`VectorExtensionPreloaded = true`** — assumes the extension is already registered on every connection (statically linked + `sqlite3_auto_extension(sqlite3_vec_init)`), so it **skips the runtime load**. The only approach that works on iOS. If both flags are set, preloaded wins.
+
+Either flag (or the package helper) makes `SupportsVector` return `true`. Without one, `NearestVectors` throws `NotSupportedException`. vec0 is flat-scan (no HNSW); when a `.Where(...)` filter is combined with the search, the library over-fetches `k * postFilterMultiplier` (default 4) candidates.
 
 ## Fluent Query Builder (IDocumentQuery<T>)
 
@@ -1856,18 +1919,47 @@ await store.DropAllIndexesAsync<User>();
 
 Index names are deterministic (`idx_json_{typeName}_{jsonPath}`). `CreateIndexAsync` uses `IF NOT EXISTS`, so calling it multiple times is safe.
 
-## Transactions
+## Transactions (UnitOfWork)
+
+Grouping writes into one transaction is done through a `UnitOfWork` created from the store — there is
+no `RunInTransaction`. Queue `Add`/`AddRange`/`Update`/`Upsert`/`Remove`, then `SaveChanges`.
 
 ```csharp
-await store.RunInTransaction(async tx =>
-{
-    await tx.Insert(new User { Id = "u1", Name = "Alice", Age = 25 });
-    await tx.Insert(new User { Id = "u2", Name = "Bob", Age = 30 });
-    // Commits on success, rolls back on exception
-});
+var uow = store.CreateUnitOfWork();
+uow.Add(new User { Id = "u1", Name = "Alice", Age = 25 })
+   .Add(new User { Id = "u2", Name = "Bob", Age = 30 });
+await uow.SaveChanges(); // commits on success, rolls back on exception
 ```
 
-The `tx` parameter is an `IDocumentStore` scoped to the transaction. All operations within the callback share the same database transaction. `RunInTransaction` pins one connection for the duration of the user callback so every nested op runs against the same physical connection.
+`SaveChanges` opens one transaction (pinning a single connection), applies all queued operations in
+order, and commits — coalescing contiguous same-type inserts into the batch-insert fast path. A unit is
+a write buffer, not a change tracker: reads don't see operations buffered in an uncommitted unit. For
+read-modify-write atomicity, use ETag/CAS (`IfMatch`) + retry.
+
+## Write Interceptors
+
+Register interceptors to observe/mutate writes; the after-hook runs inside the transaction with the
+generated id/version. Per-document (`IDocumentInterceptor`) fires for Insert/BatchInsert(per item)/
+Update/Upsert/Remove; bulk (`IDocumentBulkInterceptor`) fires once for ExecuteUpdate/ExecuteDelete/Clear.
+
+```csharp
+opts.AddInterceptor(new AuditInterceptor());
+opts.OnBeforeWrite<Order>((ctx, ct) => { /* mutate ctx.Document or throw to abort */ return Task.CompletedTask; });
+opts.OnAfterWrite<Order>((ctx, ct) => outbox.Enqueue(ctx.Id, ctx.Operation, ct));
+```
+
+Interceptors can also be **registered in DI** to get constructor-injected dependencies. `AddDocumentStore` resolves every `IDocumentInterceptor` / `IDocumentBulkInterceptor` from the container and runs them after the options-registered ones (deterministic order). Resolved once from the store's provider — register as singletons (use `IServiceScopeFactory` inside the hook for scoped services).
+
+```csharp
+public sealed class OutboxInterceptor(IOutbox outbox) : IDocumentInterceptor
+{
+    public Task BeforeWrite(DocumentWriteContext ctx, CancellationToken ct) => Task.CompletedTask;
+    public Task AfterWrite(DocumentWriteContext ctx, CancellationToken ct) => outbox.Enqueue(ctx.TypeName, ctx.Id, ctx.Operation, ct);
+}
+
+services.AddSingleton<IDocumentInterceptor, OutboxInterceptor>();
+services.AddDocumentStore(opts => opts.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db"));
+```
 
 ## Concurrency Model
 
@@ -1941,15 +2033,14 @@ await foreach (var change in pending.NotifyOnChange(ct))
 
 ### Transaction buffering
 
-Changes performed inside `RunInTransaction` are buffered and emitted *after* commit. A rollback discards the buffered events.
+Changes performed in a `UnitOfWork` are buffered and emitted *after* `SaveChanges` commits. A rollback discards the buffered events.
 
 ```csharp
-await store.RunInTransaction(async tx =>
-{
-    await tx.Insert(new User { Id = "u1", Name = "Alice" });
-    await tx.Insert(new User { Id = "u2", Name = "Bob" });
-    // Subscribers see nothing yet.
-});
+var uow = store.CreateUnitOfWork();
+uow.Add(new User { Id = "u1", Name = "Alice" })
+   .Add(new User { Id = "u2", Name = "Bob" });
+// Subscribers see nothing yet.
+await uow.SaveChanges();
 // Subscribers receive both events here, in order.
 ```
 
