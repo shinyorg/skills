@@ -166,6 +166,23 @@ triggers:
   - snackbar
   - show toast
   - blazor toast
+  - dialog
+  - dialogs
+  - alert
+  - confirm
+  - prompt
+  - datagrid
+  - data grid
+  - grid
+  - table with sorting
+  - sortable table
+  - filterable grid
+  - mudblazor datagrid
+  - column grid
+  - editable grid
+  - alert confirm prompt
+  - message box
+  - blazor dialog
   - feedback service
   - ifeedbackservice
   - haptic
@@ -390,6 +407,7 @@ triggers:
   - back camera
 references:
   - tableview.md
+  - datagrid.md
   - treeview.md
   - floating-panel.md
   - pillview.md
@@ -407,6 +425,7 @@ references:
   - pickers.md
   - frosted-glass.md
   - toast.md
+  - dialogs.md
   - textentry.md
   - slider.md
   - progressbar.md
@@ -431,6 +450,7 @@ Every control below is available on **both** MAUI and Blazor. The feature set (p
 
 The library contains:
 - **TableView**: A pure MAUI settings-style TableView with 14 cell types, cascading styles, sections, drag-sort reordering, and full MVVM/binding support
+- **DataGrid** (MAUI + Blazor): A feature-rich data grid modeled on MudBlazor. Blazor is a generic `DataGrid<TItem>` rendering an HTML `<table>` with child `PropertyColumn`/`TemplateColumn`; MAUI is a pure cross-platform composite (`shiny:DataGrid` + `DataGridColumn`/`DataGridTemplateColumn`, items as `object`) built on a `Grid` header + virtualized `CollectionView` (no native handlers). Sorting (single/multi), filtering (menu/row/toolbar), grouping + aggregates, single/multi selection w/ checkboxes, inline editing (cell/form), paging, virtualization, column resize/reorder, sticky header, `ServerData` delegate, density/striped/bordered/hover. See datagrid.md
 - **TreeView**: Hierarchical tree with lazy-loaded branches (`ChildrenLoader` for per-node async, `RootLoader` for async root), `ChildrenSelector` for sync data, `HasChildrenSelector`/`CanExpandSelector`/`CanSelectSelector` predicates, configurable `ExpandedIcon`/`CollapsedIcon`/`RetryIcon` (ImageSource on MAUI, RenderFragment slots on Blazor), single/multi selection with two-way `SelectedItem`/`SelectedItems`, events + ICommand mirrors for `ItemSelected`/`ItemExpanded`/`ItemCollapsed`/`LoadFailed`/`ItemDropped`, indent + guide lines, drag/drop reorder with above/below/into drop positions and visual drop indicators (event-only — never mutates your data; native HTML5 drag via JS interop on Blazor for Safari/Firefox support, pan-gesture fallback on Catalyst/AppKit/GTK4), programmatic API (`ExpandAll`/`ExpandAllAsync`/`CollapseAll`/`Expand`/`Collapse`/`Refresh`/`ReloadAsync` with state preservation/`FindNode`), and keyboard navigation on Blazor
 - **FloatingPanel + OverlayHost**: A floating panel overlay system (MAUI only). Panels slide from bottom or top with configurable detents, header peek when closed, backdrop dimming, and feedback. Multiple panels coexist without blocking touches. Use with `OverlayHost` (manual Grid setup) or `ShinyContentPage` (convenience ContentPage with built-in overlay). Blazor uses `SheetView` with CSS-based overlays instead
 - **PillView**: A status badge/label control with 6 preset themes, custom colors, and WCAG-accessible contrast
@@ -452,6 +472,7 @@ The library contains:
 - **AddressEntry**: An address search control built on AutoCompleteEntry with geocoding (Nominatim/OpenStreetMap by default) and structured address results
 - **SignaturePad**: A signature capture control that opens in a FloatingPanel (MAUI) or SheetView (Blazor). Users draw on a canvas and export to PNG. Configurable stroke color/width, background, export dimensions, sign/cancel buttons, and panel styling. Like FloatingPanel, it must be placed inside an `OverlayHost` or `ShinyContentPage` (MAUI). The Sign button is disabled until the user draws something
 - **Toast**: A service-first toast notification system invoked via DI-injected `IToaster` (registered by `UseShinyControls()`). Supports auto-dismiss with configurable duration, manual dismiss via `IDisposable`, pill or fill-horizontal display modes, top/bottom positioning, queue or stack mode for multiple toasts, indeterminate spinner, countdown progress bar, icon, tap command, feedback, and screen reader announcement. No XAML or OverlayHost required — the overlay auto-attaches to the current page. Blazor uses `IToastService` with `<ToastHost>` component
+- **Dialogs** (MAUI + Blazor): A service-first dialog system that emulates `alert`/`confirm`/`prompt` with owned (non-native), animated, themeable dialogs. Inject `IDialogService` and await `Alert` (Task), `Confirm` (Task<bool>), or `Prompt` (Task<PromptResult>). Queued/modal, backdrop cancel (Escape/Enter on Blazor), theme-token colors. Per-call `configure` sets the `DialogAnimation` (None/Fade/SlideTop/SlideBottom/SlideLeft/SlideRight/Zoom/Pop) and styling; customize globally via `ConfigureDialogs` (MAUI) / `AddShinyDialogs(o => ...)` (Blazor) or fully replace the card with a `ContentTemplate` (MAUI `DataTemplate`) / `<DialogHost Template>` (Blazor `RenderFragment<DialogContext>`). MAUI auto-attaches (just `UseShinyControls()`); Blazor needs `AddShinyDialogs()` + a single `<DialogHost>`
 - **TextEntry**: A Material Design-inspired text entry control with animated floating placeholder, customizable border, left/right tool slots, hint text for validation, character count, read-only/password modes, and reusable tools (ClearButtonTool, TextEntrySpeechToTextTool)
 - **Slider**: A slider control with a two-color gradient track, blended thumb border that samples the gradient at the current position, tooltip with custom templates, and full drag/tap interaction
 - **ProgressBar**: A progress bar with gradient fill and a Vista-style shimmer pulse that sweeps left-to-right. Configurable `PulseLength` (width of sheen) and `PulseSpeed` (sweep duration). Triggers on value change or timed interval. Supports indeterminate mode and text overlay
@@ -524,6 +545,8 @@ Invoke this skill when the user wants to:
 - Add a signature pad / drawing pad to a page
 - Export a captured signature as a PNG image
 - Show toast notifications, snackbar messages, or transient alerts from code
+- Show an alert / confirm / prompt dialog from code on MAUI or Blazor (await a result via `IDialogService`), with custom in/out animations
+- Build a data grid / data table with sortable, filterable, groupable, editable columns, paging, and selection (MAUI or Blazor) — MudBlazor-style
 - Display progress/loading toasts with spinner while operations complete
 - Queue or stack multiple notifications
 - Replace haptic feedback with custom feedback (text-to-speech, sounds, analytics)
@@ -658,6 +681,8 @@ All controls exist on both hosts, but the Blazor surface is idiomatic Razor, not
 | `shiny:AddressEntry`   | `<AddressEntry>`  | Colors are CSS strings on Blazor; uses `IAddressSearchProvider` on both hosts |
 | Scheduler views        | `<SchedulerCalendarView>`, `<SchedulerAgendaView>`, `<SchedulerCalendarListView>` | Same names |
 | `IToaster.ShowAsync(text, cfg => {})` | `IToastService.ShowAsync(text, cfg => {})` | MAUI uses DI-injected `IToaster` (registered by `UseShinyControls()`); Blazor uses DI-injected `IToastService`. Blazor requires `AddShinyToast()` in DI and `<ToastHost />` in layout |
+| `IDialogService.Confirm(...)` (DI) | `IDialogService.Confirm(...)` (DI) | Same interface on both hosts. MAUI auto-attaches via `UseShinyControls()`; Blazor needs `AddShinyDialogs()` + `<DialogHost />`. Colors are `Color` on MAUI, CSS strings on Blazor |
+| `shiny:DataGrid` + `shiny:DataGridColumn PropertyName="Name"` (items as `object`) | `<DataGrid TItem="T">` + `<PropertyColumn Property="x => x.Name"/>` (generic; `RenderFragment` cell templates) | MAUI columns nest directly; Blazor columns go in `<Columns>`. Paging: MAUI `PageSize`, Blazor `<PagerContent><DataGridPager/></PagerContent>`. Reorder: MAUI `AllowColumnReorder` (arrows), Blazor `DragDropColumnReordering` (drag) |
 | `shiny:TextEntry` | `<TextEntry>` | Colors are CSS strings on Blazor; tools are `List<TextEntryTool>` on both hosts. MAUI uses `ICommand`, Blazor uses `Action` callback. Blazor `TextEntryTool` has `Icon` as string (not ImageSource) |
 
 ### Binding, events, content
