@@ -111,7 +111,7 @@ this.Camera.CameraId = cameras.First(c => c.Name.Contains("USB")).Id;   // null 
 
 ## Frame Analysis (the differentiator)
 
-Add `IFrameAnalyzer`s to `Camera.Analyzers`. The pipeline streams frames off the UI thread with per-analyzer drop-on-busy back-pressure. **Subscribe to each analyzer's own typed event** for the result; the boxes are drawn for you by `CameraOverlayView`.
+Add `IFrameAnalyzer`s to `Camera.Analyzers`. The pipeline streams frames off the UI thread with per-analyzer drop-on-busy back-pressure. Each analyzer **always draws its bounding boxes**, but **only delivers a result while it is _armed_** — so you get live boxes without a flood of events. **Arm with `Camera.Scan()` / `Camera.ScanCommand`** (arms every enabled analyzer); the next confirmed detection is delivered once, then the analyzer goes quiet until armed again (single-shot). To keep scanning, an `OnDetected` handler returns `true` (see below).
 
 ```csharp
 using Shiny.Maui.Controls.Camera.Barcode;
@@ -120,21 +120,39 @@ using Shiny.Maui.Controls.Camera.Motion;
 using FaceAnalyzer = Shiny.Maui.Controls.Camera.Face.FaceAnalyzer;
 
 var barcode = new BarcodeAnalyzer();                          // native scanner — Apple Vision / MLKit (iOS+Android)
-barcode.BarcodeDetected += (_, e) => status = $"{e.Format}: {e.Value}";
-
-var faces = new FaceAnalyzer();                               // Apple Vision / MLKit / Windows.FaceAnalysis
-faces.FacesDetected += (_, e) => status = $"{e.Faces.Count} face(s)";
-
-var motion = new MotionAnalyzer();                            // pure-managed frame differencing
-motion.MotionChanged += (_, e) =>                             // e.Regions = a box per distinct moving area
-    status = e.InMotion ? $"Motion in {e.Regions.Count} area(s)" : "Still";
+barcode.BarcodeDetected += (_, e) => status = $"{e.Format}: {e.Value}";   // fires while armed
 
 Camera.Analyzers.Add(barcode);
-Camera.Analyzers.Add(faces);
-Camera.Analyzers.Add(motion);
+// ... later, from a "Scan" button:
+Camera.Scan();                                                // arm — next barcode fires BarcodeDetected once
 ```
 
-Analyzer events are raised on the UI thread (the pipeline marshals them), so handlers can touch UI directly.
+Delivery is on the UI thread (the pipeline marshals it), so handlers can touch UI directly.
+
+### Arming a scan (the trigger)
+
+Boxes are continuous; **results are pulled, not pushed**. Bind a button/Fab to **`Camera.ScanCommand`** (or call `Camera.Scan()`), which arms every *enabled* analyzer for one scan. Default is **single-shot** — one result per arm. To control continuation, set a per-analyzer **`OnDetected`** — a `Func<TArgs, Task<bool>>` run (on the UI thread) with the detection; **`return true` to keep scanning** (stay armed), `false` to stop until the next `Scan()`. It can be async (validate against a DB, show a confirm) before deciding. `Camera.StopScanning()` disarms everything.
+
+```xml
+<cam:CameraView x:Name="Camera">
+    <cam:BarcodeAnalyzer OnDetected="{Binding OnBarcode}" />
+</cam:CameraView>
+<shiny:Fab Icon="scan" Command="{Binding Source={x:Reference Camera}, Path=ScanCommand}" />
+```
+
+```csharp
+public ObservableCollection<string> Codes { get; } = new();
+
+// return true => keep scanning, false => disarm
+public Func<BarcodeDetectedEventArgs, Task<bool>> OnBarcode => async e =>
+{
+    if (Codes.Contains(e.Value)) return true;   // dupe -> keep going
+    Codes.Add(e.Value);
+    return Codes.Count < 5;                      // stop after 5
+};
+```
+
+Each analyzer's typed event (`BarcodeDetected`, …) and bound `Command` still fire alongside `OnDetected`, but **only while armed** — they're passive observers and can't influence continuation. The same value lingering in view won't re-deliver (barcode/license dedupe until it leaves the frame).
 
 ### Enabling / disabling analyzers
 
@@ -171,8 +189,10 @@ command fires (on the UI thread) with the same args as the event. They inherit t
 
 Each analyzer exposes the command matching its event: `BarcodeDetectedCommand`, `MotionChangedCommand`,
 `FacesDetectedCommand`, `TextRecognizedCommand`, and `DocumentDetectedCommand` (documents). Bind a
-`Command<T>` whose `T` is that analyzer's event-args type. Commands are MAUI-only (Blazor uses
-`EventCallback`s).
+`Command<T>` whose `T` is that analyzer's event-args type. These fire **only while armed** (after `Scan()`)
+and **can't decide whether to keep scanning** — for that, bind the analyzer's **`OnDetected`**
+(`Func<TArgs, Task<bool>>`, `return true` to stay armed; see *Arming a scan*) instead of / alongside the
+command. Commands and `OnDetected` are MAUI-only (Blazor uses `RequestBarcodeAsync` / `EventCallback`s).
 
 Restrict `BarcodeAnalyzer` to specific symbologies with `Formats` — settable inline in XAML as a
 comma-separated list (a `TypeConverter` parses it; case-insensitive; omit = all). The filter is applied
@@ -248,6 +268,7 @@ license.DocumentDetected += (_, e) =>
 
 Camera.Analyzers.Add(invoice);
 Camera.Analyzers.Add(license);
+Camera.Scan();   // arm — DocumentDetected fires once on the next confirmed read (bind OnDetected to keep scanning)
 ```
 
 - **Driver's licenses** are decoded from the back's **PDF417 barcode** (read with the native scanner — Apple Vision / Android MLKit) and parsed against the **AAMVA** standard — the parse is deterministic. Reads only on iOS/Android/macOS (the native scanner; a no-op on Windows and bare `net10.0`). Works for US states and the Canadian provinces that emit an AAMVA PDF417 (BC, AB, SK, MB, NS, NB, PEI, NL); dates auto-switch to Canadian `CCYYMMDD` order (inferred from the country element or the province code `DAJ`, surfaced as `DriversLicense.Jurisdiction`). **Ontario and Quebec licences carry no PDF417 barcode, so they don't scan** — use a custom OCR-backed `DocumentAnalyzer` for those.
@@ -329,28 +350,30 @@ public BusinessCard Merge(BusinessCard a, BusinessCard b) => a with
 public bool IsComplete(BusinessCard d) => d.Email is not null && d.Phone is not null;
 ```
 
-### Capture & stop on detection
+### Capture & stop on detection ("scan then freeze")
 
-Capture a still and/or stop the session the moment an analyzer confirms a detection — no manual wiring:
+There's no declarative capture/stop flag — do it explicitly inside the analyzer's `OnDetected`. Arm with
+`Scan()`, then on the confirmed detection grab a still and/or stop and `return false` to disarm:
 
 ```xml
-<cam:CameraView x:Name="Camera" DetectionCaptured="OnDetectionCaptured">
-    <cam:PassportAnalyzer CaptureOnDetection="True" StopOnDetection="True" />
+<cam:CameraView x:Name="Camera">
+    <cam:PassportAnalyzer OnDetected="{Binding OnPassport}" />
 </cam:CameraView>
 ```
 
 ```csharp
-void OnDetectionCaptured(object? sender, DetectionCapturedEventArgs e)
+public Func<DocumentDetectedEventArgs<Passport>, Task<bool>> OnPassport => async e =>
 {
-    var photo = e.Photo;                       // full-res still (null if only StopOnDetection)
-    if (e.Detection is Passport p) { /* … */ } // same payload the analyzer's typed event carried
-}
+    Passport p = e.Document;
+    var photo = await Camera.CaptureAndStopAsync();   // full-res still, then stop the session
+    ShowThumbnail(photo);                              // tap it -> Camera.StartAsync() to resume
+    return false;                                      // single-shot: disarm
+};
 ```
 
-- `CaptureOnDetection` / `StopOnDetection` live on every analyzer (the `FrameAnalyzer` base). The trigger uses the **confirmed** detection — for documents that's the merged record; for `MotionAnalyzer` it's motion **starting** only.
-- Results arrive on `CameraView.DetectionCaptured` (`Analyzer`, `Detection`, `Photo`). The photo also raises the usual `MediaCaptured`.
-- The trigger **latches** so a flurry of detections (or several analyzers) fires once; `StartAsync()` re-arms it (capture-only without stop keeps firing).
-- Prefer the imperative path? Call `await Camera.CaptureAndStopAsync()` from any handler — grabs the still and stops, returns the `CameraPhoto`.
+- The detection passed to `OnDetected` is the **confirmed** one — for documents the merged record; for `MotionAnalyzer`, motion **starting**.
+- `CaptureAndStopAsync()` grabs the still and stops, returning the `CameraPhoto` (which also raises `MediaCaptured`). Use `CapturePhotoAsync()` alone to capture without stopping.
+- To resume after a stop, call `Camera.StartAsync()` then `Camera.Scan()` to re-arm.
 
 ## Basic Usage — Blazor
 
@@ -361,17 +384,36 @@ void OnDetectionCaptured(object? sender, DetectionCapturedEventArgs e)
             EnableBarcode="true"
             ShowOverlay="true"
             Filter="filter"
-            BarcodeDetected="OnBarcode"
             OnError="m => status = m"
             Style="width:100%;height:100%;" />
+
+<button @onclick="ScanOne">Scan</button>
+<button @onclick="ScanMany">Scan 5</button>
 
 @code {
     CameraView? camera;
     CameraFilter filter = CameraFilter.None;
     string? cameraId;
     string? status;
+    readonly List<string> codes = new();
+    readonly CancellationTokenSource cts = new();
 
-    void OnBarcode(CameraBarcode b) => status = $"{b.Format}: {b.Value}";
+    // gated request/response: arm, await the NEXT decode, then go quiet. The await is the gate.
+    async Task ScanOne()
+    {
+        var b = await camera!.RequestBarcodeAsync();           // resolves on the next barcode, then quiet
+        status = $"{b.Format}: {b.Value}";
+    }
+
+    // "keep scanning" == call it again in a loop
+    async Task ScanMany()
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            var b = await camera!.RequestBarcodeAsync(cts.Token);
+            if (!codes.Contains(b.Value)) codes.Add(b.Value);
+        }
+    }
 
     // list/pick a lens — labels populate only after the camera has started (permission granted)
     async Task LoadLenses()
@@ -381,12 +423,10 @@ void OnDetectionCaptured(object? sender, DetectionCapturedEventArgs e)
     }
 
     async Task Photo() { var jpeg = await camera!.CapturePhotoAsync(); }            // byte[] (filtered to match preview)
-    async Task Rec()   { await camera!.StartRecordingAsync(includeAudio: true); }
-    async Task Stop()  { var webm = await camera!.StopRecordingAsync(); }           // byte[] WebM
 }
 ```
 
-Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. The component also exposes `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) if you want to draw boxes yourself; `ShowOverlay="true"` already draws them on the JS canvas. Changing `Facing`/`CameraId`/`EnableBarcode`/`ShowOverlay` while running re-acquires the stream automatically; `Filter` updates live and is baked into `CapturePhotoAsync` stills. **Only barcode detection runs in the browser** — face/motion/OCR/document analyzers are MAUI-native.
+Blazor mirrors the MAUI gated model **imperatively** via `@ref`: boxes draw continuously, but a decoded value is only delivered through **`RequestBarcodeAsync(ct)`** — it arms the detector, resolves on the next barcode, then goes quiet (`await` = the gate; looping = "keep scanning"). `ct` cancels an outstanding request. The `BarcodeDetected` `EventCallback` still exists but is **gated** — it fires only while a `RequestBarcodeAsync` is outstanding, so the default is quiet (no per-frame firehose). Barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) and `ShowOverlay="true"` (JS-canvas boxes) are unaffected. Changing `Facing`/`CameraId`/`EnableBarcode`/`ShowOverlay` while running re-acquires the stream; `Filter` updates live and is baked into `CapturePhotoAsync` stills. **Only barcode detection runs in the browser** — face/motion/OCR/document analyzers are MAUI-native.
 
 ## Properties (MAUI `CameraView`)
 
@@ -406,9 +446,10 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest aggregated overlay boxes (read-only) |
 
-**Methods:** `RequestPermissionAsync` · `StartAsync` · `StopAsync` · `CapturePhotoAsync` → `CameraPhoto` · `CaptureAndStopAsync` → `CameraPhoto` (capture a still then stop) · `StartVideoRecordingAsync` / `StopVideoRecordingAsync` → `CameraVideo` · `GetAvailableCamerasAsync` → `IReadOnlyList<CameraInfo>`.
-**Events:** `MediaCaptured` · `VideoCaptured` · `DetectionCaptured` (`DetectionCapturedEventArgs`: `Analyzer`/`Detection`/`Photo`, from `CaptureOnDetection`/`StopOnDetection`) · `OverlaysChanged` (presentation only) · `CameraError`. For results, subscribe to each analyzer's own typed event (`BarcodeDetected`, `FacesDetected`, `MotionChanged`, `TextRecognized`, `DocumentDetected`).
-**Analyzer props (every analyzer):** `IsEnabled` · `ShowBoundingBox` · `OverlayProvider` · `CaptureOnDetection` · `StopOnDetection`. Documents add `AccumulationFrames` / `ResetAfterEmptyFrames`; `MotionAnalyzer` adds `EnterFrames` / `ExitFrames`.
+**Methods:** `Scan()` (arm every enabled analyzer) · `StopScanning()` (disarm all) · `RequestPermissionAsync` · `StartAsync` · `StopAsync` · `CapturePhotoAsync` → `CameraPhoto` · `CaptureAndStopAsync` → `CameraPhoto` (capture a still then stop) · `StartVideoRecordingAsync` / `StopVideoRecordingAsync` → `CameraVideo` · `GetAvailableCamerasAsync` → `IReadOnlyList<CameraInfo>`.
+**Commands:** `ScanCommand` (`ICommand` form of `Scan()` — bind a button/Fab to it).
+**Events:** `MediaCaptured` · `VideoCaptured` · `OverlaysChanged` (presentation only) · `CameraError`. For results, arm with `Scan()` then handle each analyzer's `OnDetected` (or its typed event / `Command`, both gated by arming): `BarcodeDetected`, `FacesDetected`, `MotionChanged`, `TextRecognized`, `DocumentDetected`.
+**Analyzer props (every analyzer):** `IsEnabled` · `ShowBoundingBox` · `OverlayProvider` · `OnDetected` (`Func<TArgs, Task<bool>>` — `true` keeps scanning) · `IsArmed` (read-only). Documents add `AccumulationFrames` / `ResetAfterEmptyFrames`; `MotionAnalyzer` adds `EnterFrames` / `ExitFrames`.
 
 ## Code-Generation Rules
 
@@ -420,7 +461,7 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 - `BarcodeAnalyzer` and `DriversLicenseAnalyzer` (PDF417/AAMVA) read with the **native scanner** — Apple Vision on iOS/macOS and Android MLKit — so they only produce results there; both are a **no-op on Windows and bare `net10.0`** (no native barcode scanner). `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
 - **OCR runs once per frame, shared.** Every OCR-backed analyzer (`OcrAnalyzer` + all the document analyzers) uses the same `TextRecognizer`, which caches its result on the frame instance — so enabling Invoice + Receipt + HealthCard + CreditCard + Passport together still does **one** OCR pass per frame, not five. The shared pass runs with Vision **language correction off** (it corrupts structured fields like license/MRZ/card numbers, totals, and dates by snapping codes to dictionary words); parsers fuzzy-match the raw text.
 - **Document analyzers deskew before OCR.** The document analyzers (not `OcrAnalyzer`) call `RecognizeDocumentAsync`, which detects the document, perspective-corrects (deskews) it, then OCRs the flat crop — a big accuracy win for angled cards/IDs, since flat text reads far more reliably. Per platform: **iOS/macOS** = Vision (`VNDetectDocumentSegmentationRequest`) + Core Image; **Windows** = OpenCvSharp (Canny → largest convex quad → `WarpPerspective`); **Android** = a dependency-free managed detector (Otsu + largest bright region + extreme corners) + native `Matrix.SetPolyToPoly` warp (no OpenCV, so the package stays trim/AOT-clean); **bare net10.0** = no-op. When no document is found it falls back to whole-frame OCR. The overlay becomes the detected document outline (`DocumentAnalyzer.BoxColor`). Everything keeps the live `CameraView` preview — this is a frame analyzer, not a modal scanner.
-- Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so typed events marshal to the UI thread, they get `IsEnabled` + `ShowBoundingBox`, and their `Command`s bind in XAML. Raise results with `Emit(raiseEvent, command, args)` and return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` — that path already suppresses boxes when `ShowBoundingBox` is `false`.
+- Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so delivery marshals to the UI thread, they get `IsEnabled` + `ShowBoundingBox` + arming, and their `Command`/`OnDetected` bind in XAML. Deliver a confirmed result with `Deliver(args, raiseEvent, command, onDetected)` — it's gated by arming (does nothing while disarmed), consumes the arm so a lingering detection won't re-fire, and re-arms when `onDetected` returns `true`. Expose your own typed `OnDetected` (`Func<TArgs, Task<bool>>`) bindable property and pass it through. Return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` (independent of arming — boxes always draw; suppressed only when `ShowBoundingBox` is `false`).
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix and can be declared inside `<cam:CameraView>` (content property = `Analyzers`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`.
 - Invoice/health-card parsing is **best-effort rules** — swap accuracy in via a custom `IDocumentParser<T>`. Driver's-license parsing is deterministic (AAMVA).
 - Use `QRCodeView`/`BarcodeView` from `Shiny.Maui.Controls.Barcodes` to *render* (generate) a code; use the CameraView `BarcodeAnalyzer` to *scan* one. They are different packages for different jobs.
@@ -441,7 +482,7 @@ Blazor barcode scanning uses the browser `BarcodeDetector` (Chromium only); on u
 - **Just take a photo / record video** → `CapturePhotoAsync` / `StartVideoRecordingAsync`; no analyzers needed.
 - **Scan a barcode/QR** → add `BarcodeAnalyzer` (or set `EnableBarcode` on Blazor).
 - **Detect/box faces** → add `FaceAnalyzer`.
-- **Trigger on movement (security cam)** → add `MotionAnalyzer` and handle `MotionChanged`.
+- **Trigger on movement (security cam)** → add `MotionAnalyzer`, set `OnDetected` to `return true` (stay armed for continuous monitoring), and `Scan()` once to start.
 - **Read raw text** → add `OcrAnalyzer` and handle `TextRecognized`.
 - **Parse an invoice** → add `InvoiceAnalyzer` and handle `DocumentDetected` (`Invoice` with `.Lines`).
 - **Parse a receipt** → add `ReceiptAnalyzer` and handle `DocumentDetected` (`Receipt` with `.Lines`, `.Taxes`, subtotal/tip/total).
