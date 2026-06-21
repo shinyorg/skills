@@ -1,6 +1,6 @@
 ---
 name: shiny-extensions-push
-description: Generate code using Shiny.Extensions.Push, a server-side push notification dispatch library for .NET with a provider-agnostic core and transports for APNs (.p8/ES256), FCM (HTTP v1) and Web Push (VAPID + RFC 8291), plus Shiny.DocumentDb persistence, structured targeting, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing — fully AOT/trim-safe.
+description: Generate code using Shiny.Extensions.Push, a server-side push notification dispatch library for .NET with a provider-agnostic core and transports for APNs (.p8/ES256), FCM (HTTP v1), Web Push (VAPID + RFC 8291) and WNS (Windows App SDK / Entra auth), plus Shiny.DocumentDb persistence, structured targeting, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing — fully AOT/trim-safe.
 auto_invoke: true
 triggers:
   - AddPushNotifications
@@ -23,6 +23,11 @@ triggers:
   - AddWebPush
   - WebPushProvider
   - WebPushOptions
+  - AddWns
+  - WnsProvider
+  - WnsOptions
+  - WindowsPushOptions
+  - WnsNotificationType
   - UseDocumentDb
   - DocumentDbPushRepository
   - PushMetrics
@@ -40,6 +45,8 @@ triggers:
   - FCM multicast
   - push batching
   - web push VAPID
+  - WNS server
+  - Windows push
   - send push from server
 ---
 
@@ -57,7 +64,7 @@ Invoke this skill when the user wants to:
 - Send push notifications from a .NET **server/backend** (ASP.NET Core, worker, Aspire) to mobile/desktop devices
 - Register/unregister device tokens and store them (in-memory or Shiny.DocumentDb)
 - Send to a user across all their devices, to tags/segments, to explicit tokens, or broadcast
-- Talk to **APNs directly** with a `.p8` auth key (iOS/macOS), **FCM** (HTTP v1) for Android, or **Web Push** (VAPID) for browsers
+- Talk to **APNs directly** with a `.p8` auth key (iOS/macOS), **FCM** (HTTP v1) for Android, **Web Push** (VAPID) for browsers, or **WNS** (Windows App SDK / Entra auth) for Windows
 - Subscribe devices to **topics** and send to a topic
 - Mutate, localize, personalize, or suppress notifications per-device via interceptors
 - Automatically prune expired/invalid device tokens and apply rotated tokens
@@ -72,12 +79,18 @@ Invoke this skill when the user wants to:
 
 - **Core namespace**: `Shiny.Extensions.Push`
 - **NuGet packages**:
-  - `Shiny.Extensions.Push` — core: models, `IPushManager`/`IPushProvider`/`IPushRepository`/`IPushInterceptor`,
-    `PushManager` orchestrator, builder/DI, in-memory repository, debug provider, `PushMetrics`
-  - `Shiny.Extensions.Push.Apns` — direct APNs provider (token `.p8` / ES256 over HTTP/2), iOS/macOS
-  - `Shiny.Extensions.Push.Fcm` — Firebase Cloud Messaging HTTP v1 (OAuth2 service account), Android
-  - `Shiny.Extensions.Push.WebPush` — Web Push (VAPID + RFC 8291 aes128gcm, BCL crypto only), browsers
+  - `Shiny.Extensions.Push` — core **plus all four transports**: models,
+    `IPushManager`/`IPushProvider`/`IPushRepository`/`IPushInterceptor`, builder/DI, and the APNs, FCM,
+    Web Push and WNS (Windows) providers. The implementation types (`PushManager`, `InMemoryPushRepository`,
+    `DebugPushProvider`, `PushMetrics`) live in the `Shiny.Extensions.Push.Infrastructure` namespace; each
+    transport keeps its own namespace (`Shiny.Extensions.Push.Apns` / `.Fcm` / `.WebPush` / `.Wns`).
   - `Shiny.Extensions.Push.DocumentDb` — `IPushRepository` backed by Shiny.DocumentDb (any provider)
+- **Namespaces**: inject the **interfaces** from `Shiny.Extensions.Push` (`IPushManager`, etc.). Add a
+  transport with `using Shiny.Extensions.Push.Apns;` (or `.Fcm` / `.WebPush` / `.Wns`) to surface its
+  `AddApns` extension. You only need `using Shiny.Extensions.Push.Infrastructure;` to name a concrete impl
+  directly (e.g. `AddProvider<DebugPushProvider>()` or casting a repo in tests) — normal app code shouldn't.
+- **Transports are no longer separate packages.** Do **not** `dotnet add package Shiny.Extensions.Push.Apns`
+  (or `.Fcm` / `.WebPush` / `.Wns`) — they ship inside `Shiny.Extensions.Push`.
 - **Target**: `net10.0`. AOT/trim-safe.
 
 ## Setup (Dependency Injection)
@@ -109,6 +122,14 @@ services.AddPushNotifications(push =>
         o.PublicKey  = "<vapid-public-key>";
         o.PrivateKey = "<vapid-private-key>";
         o.Subject    = "mailto:you@example.com";
+    });
+
+    // WNS (Windows) — modern Windows App SDK / Entra (Azure AD) app registration
+    push.AddWns(o =>
+    {
+        o.TenantId     = "<entra-tenant-id>";
+        o.ClientId     = "<app-registration-client-id>";
+        o.ClientSecret = "<client-secret>";
     });
 
     // Persistence (defaults to in-memory if omitted)
@@ -243,11 +264,12 @@ await pushManager.SendToTopic("sports", new PushNotification { Title = "Goal!" }
 await pushManager.UnsubscribeFromTopic(token, DevicePlatform.iOS, "sports");
 ```
 
-## Platform routing (FCM / Web Push)
+## Platform routing (FCM / Web Push / WNS)
 
 The manager routes a registration to the provider that claims its `Platform`: APNs → `iOS`/`MacOS`,
-FCM → `Android`, Web Push → `WebBrowser`. For **Web Push**, the registration's `DeviceToken` is the
-subscription endpoint and the `p256dh`/`auth` keys go in `Data`:
+FCM → `Android`, Web Push → `WebBrowser`, WNS → `Windows`. For **WNS**, the registration's `DeviceToken` is
+the WNS **channel URI**. For **Web Push**, the `DeviceToken` is the subscription endpoint and the
+`p256dh`/`auth` keys go in `Data`:
 
 ```csharp
 await pushManager.RegisterDevice(new DeviceRegistration
@@ -263,8 +285,10 @@ await pushManager.RegisterDevice(new DeviceRegistration
 ```
 
 FCM uses `AndroidPushOptions` on the notification for `android.notification` fields (channel id, icon,
-color, image); Web Push uses `WebPushOptions` (icon, urgency). All providers honour the cross-cutting
-fields (title/body, badge, sound, data, deep link, collapse id, TTL, priority).
+color, image); Web Push uses `WebPushOptions` (icon, urgency); WNS uses `WindowsPushOptions`
+(`Type` = Toast/Tile/Badge/Raw, a verbatim `Payload` for tile/badge, and a toast `Launch` arg — default is
+a `ToastGeneric` toast built from title/body + `DeepLink`). All providers honour the cross-cutting fields
+(title/body, badge, sound, data, deep link, collapse id, TTL, priority).
 
 ## Batching / FCM multicast
 
@@ -282,7 +306,7 @@ automatic; no API change at the call site. Notes:
 
 ## Multiple apps (keyed registration)
 
-Register one keyed provider per app (works for `AddApns`/`AddFcm`/`AddWebPush`); devices carry the
+Register one keyed provider per app (works for `AddApns`/`AddFcm`/`AddWebPush`/`AddWns`); devices carry the
 matching `AppId`; the manager routes by it.
 
 ```csharp
