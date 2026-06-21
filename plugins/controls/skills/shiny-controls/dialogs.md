@@ -76,10 +76,12 @@ public class MyViewModel(IDialogService dialogs)
 |---|---|---|
 | `Alert(title, message, okText = "OK", configure?)` | `Task` | Single dismiss button. |
 | `Confirm(title, message, okText = "Yes", cancelText = "No", configure?)` | `Task<bool>` | `true` on confirm, `false` on cancel. |
-| `Prompt(title, message, placeholder = null, okText = "OK", cancelText = "Cancel", configure?)` | `Task<PromptResult>` | Text field + confirm/cancel. |
+| `Prompt(title, message, placeholder = null, okText = "OK", cancelText = "Cancel", initialValue = null, maxLength = null, keyboard/inputType = null, configure?)` | `Task<PromptResult>` | Text field + confirm/cancel. `initialValue` pre-fills the field, `maxLength` caps the length (`null` = no limit), and the keyboard arg picks the input mode — **MAUI** takes a `Keyboard` (`Keyboard.Email`, `Keyboard.Numeric`, …); **Blazor** takes an HTML `inputType` string (`"email"`, `"number"`, `"password"`, …). |
 | `ActionSheet(title, options, cancelText = "Cancel", destructive = null, configure?)` | `Task<string?>` | One button per option + cancel. Returns the chosen option text, or `null` if cancelled. `destructive` (must match an option) renders that one in red. Defaults to a bottom slide-up, anchored to the bottom of the screen. |
 
 `configure` is an optional `Action<DialogConfig>` for per-call animation and styling. `options` is an `IReadOnlyList<string>`.
+
+**Hiding the cancel button**: `cancelText` is nullable on both `Prompt` and `ActionSheet`. Pass `cancelText: null` to drop the cancel button entirely (otherwise the owned ActionSheet always renders one — unlike a native iOS-style sheet, where a `null` cancel shows nothing). This makes `IDialogService` a clean target when adapting from `Shiny.Framework`'s `IDialogs`, whose `cancel: null` means "no cancel button".
 
 ### PromptResult
 
@@ -170,5 +172,7 @@ Four levels, smallest to largest:
 - Inject `IDialogService` (not the concrete `DialogService`).
 - Use `Alert` for acknowledgements, `Confirm` for a single destructive action (label OK with the verb, e.g. "Delete"), `Prompt` for single-line input, `ActionSheet` to pick from several options.
 - Always check `result.Ok` before using `result.Value`; for `ActionSheet`, a `null` return means cancelled — branch on the returned option text (mark the dangerous one with `destructive:`).
+- For `Prompt`, pass `initialValue`/`maxLength` directly and set the input mode with the keyboard arg (`keyboard: Keyboard.Email` on MAUI, `inputType: "email"` on Blazor) rather than reaching into `configure`.
+- Pass `cancelText: null` to `Prompt` or `ActionSheet` when the caller wants no cancel button.
 - MAUI: no setup beyond `UseShinyControls()`. Blazor: `AddShinyDialogs()` + a single `<DialogHost />`.
 - Set the animation via `configure: c => c.Animation = DialogAnimation.X`, or globally with `ConfigureDialogs`/`AddShinyDialogs(o => ...)`.
