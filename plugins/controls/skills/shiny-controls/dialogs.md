@@ -1,6 +1,6 @@
 # Dialogs
 
-A service-first dialog system that emulates the classic `alert`, `confirm`, and `prompt` primitives with **owned (non-native), animated, themeable** dialogs on **both MAUI and Blazor**. Inject `IDialogService` and `await` a result — no markup per call. The dialog is always rendered by the library (the native platform alert/prompt is never used), so it looks identical across platforms and supports custom animations and templates.
+A service-first dialog system that emulates the classic `alert`, `confirm`, `prompt`, and `action sheet` primitives with **owned (non-native), animated, themeable** dialogs on **both MAUI and Blazor**. Inject `IDialogService` and `await` a result — no markup per call. The dialog is always rendered by the library (the native platform alert/prompt is never used), so it looks identical across platforms and supports custom animations and templates.
 
 > **Naming**: the interface is `IDialogService` (not `IDialogs`) to avoid colliding with `Shiny.Framework`'s `Shiny.IDialogs`. Namespaces: `Shiny.Maui.Controls.Dialogs` / `Shiny.Blazor.Controls.Dialogs`.
 
@@ -51,6 +51,22 @@ public class MyViewModel(IDialogService dialogs)
         if (result.Ok)
             await RenameAsync(result.Value);
     }
+
+    // ActionSheet — returns the chosen option's text (null if cancelled); mark one option destructive (red)
+    async Task PhotoOptions()
+    {
+        var choice = await dialogs.ActionSheet(
+            "Photo",
+            ["Take Photo", "Choose from Library", "Delete Photo"],
+            cancelText: "Cancel",
+            destructive: "Delete Photo");
+        switch (choice)
+        {
+            case "Take Photo": /* … */ break;
+            case "Delete Photo": /* … */ break;
+            case null: /* cancelled */ break;
+        }
+    }
 }
 ```
 
@@ -61,8 +77,9 @@ public class MyViewModel(IDialogService dialogs)
 | `Alert(title, message, okText = "OK", configure?)` | `Task` | Single dismiss button. |
 | `Confirm(title, message, okText = "Yes", cancelText = "No", configure?)` | `Task<bool>` | `true` on confirm, `false` on cancel. |
 | `Prompt(title, message, placeholder = null, okText = "OK", cancelText = "Cancel", configure?)` | `Task<PromptResult>` | Text field + confirm/cancel. |
+| `ActionSheet(title, options, cancelText = "Cancel", destructive = null, configure?)` | `Task<string?>` | One button per option + cancel. Returns the chosen option text, or `null` if cancelled. `destructive` (must match an option) renders that one in red. Defaults to a bottom slide-up, anchored to the bottom of the screen. |
 
-`configure` is an optional `Action<DialogConfig>` for per-call animation and styling.
+`configure` is an optional `Action<DialogConfig>` for per-call animation and styling. `options` is an `IReadOnlyList<string>`.
 
 ### PromptResult
 
@@ -115,7 +132,7 @@ Four levels, smallest to largest:
    builder.Services.AddShinyDialogs(o => o.DefaultAnimation = DialogAnimation.Zoom);
    ```
 
-3. **Full template override** — replace the dialog card while the host still provides the dimmed backdrop and animation. The binding context / fragment context is a `DialogContext` (`Title`, `Message`, `OkText`, `CancelText`, `Placeholder`, `IsPrompt`, `HasCancel`, two-way `PromptValue`, `ConfirmCommand`/`CancelCommand` on MAUI or `Confirm()`/`Cancel()` on Blazor).
+3. **Full template override** — replace the dialog card while the host still provides the dimmed backdrop and animation. The binding context / fragment context is a `DialogContext` (`Title`, `Message`, `OkText`, `CancelText`, `Placeholder`, `IsPrompt`, `IsActionSheet`, `HasCancel`, `Actions`, `DestructiveAction`, two-way `PromptValue`, `ConfirmCommand`/`CancelCommand`/`SelectCommand` on MAUI or `Confirm()`/`Cancel()`/`Select(option)` on Blazor).
 
    ```csharp
    // MAUI: a DataTemplate bound to DialogContext
@@ -151,7 +168,7 @@ Four levels, smallest to largest:
 ## Code Generation Guidance
 
 - Inject `IDialogService` (not the concrete `DialogService`).
-- Use `Alert` for acknowledgements, `Confirm` for destructive actions (label OK with the verb, e.g. "Delete"), `Prompt` for single-line input.
-- Always check `result.Ok` before using `result.Value`.
+- Use `Alert` for acknowledgements, `Confirm` for a single destructive action (label OK with the verb, e.g. "Delete"), `Prompt` for single-line input, `ActionSheet` to pick from several options.
+- Always check `result.Ok` before using `result.Value`; for `ActionSheet`, a `null` return means cancelled — branch on the returned option text (mark the dangerous one with `destructive:`).
 - MAUI: no setup beyond `UseShinyControls()`. Blazor: `AddShinyDialogs()` + a single `<DialogHost />`.
 - Set the animation via `configure: c => c.Animation = DialogAnimation.X`, or globally with `ConfigureDialogs`/`AddShinyDialogs(o => ...)`.
