@@ -6,50 +6,50 @@
   },
   "metadata": {
     "description": "Shiny plugins and agent skills for Claude Code and GitHub Copilot CLI",
-    "version": "1.10.0"
+    "version": "1.11.0"
   },
   "plugins": [
     {
       "name": "shiny-client",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-client",
       "description": "Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting, including L2CAP channels), GPS tracking with motion activity recognition, geofencing (native + GPS-direct), background jobs (native iOS/Android schedulers plus in-process jobs for plain .NET, Linux, macOS, and Blazor WASM), local & push notifications (APNs/FCM/Firebase Messaging/Azure), HTTP background transfers across iOS, Android, Windows, Linux, macOS, and Blazor WASM (Service Worker Background Sync, with Azure Blob Storage uploads), OBD-II vehicle diagnostics (ELM327/OBDLink auto-detection, custom commands, pluggable transports), music library access (ShazamKit identification, custom playlists, play counts, synced lyrics, Apple Music streaming), health data (HealthKit/Health Connect) with read/write and real-time observation, speech-to-text, text-to-speech, audio capture and playback, AI conversation service (wake word detection, acknowledgement modes, persistent message store, AI chat history), and core infrastructure with DI, lifecycle hooks, and native hosting"
     },
     {
       "name": "shiny-maui",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-maui",
       "description": ".NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, pluggable dialogs, and cross-platform device contact store with CRUD, LINQ queries, paging, and permissions"
     },
     {
       "name": "shiny-controls",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/controls",
       "description": "Shiny Controls — shared .NET MAUI and Blazor UI components including TableView, FloatingPanel/OverlayHost, ShinyDurationPicker, FrostedGlassView, Toast service, ChatView, ImageViewer/ImageEditor, AutoCompleteEntry, CountryPicker, AddressEntry, PillView, SecurityPin, SignaturePad, Fab/FabMenu, scheduler/calendar views, TextEntry, Slider, ProgressBar, overlays, Markdown/Mermaid rendering, TextToSpeechButton, and feedback/haptics"
     },
     {
       "name": "shiny-mediator",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-mediator",
       "description": "Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams (EventStream/WaitForSingleEvent/Subscribe), middleware pipelines (cache, resilient, sample, throttle, validate, main thread, timer refresh), source-generated HTTP client proxies, OpenAPI client generation, SSE endpoint auto-generation, AI tools integration via Microsoft.Extensions.AI, and project scaffolding with code generation"
     },
     {
       "name": "shiny-data",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-data",
       "description": "Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, LiteDB, CosmosDB, IndexedDB for Blazor WASM, MySQL, SQL Server, PostgreSQL) with LINQ queries, spatial/geo queries, batch operations, SQLCipher encryption, hot backup, diff tracking (JsonPatchDocument), and AI tool exposure; Spatial geospatial database with SQLite R*Tree indexing, custom geometry algorithms, geofencing package, and pre-built US/Canada geographic databases"
     },
     {
       "name": "shiny-aspire",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-aspire",
       "description": "Shiny .NET Aspire integrations — Orleans ADO.NET hosting with selective schema provisioning (clustering, persistence, reminders) and Gluetun VPN container routing with WireGuard/OpenVPN, HTTP proxy, Shadowsocks, and firewall subnet controls"
     },
     {
       "name": "shiny-extensions",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "source": "./plugins/shiny-extensions",
-      "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, and modular ASP.NET Core web hosting with IWebModule"
+      "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, modular ASP.NET Core web hosting with IWebModule, and server-side push notification dispatch (APNs, FCM HTTP v1, Web Push VAPID/RFC 8291, WNS) with provider-agnostic core, Shiny.DocumentDb persistence, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing"
     }
   ]
 }

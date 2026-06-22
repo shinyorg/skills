@@ -49,7 +49,7 @@
       "name": "shiny-extensions",
       "version": "1.10.0",
       "source": "./plugins/shiny-extensions",
-      "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, and modular ASP.NET Core web hosting with IWebModule"
+      "description": "Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, modular ASP.NET Core web hosting with IWebModule, and server-side push notification dispatch (APNs, FCM HTTP v1, Web Push VAPID/RFC 8291, WNS) with provider-agnostic core, Shiny.DocumentDb persistence, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing"
     }
   ]
 }
