@@ -277,9 +277,9 @@ frames above threshold (default 3) and `InMotion=false` only after `ExitFrames` 
 single noisy frame or a brief pause mid-movement doesn't fire it. Raise `EnterFrames` if motion is still too
 twitchy. The **overlay boxes are not debounced** — they track every frame so they stay responsive.
 
-### Documents — typed events (Invoice, Receipt, DriversLicense, HealthCard, CreditCard, Passport)
+### Documents — typed events (Invoice, Receipt, BusinessCard, DriversLicense, HealthCard, CreditCard, Passport)
 
-Each document type is its **own analyzer with its own strongly-typed event** (`DocumentDetected` typed to its payload). Every payload is a strong record with **nullable fields** (only what was found is set). Ships `InvoiceAnalyzer` (`Invoice`, order lines in `.Lines`), `ReceiptAnalyzer` (`Receipt` — line items in `.Lines`, per-tax breakdown in `.Taxes`, plus subtotal/tip/discount/total), `DriversLicenseAnalyzer` (`DriversLicense`), `HealthCardAnalyzer` (`HealthCard`), `CreditCardAnalyzer` (`CreditCard`), `PassportAnalyzer` (`Passport`).
+Each document type is its **own analyzer with its own strongly-typed event** (`DocumentDetected` typed to its payload). Every payload is a strong record with **nullable fields** (only what was found is set). Ships `InvoiceAnalyzer` (`Invoice`, order lines in `.Lines`), `ReceiptAnalyzer` (`Receipt` — line items in `.Lines`, per-tax breakdown in `.Taxes`, plus subtotal/tip/discount/total), `BusinessCardAnalyzer` (`BusinessCard` — emails in `.Emails`, phones in `.Phones`, plus name/title/company/website/address), `DriversLicenseAnalyzer` (`DriversLicense`), `HealthCardAnalyzer` (`HealthCard`), `CreditCardAnalyzer` (`CreditCard`), `PassportAnalyzer` (`Passport`).
 
 **Fields accumulate across frames.** A document that reveals its fields gradually (number, then name, then expiry) is **merged** over up to `AccumulationFrames` frames (default 5) and `DocumentDetected` fires **once** with the richest combined record — not a stream of partials. It fires early when the parser reports the read complete, and won't re-fire while the same document stays in view; `ResetAfterEmptyFrames` (default 5) re-arms once the document leaves the frame. Set `AccumulationFrames = 1` for the old fire-every-frame behavior. (`DriversLicenseAnalyzer` is PDF417/AAMVA — complete in one read — so it isn't accumulated.)
 
@@ -303,8 +303,9 @@ Camera.Scan();               // arm — DocumentDetected fires once on the next 
 - **Passports** parse the **MRZ** (the two `<<<` lines, ICAO TD3) → `Passport` (number, surname, given names, nationality, issuing country, DOB, expiry, sex) — MRZ parse is deterministic.
 - **Credit cards**: `CreditCard.Type` (Visa/Mastercard/Amex/…) and number validity come from the IIN prefix + Luhn (deterministic); name/expiry/company are best-effort OCR. `Cvv` is on the back and PCI-sensitive, so it's almost always `null` from a front scan.
 - **Receipts** parse the merchant header, purchased line items (`Receipt.Lines`), a **per-tax breakdown** (`Receipt.Taxes`, each with an optional rate) plus `Subtotal` / `Tax` (sum) / `Tip` / `Discount` / `Total`, and best-effort `PaymentMethod` / `CardLast4` / `Currency` / `Date` / `Time` — OCR + rules, so swap in a custom `IDocumentParser<Receipt>` for accuracy.
+- **Business cards** parse the cardholder `Name` + `JobTitle`, the `Company`, the contact channels — `Emails` and typed `Phones` (each tagged Mobile/Office/Fax… from its line label), `Website`, and a best-effort `Address`. Email / phone / URL are matched deterministically; name / title / company are heuristic (cards have no fixed layout). `BusinessCard.Email` / `.Phone` convenience props return the first of each. OCR + rules — swap in a custom `IDocumentParser<BusinessCard>` (e.g. an LLM) for production accuracy.
 - **Health cards** are OCR + best-effort rules tuned for **Canadian** cards: the parser detects the issuing province from on-card keywords and applies that province's number format — Quebec/RAMQ (4 letters + 8 digits), Ontario/OHIP (10 digits + 2-letter version code), BC PHN (10), Alberta/AHCIP (9), etc. — surfacing `HealthCard.Province` and a `Plan` field. Unknown layouts fall back to the longest plausible digit run.
-- **Invoices / receipts / health cards / credit cards** are OCR + best-effort rules. Swap the rules by passing a custom `IDocumentParser<T>`:
+- **Invoices / receipts / business cards / health cards / credit cards** are OCR + best-effort rules. Swap the rules by passing a custom `IDocumentParser<T>`:
   `new InvoiceAnalyzer(new MyInvoiceParser())`, where `MyInvoiceParser : IDocumentParser<Invoice>` returns the typed payload + the boxes to draw. (`OcrAnalyzer` itself just raises `TextRecognized` with raw `RecognizedText` blocks.)
 
 **Payload records** (all data properties nullable; enums default to `Unknown`/`Unspecified` — populated only when found):
@@ -315,6 +316,8 @@ record InvoiceLine(string? Description, decimal? Quantity, decimal? UnitPrice, d
 record Receipt(string? Merchant, string? MerchantPhone, string? ReceiptNumber, DateOnly? Date, TimeOnly? Time, IReadOnlyList<ReceiptLine> Lines, decimal? Subtotal, IReadOnlyList<ReceiptTax> Taxes, decimal? Tax, decimal? Tip, decimal? Discount, decimal? Total, string? Currency, string? PaymentMethod, string? CardLast4, IReadOnlyList<DocumentField> Fields);
 record ReceiptLine(string? Description, decimal? Quantity, decimal? UnitPrice, decimal? Amount, RectF? Bounds);
 record ReceiptTax(string? Label, decimal? Rate, decimal? Amount, RectF? Bounds);
+record BusinessCard(string? Name, string? JobTitle, string? Company, IReadOnlyList<string> Emails, IReadOnlyList<BusinessCardPhone> Phones, string? Website, string? Address, IReadOnlyList<DocumentField> Fields);   // .Email / .Phone convenience props = first of each
+record BusinessCardPhone(string Number, string? Type, RectF? Bounds);   // Type = Mobile / Office / Fax / … from the line label
 record DriversLicense(string? Number, string? FirstName, string? LastName, DateOnly? DateOfBirth, DateOnly? Expiry, string? Address, string? Jurisdiction, IReadOnlyList<DocumentField> Fields);
 record HealthCard(string? Number, string? Name, DateOnly? Expiry, string? Issuer, string? Province, IReadOnlyList<DocumentField> Fields);
 record CreditCard(CreditCardType Type, string? Number, DateOnly? Expiry, string? FirstName, string? LastName, string? CompanyName, string? Cvv, IReadOnlyList<DocumentField> Fields);
@@ -333,49 +336,50 @@ using Shiny.Controls.Camera;                  // RecognizedText, DocumentField, 
 using Shiny.Maui.Controls.Camera.Documents;   // DocumentAnalyzer<T>
 
 // 1) payload — nullable fields (only what was found is set) + a Fields bag for extras
-public record BusinessCard(string? Name, string? Company, string? Email, string? Phone, IReadOnlyList<DocumentField> Fields);
+//    (BusinessCard already ships — this LoyaltyCard is just an illustrative custom type)
+public record LoyaltyCard(string? Program, string? MemberName, string? MemberNumber, IReadOnlyList<DocumentField> Fields);
 
 // 2) parser — turn OCR'd lines into the payload + the boxes to draw. RecognizedText is already normalized + upright.
-public sealed partial class BusinessCardParser : IDocumentParser<BusinessCard>
+public sealed partial class LoyaltyCardParser : IDocumentParser<LoyaltyCard>
 {
-    [GeneratedRegex(@"[\w.+-]+@[\w-]+\.[\w.-]+")] private static partial Regex Email();
+    [GeneratedRegex(@"\b\d[\d ]{8,}\d\b")] private static partial Regex Number();
 
-    public bool TryParse(IReadOnlyList<RecognizedText> text, out BusinessCard document, out IReadOnlyList<OverlayBox> boxes)
+    public bool TryParse(IReadOnlyList<RecognizedText> text, out LoyaltyCard document, out IReadOnlyList<OverlayBox> boxes)
     {
         document = null!; boxes = [];
-        var emailLine = text.FirstOrDefault(t => Email().IsMatch(t.Text));
-        if (emailLine is null) return false;   // cheap "is this my document?" signal — bail fast, else clears overlay
+        var numberLine = text.FirstOrDefault(t => Number().IsMatch(t.Text));
+        if (numberLine is null) return false;   // cheap "is this my document?" signal — bail fast, else clears overlay
 
-        var email = Email().Match(emailLine.Text).Value;
-        var name  = text.FirstOrDefault()?.Text;
-        var fields = new List<DocumentField> { new("Name", name, text.FirstOrDefault()?.BoundingBox), new("Email", email, emailLine.BoundingBox) };
-        document = new BusinessCard(name, null, email, null, fields);
+        var number  = Number().Match(numberLine.Text).Value.Replace(" ", "");
+        var program = text.FirstOrDefault()?.Text;
+        var fields = new List<DocumentField> { new("Program", program, text.FirstOrDefault()?.BoundingBox), new("Member #", number, numberLine.BoundingBox) };
+        document = new LoyaltyCard(program, null, number, fields);
         boxes = fields.Where(f => f.Bounds is not null).Select(f => new OverlayBox(f.Bounds!.Value, Colors.Lime, f.Label)).ToList();
         return true;
     }
 }
 
 // 3) analyzer — one-liner; wires the parser
-public sealed class BusinessCardAnalyzer : DocumentAnalyzer<BusinessCard>
+public sealed class LoyaltyCardAnalyzer : DocumentAnalyzer<LoyaltyCard>
 {
-    public BusinessCardAnalyzer() : base(new BusinessCardParser()) { }
-    public BusinessCardAnalyzer(IDocumentParser<BusinessCard> parser) : base(parser) { }  // allow swap-in
-    public override string Id => "myapp.camera.businesscard";
+    public LoyaltyCardAnalyzer() : base(new LoyaltyCardParser()) { }
+    public LoyaltyCardAnalyzer(IDocumentParser<LoyaltyCard> parser) : base(parser) { }  // allow swap-in
+    public override string Id => "myapp.camera.loyaltycard";
 }
 ```
 
-Rules: `TryParse` runs on the analysis thread (keep it fast, allocation-light, no UI); return `false` (lead with a cheap signal check) when it isn't your document so it doesn't misfire each frame; OCR is native so it needs iOS/Android/Windows/macOS (not bare `net10.0`); a remote/LLM parser is fine — the analyzer drops frames while busy (one in flight). To only change rules on a built-in type, skip the new analyzer and pass a parser to the existing one: `new InvoiceAnalyzer(new MyInvoiceParser())`.
+Rules: `TryParse` runs on the analysis thread (keep it fast, allocation-light, no UI); return `false` (lead with a cheap signal check) when it isn't your document so it doesn't misfire each frame; OCR is native so it needs iOS/Android/Windows/macOS (not bare `net10.0`); a remote/LLM parser is fine — the analyzer drops frames while busy (one in flight). To only change rules on a built-in type, skip the new analyzer and pass a parser to the existing one: `new BusinessCardAnalyzer(new MyLlmBusinessCardParser())`.
 
 **Opt into frame accumulation** (optional): `IDocumentParser<T>` has two default interface methods you can override so the analyzer merges your document across frames before firing instead of emitting every partial read. `Merge(accumulated, incoming)` fills in fields seen on later frames (typically `accumulated.X ?? incoming.X`, and `return incoming` when it's a *different* document); `IsComplete(document)` lets it fire early once the key fields are present. The defaults (replace + never-complete) preserve the legacy fire-every-`AccumulationFrames`-frames behavior, so existing custom parsers keep working untouched.
 
 ```csharp
-public BusinessCard Merge(BusinessCard a, BusinessCard b) => a with
+public LoyaltyCard Merge(LoyaltyCard a, LoyaltyCard b) => a with
 {
-    Name = a.Name ?? b.Name, Company = a.Company ?? b.Company,
-    Email = a.Email ?? b.Email, Phone = a.Phone ?? b.Phone,
+    Program = a.Program ?? b.Program, MemberName = a.MemberName ?? b.MemberName,
+    MemberNumber = a.MemberNumber ?? b.MemberNumber,
     Fields = a.Fields.Count >= b.Fields.Count ? a.Fields : b.Fields
 };
-public bool IsComplete(BusinessCard d) => d.Email is not null && d.Phone is not null;
+public bool IsComplete(LoyaltyCard d) => d.MemberNumber is not null;
 ```
 
 ### Capture & stop on detection ("scan then freeze")
@@ -492,7 +496,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - `CameraView` is the native preview surface. To draw boxes, layer a `CameraOverlayView` over it in the same `Grid` cell with `Camera="{x:Reference Camera}"` — don't try to draw inside the `CameraView` itself.
 - Subscribe to the analyzer's **typed event** for results (`BarcodeAnalyzer.BarcodesDetected`, `FaceAnalyzer.FacesDetected`, `MotionAnalyzer.MotionChanged`, `OcrAnalyzer.TextRecognized`, `*Analyzer.DocumentDetected`) — detection events carry an **array** (a frame can hold several). Don't read semantic data off `OverlaysChanged` — that channel is presentation only.
 - `OverlayBox.Rect` is normalized (0..1), upright, mirror-corrected. The overlay converts via `CoordinateTransform.MapToView(...)` — never assume raw pixel coordinates.
-- `BarcodeAnalyzer` and `DriversLicenseAnalyzer` (PDF417/AAMVA) read with the **native scanner** — Apple Vision on iOS/macOS and Android MLKit — so they only produce results there; both are a **no-op on Windows and bare `net10.0`** (no native barcode scanner). `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
+- `BarcodeAnalyzer` and `DriversLicenseAnalyzer` (PDF417/AAMVA) read with the **native scanner** — Apple Vision on iOS/macOS and Android MLKit — so they only produce results there; both are a **no-op on Windows and bare `net10.0`** (no native barcode scanner). `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `BusinessCardAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
 - **OCR runs once per frame, shared.** Every OCR-backed analyzer (`OcrAnalyzer` + all the document analyzers) uses the same `TextRecognizer`, which caches its result on the frame instance — so enabling Invoice + Receipt + HealthCard + CreditCard + Passport together still does **one** OCR pass per frame, not five. The shared pass runs with Vision **language correction off** (it corrupts structured fields like license/MRZ/card numbers, totals, and dates by snapping codes to dictionary words); parsers fuzzy-match the raw text.
 - **Document analyzers deskew before OCR.** The document analyzers (not `OcrAnalyzer`) call `RecognizeDocumentAsync`, which detects the document, perspective-corrects (deskews) it, then OCRs the flat crop — a big accuracy win for angled cards/IDs, since flat text reads far more reliably. Per platform: **iOS/macOS** = Vision (`VNDetectDocumentSegmentationRequest`) + Core Image; **Windows** = OpenCvSharp (Canny → largest convex quad → `WarpPerspective`); **Android** = a dependency-free managed detector (Otsu + largest bright region + extreme corners) + native `Matrix.SetPolyToPoly` warp (no OpenCV, so the package stays trim/AOT-clean); **bare net10.0** = no-op. When no document is found it falls back to whole-frame OCR. The overlay becomes the detected document outline (`DocumentAnalyzer.BoxColor`). Everything keeps the live `CameraView` preview — this is a frame analyzer, not a modal scanner.
 - Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so delivery marshals to the UI thread, they get `IsEnabled` + `ShowBoundingBox` + arming, and their `Command`/`OnDetected` bind in XAML. Deliver a confirmed result with `Deliver(args, raiseEvent, command, onDetected)` — it's gated by arming (does nothing while disarmed), consumes the arm so a lingering detection won't re-fire, and re-arms when `onDetected` returns `true`. Expose your own typed `OnDetected` (`Func<TArgs, Task<bool>>`) bindable property and pass it through. Return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` (independent of arming — boxes always draw; suppressed only when `ShowBoundingBox` is `false`).
@@ -521,6 +525,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Read raw text** → set `Camera.Analyzer = new OcrAnalyzer()` and handle `TextRecognized`.
 - **Parse an invoice** → set `Camera.Analyzer = new InvoiceAnalyzer()` and handle `DocumentDetected` (`Invoice` with `.Lines`).
 - **Parse a receipt** → set `Camera.Analyzer = new ReceiptAnalyzer()` and handle `DocumentDetected` (`Receipt` with `.Lines`, `.Taxes`, subtotal/tip/total).
+- **Scan a business card** → set `Camera.Analyzer = new BusinessCardAnalyzer()` and handle `DocumentDetected` (`BusinessCard` — name/title/company + `.Emails` / `.Phones` / website).
 - **Scan a driver's license / health card** → set `Camera.Analyzer` to `DriversLicenseAnalyzer` (deterministic AAMVA) or `HealthCardAnalyzer` from `.Camera.Documents`.
 - **Scan a passport** → `PassportAnalyzer` (deterministic MRZ); **read a credit card** → `CreditCardAnalyzer` (brand+number deterministic).
 - **Offer a choice of detectors** → build them once, assign the chosen one to `Camera.Analyzer` (only one runs at a time).
