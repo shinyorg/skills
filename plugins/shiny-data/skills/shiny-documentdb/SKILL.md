@@ -31,6 +31,11 @@ triggers:
   - FullTextLanguage
   - FTS5
   - tsvector
+  - computed property
+  - computed column
+  - MapComputedProperty
+  - derived property
+  - generated column
   - sqlite-vec
   - VectorExtensionPreloaded
   - EnableVectorExtension
@@ -138,6 +143,23 @@ triggers:
   - DocumentSeedRunner
   - DocumentSeedMarker
   - Backup
+  - IDocumentBackup
+  - ExportAsync
+  - RestoreAsync
+  - BulkImportAsync
+  - BulkWriteMode
+  - RawDocument
+  - BulkRestoreOptions
+  - BackupExportOptions
+  - BulkRestoreResult
+  - BulkProgress
+  - bulk export
+  - bulk import
+  - bulk restore
+  - backup
+  - restore
+  - export store
+  - import documents
   - IndexedDbDocumentStore
   - IndexedDbDocumentStoreOptions
   - Shiny.DocumentDb.IndexedDb
@@ -316,6 +338,7 @@ Invoke this skill when the user wants to:
 - Set up multi-tenancy with tenant-per-database isolation (separate database per tenant)
 - Implement `ITenantResolver` for tenant context resolution
 - Back up SQLite, SQLCipher, or LiteDB databases to a file (`Backup`)
+- Stream a whole store out and back in for backup / restore / migration across providers (`IDocumentBackup.ExportAsync` / `RestoreAsync` / `BulkImportAsync`)
 - Wipe the entire store across providers for test/dev resets (`IDocumentMaintenance.ClearAll`)
 - Seed initial data once at startup, versioned and provider-agnostic (`IDocumentSeeder` / `AddDocumentSeeder` / `DocumentSeedRunner`)
 - Expose document types as AI tools for LLM agents (`AddDocumentStoreAITools`)
@@ -833,6 +856,45 @@ await store.Query<Account>().Where(a => a.Permissions.HasFlag(Permissions.Write)
 await store.Query<Account>().Where(a => DocumentFunctions.Soundex(a.Name) == DocumentFunctions.Soundex("Smith")).ToList();
 ```
 
+## Computed Properties (MapComputedProperty)
+
+A computed property is a value derived from other fields that is **not stored in the document JSON** but can be filtered, sorted, and projected by exactly like a stored property. Expose it as a `[JsonIgnore]` property (with a setter) and map it — the first expression is the property it backs, the second is the definition:
+
+```csharp
+public class Order
+{
+    public int     Quantity  { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string  First     { get; set; } = "";
+    public string  Last      { get; set; } = "";
+
+    [JsonIgnore] public decimal Total    { get; set; }
+    [JsonIgnore] public string  FullName { get; set; } = "";
+}
+
+opts.MapComputedProperty<Order, decimal>(o => o.Total,    o => o.Quantity * o.UnitPrice);
+opts.MapComputedProperty<Order, string>(o => o.FullName,  o => o.First + " " + o.Last);
+```
+
+Reference it by name in typed LINQ, the string API, projection, and OData; it is also populated on read:
+
+```csharp
+await store.Query<Order>().Where(o => o.Total > 100).OrderByDescending(o => o.Total).ToList();
+await store.Query<Order>().Where("total > 100").OrderBy("fullName").ToList();   // string API
+await store.Query<Order>().Project("fullName as name, total").ToList();          // projection
+// OData: $filter=total gt 100, $orderby=fullName, $select=total
+```
+
+- **Definitions** support JSON field access, string concatenation, the scalar functions, and numeric arithmetic (`+ - * /`).
+- **Default (alias) mode** inlines the definition into each query — no schema change, every relational provider.
+- **`indexed: true`** materializes a native generated/computed column + index on the relational providers (`VIRTUAL` on SQLite/MySQL, `STORED` on PostgreSQL, `PERSISTED` on SQL Server, virtual on Oracle; DuckDB uses alias mode — it can't add a generated column via `ALTER`) so filters/sorts are index-served:
+  ```csharp
+  opts.MapComputedProperty<Order, decimal>(o => o.Total, o => o.Quantity * o.UnitPrice, indexed: true);
+  ```
+- **LiteDB / IndexedDB** evaluate it in memory (full filter/sort/project/read-back). **MongoDB / Cosmos** support read-back and projection, but **not** server-side filter/sort by a computed property — filter on the underlying stored fields there.
+- **AOT**: fully trim/AOT-safe (never compiled). For a pristine surface use the AOT overload with an explicit setter: `MapComputedProperty<Order, decimal>("Total", o => o.Quantity * o.UnitPrice, setter: (o, v) => o.Total = v)`.
+- The backing property must be writable; a self-referential definition throws.
+
 ## Document Types
 
 Every document type must have a public `Id` property of type `Guid`, `int`, `long`, or `string`. The Id is stored in both the database `Id` column and inside the JSON blob, so query results always include it.
@@ -1088,6 +1150,52 @@ if (store is IDocumentMaintenance maintenance)
 
 // SqliteDocumentStore.ClearAllAsync() still works and now delegates to ClearAll()
 ```
+
+### Bulk export / import / restore (IDocumentBackup)
+
+`IDocumentBackup` is a streaming bulk export/import surface — a **separate capability**, NOT on `IDocumentStore`. Probe for it with `store is IDocumentBackup` (the same pattern as `IDocumentMaintenance`). Implemented by the relational `DocumentStore` (every SQL provider), MongoDB, and Cosmos DB. Both export and restore **stream** (a multi-GB backup never lands fully in memory), and import binds document bodies **verbatim** — no `<T>`, no `JsonTypeInfo`, no reflection over the documents (AOT-friendly).
+
+Three methods:
+- `ExportAsync(Stream, BackupExportOptions?)` — writes the store out as a v1 backup document (a JSON array of `{ id, docType, data }` records, body emitted as-is). `BackupExportOptions { IReadOnlyCollection<string>? DocTypes; bool Indented }`.
+- `RestoreAsync(Stream, BulkRestoreOptions?)` — streams a backup back in with a forward-only reader; returns `BulkRestoreResult`.
+- `BulkImportAsync(IAsyncEnumerable<RawDocument>, BulkRestoreOptions?)` — lower-level primitive over `RawDocument(string Id, string DocType, ReadOnlyMemory<byte> Data)` (raw UTF-8 JSON body). `RestoreAsync` is the JSON adapter on top of it.
+
+```csharp
+// Export the whole store
+await using var file = File.Create("backup.json");
+await ((IDocumentBackup)store).ExportAsync(file);
+
+// Restore into a fresh store (streamed, bodies bound as-is)
+await using var src = File.OpenRead("backup.json");
+var result = await ((IDocumentBackup)store).RestoreAsync(src, new BulkRestoreOptions
+{
+    Mode = BulkWriteMode.Insert,
+    ClearExistingFirst = true,
+    ChunkSize = 5000,
+    Progress = new Progress<BulkProgress>(p => Console.WriteLine($"{p.DocumentsWritten} written"))
+});
+
+// Or feed raw rows from any source
+await ((IDocumentBackup)store).BulkImportAsync(MyRows(), new BulkRestoreOptions { Mode = BulkWriteMode.Replace });
+```
+
+`BulkRestoreOptions`: `BulkWriteMode Mode = Insert`; `bool ClearExistingFirst`; `int ChunkSize = 500`; `bool SingleTransaction` (false = commit per chunk — resumable, bounded WAL/log; true = one transaction); `IProgress<BulkProgress>? Progress`. Result is `BulkRestoreResult(long DocumentsRead, long DocumentsWritten, long DocumentsSkipped, int ChunksCommitted)`.
+
+`BulkWriteMode`:
+- `Insert` — fail on duplicate Id (fastest; multi-row `VALUES` everywhere; native bulk copy where available).
+- `Replace` — overwrite the body wholesale on conflict.
+- `Merge` — RFC 7396 deep-merge (same semantics as `BatchUpsert`).
+- `SkipExisting` — insert new, silently skip existing.
+
+**IMPORTANT — raw restore lane.** The import path deliberately SKIPS versioning/CAS, temporal history, interceptors, tenant scoping, and global query filters — that's where the speed comes from. It is NOT a replacement for `BatchUpsert`; use the normal write APIs when you need those side effects. For a full restore prefer `Insert` or `Replace` — under `Merge`, a `null` in a body deletes that field (RFC 7396).
+
+**Provider tiers:**
+- **Insert** — every provider (relational multi-row `VALUES`; Mongo `BulkWrite`; Cosmos concurrent waves).
+- **Replace & SkipExisting** — all relational providers (`ON CONFLICT` on SQLite/DuckDB/PostgreSQL, `ON DUPLICATE KEY`/`INSERT IGNORE` on MySQL, `MERGE` on SQL Server & Oracle) + Mongo + Cosmos.
+- **Merge** — only SQLite, DuckDB and Mongo/Cosmos. Throws `NotSupportedException` on PostgreSQL/MySQL/SQL Server/Oracle (use `Replace`).
+- **Native bulk-copy fast path** (Insert, 10-100×) — PostgreSQL (binary `COPY`), SQL Server (`SqlBulkCopy`), DuckDB (appender). Others use multi-row `VALUES`.
+
+**Caveats:** Mongo/Cosmos imports are best-effort, NOT atomic (`SingleTransaction` is ignored — those engines lack multi-doc transactions here). Oracle `Replace`/`SkipExisting` build the `MERGE` source via `SELECT … FROM DUAL UNION ALL`, which can reject documents above the VARCHAR2 bind limit (bound as CLOB). Cosmos export is whole-database (all containers); relational export covers the store's configured tables. Sidecar tables (history/spatial/vector/full-text) are not exported — they are rebuilt by the write path on restore.
 
 ## Seeding initial data
 
