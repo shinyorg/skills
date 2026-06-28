@@ -1,4 +1,4 @@
-# ShinyDurationPicker
+# DurationPicker
 
 A standalone duration picker control that opens a FloatingPanel for selection with hour/minute pickers and "hr"/"min" labels.
 
@@ -7,11 +7,11 @@ A standalone duration picker control that opens a FloatingPanel for selection wi
 ## Usage
 
 ```xml
-<shiny:ShinyDurationPicker Duration="{Binding SelectedDuration, Mode=TwoWay}"
-                           MinDuration="0:15:00"
-                           MaxDuration="8:00:00"
-                           MinuteInterval="5"
-                           Placeholder="Choose duration" />
+<shiny:DurationPicker Duration="{Binding SelectedDuration, Mode=TwoWay}"
+                      MinDuration="0:15:00"
+                      MaxDuration="8:00:00"
+                      MinuteInterval="5"
+                      Placeholder="Choose duration" />
 ```
 
 | Property | Type | Default | Description |
