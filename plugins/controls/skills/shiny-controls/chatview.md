@@ -1,297 +1,312 @@
 # ChatView
 
-A modern chat UI control with message bubbles, typing indicators, load-more pagination, and a bottom input bar. Supports single-person and multi-person conversations with per-participant colors and avatars.
+A modern chat UI control with message bubbles, typing indicators, cursor-based load-more paging, reactions, read receipts, a markdown composition toolbar, and image attachments.
+
+ChatView is **provider-driven**: the control is *styles + layout only*. All data, lifecycle, permissions, and real-time behavior live behind an `IChatSessionProvider` you implement (the same integration pattern as the Scheduler control). You do **not** bind a `Messages` collection or wire `SendCommand`/`LoadMoreCommand` — you give the control a `Provider` and a `SessionId`, and it does the rest.
+
+> ChatView is **v1 beta** — the API may still change.
 
 ## Basic Usage
 
 ```xml
-<shiny:ChatView Messages="{Binding Messages}"
-                Participants="{Binding Participants}"
-                IsMultiPerson="True"
-                TypingParticipants="{Binding TypingParticipants}"
-                SendCommand="{Binding SendCommand}"
-                AttachImageCommand="{Binding AttachImageCommand}"
-                LoadMoreCommand="{Binding LoadMoreCommand}"
+<shiny:ChatView Provider="{Binding Provider}"
+                SessionId="{Binding SessionId}"
                 MyBubbleColor="#DCF8C6"
                 OtherBubbleColor="White" />
 ```
 
+```csharp
+public partial class ChatViewModel : ObservableObject
+{
+    public ChatViewModel(IChatSessionProvider provider)
+    {
+        this.Provider = provider;
+        this.SessionId = "demo";
+    }
+
+    public IChatSessionProvider Provider { get; }
+    public string SessionId { get; }
+}
+```
+
+Blazor:
+
+```razor
+<ChatView Provider="provider" SessionId="@sessionId" />
+
+@code {
+    [Inject] public IChatSessionProvider provider { get; set; } = default!;
+    string sessionId = "demo";
+}
+```
+
+## The integration interface
+
+You implement `IChatSessionProvider`, which returns a session-scoped `IChatSession` handle. The control subscribes to the session's events on attach and disposes it on detach.
+
+```csharp
+public interface IChatSessionProvider
+{
+    Task<IChatSession> CreateSessionAsync(string[] userIds, CancellationToken cancellationToken = default);
+
+    // throws ChatSessionException if missing or no access
+    Task<IChatSession> GetSessionAsync(string sessionId, CancellationToken cancellationToken = default);
+}
+
+public interface IChatSession : IAsyncDisposable
+{
+    ChatSessionInfo Info { get; }     // always current — refreshed before SessionUpdated fires
+    string CurrentUserId { get; }     // drives bubble alignment + ownership checks
+
+    // cursor-based paging (stable under live inserts); null + Older = newest page
+    Task<MessagePage> GetMessagesAsync(string? cursorMessageId, MessagePageDirection direction, int count, CancellationToken ct = default);
+
+    Task<ChatMessage> SendMessageAsync(OutgoingMessage message, CancellationToken ct = default);
+    Task<ChatMessage> ResendMessageAsync(string clientMessageId, CancellationToken ct = default);
+    Task EditMessageAsync(string messageId, string body, CancellationToken ct = default);
+    Task DeleteMessageAsync(string messageId, CancellationToken ct = default);
+
+    // add == true toggles the emoji on; add == false removes it
+    Task ReactToMessageAsync(string messageId, string emoji, bool add, CancellationToken ct = default);
+
+    Task MarkReadAsync(string[] messageIds, CancellationToken ct = default);   // control passes only visible, not-mine, unread ids
+    Task ToggleTypingAsync(bool isTyping, CancellationToken ct = default);
+    Task InviteUserAsync(string userId, CancellationToken ct = default);
+    Task LeaveAsync(CancellationToken ct = default);
+    Task RenameAsync(string sessionName, CancellationToken ct = default);
+
+    event EventHandler<ChatMessage> MessageReceived;       // includes echoes of own sends (multi-device)
+    event EventHandler<MessageChanged> MessageUpdated;     // carries WHAT changed
+    event EventHandler<string> MessageDeleted;
+    event EventHandler<UserTypingEvent> UserTyping;
+    event EventHandler<ChatSessionUserInfo> UserJoined;
+    event EventHandler<ChatSessionUserInfo> UserLeft;
+    event EventHandler<ChatSessionInfo> SessionUpdated;
+    event EventHandler<ChatConnectionState> ConnectionStateChanged;
+}
+```
+
+Events may fire off the UI thread — the control marshals them. The control merges/dedups messages by `MessageId` and reconciles optimistic sends by `ClientMessageId`. Ownership is `message.SenderId == session.CurrentUserId`.
+
 ## Data Models
 
-### ChatMessage
+These records are identical on MAUI and Blazor **except** `ChatSessionUserInfo` (MAUI uses `ImageSource`/`Color`; Blazor uses `string` URL / CSS color).
 
 ```csharp
-public class ChatMessage
-{
-    public string Id { get; set; }                          // Auto-generated GUID
-    public string? Text { get; set; }                       // null for image messages
-    public string? ImageUrl { get; set; }                   // null for text messages
-    public string SenderId { get; set; }
-    public DateTimeOffset Timestamp { get; set; }
-    public bool IsFromMe { get; set; }
-    public string? Identifier { get; set; }                 // Optional user-defined identifier for post-send context
-    public DateTimeOffset? DateSent { get; set; }           // When null, bubble renders dimmed (pending/offline). Only applies to user messages.
-    public List<Acknowledgement>? Acknowledgements { get; set; } // Reactions displayed as badges below bubble
-    public IList<FabMenuItem>? ToolItems { get; set; }     // Per-message bubble tool overrides (MAUI only)
-}
-```
+public record ChatMessage(
+    string MessageId,
+    string? ClientMessageId,                 // matches OutgoingMessage.ClientMessageId for echo reconciliation
+    string SenderId,
+    string? Body,                            // markdown
+    string? ImageUrl,
+    MessageStatus Status,                    // Sending/Sent/Delivered/Read/Failed/Rejected
+    string? StatusReason,                    // shown on Failed/Rejected bubbles
+    DateTimeOffset Timestamp,
+    DateTimeOffset? EditedTimestamp,
+    IReadOnlyList<Reaction> Reactions,
+    IReadOnlyList<ReadReceipt> ReadReceipts, // per-user; control collapses to a "Read" hint for 1:1
+    string? Identifier = null,               // template-selector discriminator
+    IReadOnlyDictionary<string, string>? Metadata = null   // custom payload for templates
+);
 
-### Acknowledgement
+public enum MessageStatus { Sending, Sent, Delivered, Read, Failed, Rejected }
 
-```csharp
-public class Acknowledgement
-{
-    public string? Glyph { get; set; }     // Emoji/character (e.g., 👍, ❤️, 💯)
-    public string UserId { get; set; }     // ID of the user who reacted
-    public DateTime Timestamp { get; set; } // When the reaction was added
-}
-```
+public record Reaction(string UserId, string Emoji, DateTimeOffset Timestamp);
+public record ReadReceipt(string UserId, DateTimeOffset Timestamp);
 
-Acknowledgements are grouped by `Glyph` and rendered as small badge pills below the chat bubble. The count is displayed beside the glyph only when > 1.
+public record MessageChanged(ChatMessage Message, MessageChangeKind Change);
+public enum MessageChangeKind { Edited, ReactionChanged, ReadReceiptChanged, StatusChanged }
 
-### ChatParticipant
+public record MessagePage(IReadOnlyList<ChatMessage> Messages, bool HasMore);  // Messages always chronological asc
+public enum MessagePageDirection { Older, Newer }
 
-```csharp
+public record OutgoingMessage(string? Body, OutgoingAttachment? Attachment = null, string ClientMessageId = "");
+public record OutgoingAttachment(ChatAttachmentKind Kind, Stream Content, string FileName, string ContentType); // provider OWNS + DISPOSES Content
+public enum ChatAttachmentKind { Image }
+
+public record ChatSessionInfo(
+    string SessionId,
+    string SessionName,
+    ChatSessionUserInfo[] Users,
+    string[]? PermittedEmojis,               // null => control default set; empty => no reactions
+    MessageBodyPermissions BodyPermissions,  // drives the markdown toolbar
+    ChatSessionPermissions Permissions,      // drives every action affordance
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastReadDate,
+    int UnreadMessageCount
+);
+
 // MAUI
-public class ChatParticipant
+public record ChatSessionUserInfo(string UserId, string DisplayName, ImageSource? Avatar, Color? BubbleColor, DateTimeOffset JoinedDate);
+// Blazor
+public record ChatSessionUserInfo(string UserId, string DisplayName, string? AvatarUrl, string? BubbleColor, DateTimeOffset JoinedDate);
+
+public record UserTypingEvent(string UserId, bool IsTyping, DateTimeOffset Timestamp);
+public enum ChatConnectionState { Connected, Reconnecting, Offline }
+```
+
+### Permissions
+
+The control derives every action affordance from `Info.Permissions` + ownership — there is no per-tool wiring anymore.
+
+```csharp
+[Flags]
+public enum ChatSessionPermissions
 {
-    public string Id { get; set; }
-    public string DisplayName { get; set; }
-    public ImageSource? Avatar { get; set; }     // MAUI ImageSource
-    public Color? BubbleColor { get; set; }      // MAUI Color
+    None = 0,
+    CanSendMessages = 1,
+    CanEditMessages = 2,    // own messages only
+    CanDeleteMessages = 4,  // own messages only
+    CanReactToMessages = 8,
+    CanInviteUsers = 16,
+    CanLeaveSession = 32,
+    CanChangeSessionName = 64,
+    CanSendImages = 128,    // gates the gallery/camera attach affordance
+
+    Default = CanSendMessages | CanSendImages | CanReactToMessages | CanInviteUsers | CanLeaveSession,
+    All = CanSendMessages | CanEditMessages | CanDeleteMessages | CanReactToMessages
+        | CanInviteUsers | CanLeaveSession | CanChangeSessionName | CanSendImages
 }
 
-// Blazor
-public class ChatParticipant
+[Flags]
+public enum MessageBodyPermissions
 {
-    public string Id { get; set; }
-    public string DisplayName { get; set; }
-    public string? AvatarUrl { get; set; }       // URL string
-    public string? BubbleColor { get; set; }     // CSS color string
+    None = 0,
+    Links = 1, Bold = 2, Italics = 4, Underline = 8, Strikethrough = 16, Codeblocks = 32,
+    All = Links | Bold | Italics | Underline | Strikethrough | Codeblocks
 }
 ```
+
+| Permission | Surfaced as |
+|---|---|
+| `CanSendMessages` | input bar enabled; `SendMessageAsync` |
+| `CanEditMessages` | "Edit" on own bubbles → `EditMessageAsync` |
+| `CanDeleteMessages` | "Delete" on own bubbles → `DeleteMessageAsync` |
+| `CanReactToMessages` | reaction picker (filtered to `PermittedEmojis`) → `ReactToMessageAsync` |
+| `CanInviteUsers` | invite affordance → `InviteUserAsync` |
+| `CanLeaveSession` | leave affordance → `LeaveAsync` |
+| `CanChangeSessionName` | rename affordance → `RenameAsync` |
+| `CanSendImages` | gallery/camera attach affordance |
+
+### Exceptions — provider rejects, control reacts
+
+Validation that depends on server/business rules lives in the **provider**; the control attempts optimistically and renders the verdict — it never pre-checks size/count.
+
+```csharp
+// GetSessionAsync: session missing or no access
+public class ChatSessionException : Exception { ... }
+
+// SendMessageAsync/ResendMessageAsync/EditMessageAsync: content refused (too big, too many images, etc.)
+// -> control flips the optimistic bubble to MessageStatus.Rejected, sets StatusReason, no retry.
+public class ChatSendRejectedException : Exception { public SendRejectionKind Kind { get; } }
+public enum SendRejectionKind { MessageTooLarge, TooManyAttachments, AttachmentTooLarge, UnsupportedContent, NotPermitted, Other }
+```
+
+A *transient* failure (no exception of this type) → `MessageStatus.Failed` + retry via `ResendMessageAsync`. A *rejection* → `MessageStatus.Rejected` + reason, no retry.
 
 ## ChatView Properties
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `Messages` | `IList<ChatMessage>` | `null` | Message collection; observes `INotifyCollectionChanged` on MAUI |
-| `Participants` | `IList<ChatParticipant>` | `null` | Participant info for avatar/name/color lookup by `SenderId` |
-| `IsMultiPerson` | `bool` | `false` | Show avatars and names for other participants |
-| `ShowAvatarsInSingleChat` | `bool` | `false` | Force avatars/names even in single-person mode |
-| `MyBubbleColor` | `Color` / `string` | `#DCF8C6` | Local user bubble color |
-| `MyTextColor` | `Color` / `string` | `Black` | Local user text color |
-| `OtherBubbleColor` | `Color` / `string` | `White` | Default other-user bubble color (overridden by participant's `BubbleColor`) |
-| `OtherTextColor` | `Color` / `string` | `Black` | Other-user text color |
-| `ChatBackgroundColor` | `Color?` / `string?` | `null` | Background color for the messages area |
-| `BubbleFontSize` | `double` | `15` | Font size for message bubble text |
-| `BubbleFontFamily` | `string?` | `null` | Font family for message bubble text |
-| `TimestampFontSize` | `double` | `11` | Font size for timestamp labels |
-| `BubbleCornerRadius` | `double` | `18` | Corner radius for message bubbles (tail corner remains 4) |
-| `PlaceholderText` | `string` | `"Type a message..."` | Input field placeholder |
+| `Provider` | `IChatSessionProvider?` | `null` | The integration provider |
+| `SessionId` | `string?` | `null` | Session to resolve via `GetSessionAsync` |
+| `PageSize` | `int` | `30` | Messages fetched per page |
+| `OpenImagesInViewer` | `bool` | `true` | Tapping an image bubble opens the built-in `ImageViewer` |
+| `MyBubbleColor` | `Color`/`string` | `#DCF8C6` | Local user bubble color |
+| `MyTextColor` | `Color`/`string` | `Black` | Local user text color |
+| `OtherBubbleColor` | `Color`/`string` | `White` | Default other-user bubble color (overridden by user's `BubbleColor`) |
+| `OtherTextColor` | `Color`/`string` | `Black` | Other-user text color |
+| `ChatBackgroundColor` | `Color?`/`string?` | `null` | Messages area background |
+| `BubbleFontSize` | `double` | `15` | Bubble text size (MAUI) |
+| `BubbleFontFamily` | `string?` | `null` | Bubble font family (MAUI) |
+| `TimestampFontSize` | `double` | `11` | Timestamp size (MAUI) |
+| `BubbleCornerRadius` | `double` | `18` | Bubble corner radius (tail corner remains 4) (MAUI) |
+| `PlaceholderText` | `string` | `"Type a message..."` | Input placeholder |
 | `SendButtonText` | `string` | `"Send"` | Send button label |
-| `SendButtonBackgroundColor` | `Color` / `string` | `#007AFF` | Send button background color |
-| `SendButtonTextColor` | `Color` / `string` | `White` | Send button text color |
-| `InputBarBackgroundColor` | `Color` / `string` | `#F5F5F5` | Input bar background color |
-| `InputBarBorderColor` | `Color` / `string` | `#E0E0E0` | Input bar top border/separator color |
-| `IsInputBarVisible` | `bool` | `true` | Show/hide the entire input bar |
-| `ShowTypingIndicator` | `bool` | `true` | Enable/disable typing indicator |
-| `TypingParticipants` | `IList<ChatParticipant>` | `null` | Currently typing participants (do not include "me") |
-| `ScrollToFirstUnread` | `bool` | `false` | Scroll to first unread message instead of end |
-| `FirstUnreadMessageId` | `string?` | `null` | ID of the first unread message |
-| `ToolItems` | `IList<ChatEntryTool>` | `null` | Input bar tools FAB menu items (MAUI only) |
-| `ToolsIcon` | `ImageSource` | `null` | Icon for the tools FabMenu button (MAUI only) |
-| `ToolsText` | `string?` | `null` | Text label for the tools FabMenu button (MAUI only) |
-| `ToolsFabBackgroundColor` | `Color` | `#007AFF` | Background color of the tools FabMenu button (MAUI only) |
-| `BubbleToolItems` | `IList<ChatBubbleTool>` | `null` | Bubble tools for received (other user) messages (MAUI only) |
-| `MyBubbleToolItems` | `IList<ChatBubbleTool>` | `null` | Bubble tools for the local user's own messages (MAUI only) |
-| `MessageTappedCommand` | `ICommand` | `null` | Fired when a message bubble is tapped (MAUI only) |
+| `SendButtonBackgroundColor` | `Color`/`string` | `#007AFF` | Send button background (MAUI) |
+| `SendButtonTextColor` | `Color`/`string` | `White` | Send button text (MAUI) |
+| `InputBarBackgroundColor` | `Color`/`string` | `#F5F5F5` | Input bar background (MAUI) |
+| `InputBarBorderColor` | `Color`/`string` | `#E0E0E0` | Input bar separator (MAUI) |
+| `IsInputBarVisible` | `bool` | `true` | Show/hide the input bar (set `false` for read-only chats) |
+| `ShowTypingIndicator` | `bool` | `true` | Enable typing indicators |
+| `ScrollToFirstUnread` | `bool` | `false` | Anchor initial scroll at the first unread (via `Info.LastReadDate`) instead of the end |
+| `InputActions` | `IList<ChatInputAction>` | `[]` | Custom input-bar actions (MAUI only) |
+| `CustomBubbleActions` | `IList<ChatBubbleAction>` | `[]` | Custom bubble actions appended to the permission-driven set (MAUI only) |
 | `MessageTemplate` | `DataTemplate?` | `null` | Single template for all message content (MAUI only) |
 | `MessageTemplateSelector` | `DataTemplateSelector?` | `null` | Per-type template selector (MAUI only) |
 | `UseFeedback` | `bool` | `true` | Haptic feedback on interactions (MAUI only) |
-| `AdjustForKeyboard` | `bool` | `true` | iOS-only: chat adds bottom padding equal to the on-screen keyboard overlap so the input bar stays visible. **Set `False` when ChatView is hosted inside a FloatingPanel** — otherwise the chat-level padding, the panel's focus-driven detent animation, and MAUI's `KeyboardAutoManagerScroll` fight each other and the Entry drops keystrokes. (MAUI only) |
-
-## Commands (MAUI ICommand) / Events (Blazor EventCallback)
-
-| MAUI | Blazor | Parameter | Description |
-|---|---|---|---|
-| `SendCommand` | `EventCallback<string>` | text string | Fires when user sends a text message via Enter or Send button |
-| `AttachImageCommand` | `EventCallback` | -- | Fires when user taps attach button; user implements own image picker |
-| `LoadMoreCommand` | `EventCallback` | -- | Fires when user scrolls near top; prepend older messages to the list |
-| `MessageTappedCommand` | `EventCallback<ChatMessage>` | message | Fires when a message bubble is tapped |
+| `AdjustForKeyboard` | `bool` | `true` | iOS-only keyboard padding. **Set `False` when ChatView is hosted inside a FloatingPanel** (otherwise keyboard handling fights itself and the Entry drops keystrokes). (MAUI only) |
 
 ## Methods (MAUI only)
 
-| Method | Description |
+| Member | Description |
 |---|---|
 | `ScrollToEnd(bool animate)` | Scroll to the latest message |
-| `ScrollToMessage(string messageId, bool animate)` | Scroll to a specific message by ID |
-| `SubmitEntry()` | Programmatically submit current input text |
+| `ScrollToMessage(string messageId, bool animate)` | Scroll to a message by id |
+| `SubmitEntry()` | Programmatically submit the input text |
 | `EntryText` (property) | Get/set the input field text |
+| `MessageTapped` (event) | Fires for non-image bubble taps |
 
-## Tool Base Classes (MAUI only)
+## What the control handles for you
 
-### ChatEntryTool
+- **Optimistic send:** generates `ClientMessageId`, shows a `Sending` bubble, reconciles with the echo. `ChatSendRejectedException` → `Rejected` + reason (no retry); other failure → `Failed` + retry (`ResendMessageAsync`). No offline queue — send is only attempted while `Connected`.
+- **Cursor paging:** initial `GetMessagesAsync(null, Older, PageSize)`; loads older on scroll-to-top using the oldest `MessageId`; stops when `HasMore` is false.
+- **Reactions:** picker filtered to `Info.PermittedEmojis`; `null` falls back to the built-in default set (👍 👎 ❤️ 😂 😮 😢 😡 🔥 👏 🙏 💯 🎉); empty array = no reactions.
+- **Read receipts:** marks only visible, not-mine, unread ids; ignores inbound `ReadReceiptChanged` for the current user (no loops).
+- **Typing:** debounces `ToggleTypingAsync`; expires stale inbound typing indicators.
+- **Connection:** shows a banner and disables the input bar while not `Connected`.
+- **Markdown toolbar:** shows formatting buttons per `Info.BodyPermissions`; renders the markdown subset (`**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, underline, `[text](url)`) in bubbles. Self-contained — no Markdown-package dependency.
+- **Images:** an attach affordance (shown when `CanSendImages`) offers Gallery, plus Camera when the platform supports capture (MAUI `MediaPicker.IsCaptureSupported`; Blazor `<InputFile capture>`). Tapping an image bubble opens the `ImageViewer` when `OpenImagesInViewer`.
 
-Non-abstract base class for input bar tools that need ChatView access. Can be used directly in XAML with a `Command` binding, or subclassed for self-contained tools.
+## Custom actions (MAUI only)
 
-```csharp
-public class ChatEntryTool : FabMenuItem
-{
-    protected ChatView? ChatView { get; private set; }
-    // Attach/Detach called automatically by ChatView
-}
-```
-
-Use directly in XAML:
-```xml
-<shiny:ChatEntryTool Text="Camera" Icon="camera.png"
-                     FabBackgroundColor="#4CAF50"
-                     Command="{Binding TakePhotoCommand}" />
-```
-
-Or subclass for tools that need to read/write the input text or submit:
+The old `ChatEntryTool`/`ChatBubbleTool` FAB tool tree is gone. Built-in actions (react/edit/delete/copy) are derived from permissions. For app-specific verbs, add lightweight actions:
 
 ```csharp
-public class MyCustomTool : ChatEntryTool
+public class ChatInputAction : BindableObject
 {
-    public MyCustomTool()
-    {
-        Text = "My Tool";
-        FabBackgroundColor = Colors.Purple;
-        Clicked += OnClicked;
-    }
+    public string? Text { get; set; }
+    public ImageSource? Icon { get; set; }
+    public Func<ChatView, Task>? Handler { get; set; }
+    public event EventHandler<ChatView>? Clicked;
+    public virtual Task InvokeAsync(ChatView chatView);   // overridable
+}
 
-    void OnClicked(object? sender, EventArgs e)
-    {
-        if (ChatView is null) return;
-        ChatView.EntryText = "Hello!";
-        ChatView.SubmitEntry();
-    }
+public class ChatBubbleAction : BindableObject
+{
+    public string? Text { get; set; }
+    public ImageSource? Icon { get; set; }
+    public Func<ChatMessage, Task>? Handler { get; set; }
+    public event EventHandler<ChatMessage>? Clicked;
+    public virtual Task InvokeAsync(ChatMessage message);  // overridable
 }
 ```
-
-### ChatBubbleTool
-
-Non-abstract base class for bubble tools that act on a message. Can be used directly in XAML with a `Command` binding (receives `ChatMessage` via `CommandParameter`), or subclassed for self-contained tools.
-
-```csharp
-public class ChatBubbleTool : FabMenuItem
-{
-    protected ChatMessage? Message { get; } // Auto-populated via CommandParameter
-    protected void RequestRefresh();         // Triggers UI refresh after modifying message data
-}
-```
-
-Use directly in XAML:
-```xml
-<shiny:ChatBubbleTool Text="Translate" FabBackgroundColor="#9C27B0"
-                      Command="{Binding TranslateCommand}" />
-```
-
-Or subclass for tools that operate on the tapped message:
-
-```csharp
-public class MyBubbleTool : ChatBubbleTool
-{
-    public MyBubbleTool()
-    {
-        Text = "Translate";
-        FabBackgroundColor = Colors.Teal;
-        Clicked += OnClicked;
-    }
-
-    async void OnClicked(object? sender, EventArgs e)
-    {
-        if (Message is null) return;
-        // Do something with Message.Text
-    }
-}
-```
-
-### Built-in Tools
-
-| Tool | Base Class | Package | Description |
-|---|---|---|---|
-| `CopyBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Copies message text/ImageUrl to clipboard |
-| `TextToSpeechBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls.SpeechAddins` | Reads message text aloud |
-| `SpeechToTextTool` | `ChatEntryTool` | `Shiny.Maui.Controls.SpeechAddins` | Voice input for chat entry |
-| `PhotoGalleryEntryTool` | `ChatEntryTool` | `Shiny.Maui.Controls` | Opens device photo gallery via MAUI MediaPicker, fires `AttachImageCommand` with file path |
-| `TakePhotoEntryTool` | `ChatEntryTool` | `Shiny.Maui.Controls` | Opens device camera via MAUI MediaPicker, fires `AttachImageCommand` with file path |
-| `AcknowledgementBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Single-tap toggle for a specific reaction emoji. Set `Glyph` and optionally `UserId`. Bind `Command` to notify server (receives `AcknowledgementChangedContext`). |
-| `AcknowledgementSelectorBubbleTool` | `ChatBubbleTool` | `Shiny.Maui.Controls` | Opens action sheet with 12 default emoji reactions. Customizable via `Glyphs` property. Bind `Command` to notify server (receives `AcknowledgementChangedContext`). |
-
-## Bubble Tools (MAUI only)
-
-Bubble tools are split by message ownership:
-- `BubbleToolItems` — shown on received (other user) messages
-- `MyBubbleToolItems` — shown on the local user's own messages
-
-The ⋮ button appears on each bubble that has applicable tools:
 
 ```xml
-<shiny:ChatView Messages="{Binding Messages}"
-                SendCommand="{Binding SendCommand}">
-    <!-- Tools for received messages -->
-    <shiny:ChatView.BubbleToolItems>
-        <shiny:CopyBubbleTool />
-        <shiny:AcknowledgementBubbleTool Glyph="👍" Command="{Binding AckCommand}" />
-        <shiny:AcknowledgementBubbleTool Glyph="👎" Command="{Binding AckCommand}" />
-        <shiny:AcknowledgementSelectorBubbleTool Command="{Binding AckCommand}" />
-        <shiny:ChatBubbleTool Text="Reply" FabBackgroundColor="#2196F3"
-                              Command="{Binding ReplyCommand}" />
-    </shiny:ChatView.BubbleToolItems>
-
-    <!-- Tools for my own messages -->
-    <shiny:ChatView.MyBubbleToolItems>
-        <shiny:CopyBubbleTool />
-    </shiny:ChatView.MyBubbleToolItems>
+<shiny:ChatView Provider="{Binding Provider}" SessionId="{Binding SessionId}">
+    <shiny:ChatView.InputActions>
+        <speech:SpeechToTextTool AutoSend="False" SilenceTimeout="00:00:03" />
+    </shiny:ChatView.InputActions>
+    <shiny:ChatView.CustomBubbleActions>
+        <speech:TextToSpeechBubbleTool />
+    </shiny:ChatView.CustomBubbleActions>
 </shiny:ChatView>
 ```
 
-- `ChatBubbleTool` with `Command`: `CommandParameter` is automatically set to the `ChatMessage`
-- `AcknowledgementBubbleTool` / `AcknowledgementSelectorBubbleTool` with `Command`: receives `AcknowledgementChangedContext` with `.Message` and `.Glyph`
-- Per-message override: set `ChatMessage.ToolItems` to replace the default tools for that message
+`SpeechToTextTool : ChatInputAction` and `TextToSpeechBubbleTool : ChatBubbleAction` ship in `Shiny.Maui.Controls.SpeechAddins`.
 
-## Input Bar Tools (MAUI only)
+## Custom message templates (MAUI only)
 
-```xml
-<shiny:ChatView Messages="{Binding Messages}"
-                SendCommand="{Binding SendCommand}"
-                ToolsIcon="tools.png"
-                ToolsFabBackgroundColor="#007AFF">
-    <shiny:ChatView.ToolItems>
-        <shiny:ChatEntryTool Text="Camera" Icon="camera.png"
-                             FabBackgroundColor="#4CAF50"
-                             Command="{Binding TakePhotoCommand}" />
-        <shiny:SpeechToTextTool AutoSend="False" SilenceTimeout="00:00:03" />
-    </shiny:ChatView.ToolItems>
-</shiny:ChatView>
-```
-
-## Custom Message Templates (MAUI only)
-
-Subclass `ChatMessage` for different message types, then use a `DataTemplateSelector`:
+Use `ChatMessage.Identifier` or `Metadata` as the discriminator in a `DataTemplateSelector`:
 
 ```csharp
-public class ActionChatMessage : ChatMessage
-{
-    public string ActionText { get; set; } = "Accept";
-}
-
 public class ChatMessageTemplateSelector : DataTemplateSelector
 {
     public DataTemplate? TextTemplate { get; set; }
     public DataTemplate? ActionTemplate { get; set; }
 
     protected override DataTemplate? OnSelectTemplate(object item, BindableObject container)
-    {
-        return item switch
-        {
-            ActionChatMessage => ActionTemplate,
-            _ => TextTemplate
-        };
-    }
+        => item is ChatMessage { Identifier: "action" } ? ActionTemplate : TextTemplate;
 }
 ```
 
@@ -300,35 +315,20 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
     <local:ChatMessageTemplateSelector>
         <local:ChatMessageTemplateSelector.TextTemplate>
             <DataTemplate x:DataType="shiny:ChatMessage">
-                <Label Text="{Binding Text}" />
+                <Label Text="{Binding Body}" />
             </DataTemplate>
         </local:ChatMessageTemplateSelector.TextTemplate>
-        <local:ChatMessageTemplateSelector.ActionTemplate>
-            <DataTemplate x:DataType="local:ActionChatMessage">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="{Binding Text}" />
-                    <Button Text="{Binding ActionText}"
-                            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MyViewModel}}, Path=AcceptCommand}"
-                            CommandParameter="{Binding .}" />
-                </VerticalStackLayout>
-            </DataTemplate>
-        </local:ChatMessageTemplateSelector.ActionTemplate>
     </local:ChatMessageTemplateSelector>
 </shiny:ChatView.MessageTemplateSelector>
 ```
 
 ## Code Generation Guidance
 
-- Use `ChatView` for any chat/messaging/conversation UI — do not hand-build bubble layouts with `CollectionView`
-- Set `DateSent = null` on outgoing messages to dim the bubble until server confirmation arrives, then set `DateSent = DateTimeOffset.Now` (supports offline/background send scenarios)
-- Use `Identifier` to associate server-side context (e.g., a server message ID) with a ChatMessage after sending
-- Add `Acknowledgement` items to `Acknowledgements` to show reaction badges (grouped by glyph, count shown when > 1)
-- Always provide a `Participants` list for multi-person chats; each participant's `BubbleColor` is optional
-- `SendCommand` receives the text string — the control clears the input after sending
-- `AttachImageCommand` fires a signal; the user implements their own image picker and adds a `ChatMessage` with `ImageUrl`
-- For input bar tools, use `ChatEntryTool` directly with a `Command` binding, or subclass for self-contained tools. Never use `FabMenuItem` in `ToolItems`.
-- For bubble tools, use `ChatBubbleTool` directly with a `Command` binding, or subclass for self-contained tools. For acknowledgement reactions, use `AcknowledgementBubbleTool` or `AcknowledgementSelectorBubbleTool`.
-- `LoadMoreCommand` fires when the user scrolls near the top; prepend older messages with `Insert(0, msg)`
-- `TypingParticipants` should never include the local user (the "you are typing" is excluded by design)
-- Set `IsInputBarVisible = false` for read-only chat views (e.g., chat history, support logs)
-- Use `MessageTemplate` for simple customization; use `MessageTemplateSelector` for multiple message types
+- Implement `IChatSessionProvider` to back the chat — **do not** bind a `Messages` collection or wire `SendCommand`/`LoadMoreCommand`/`AttachImageCommand` (those no longer exist). Give the control a `Provider` + `SessionId`.
+- Put all validation (size caps, image counts, content policy) in the provider; throw `ChatSendRejectedException` to reject a send and `ChatSessionException` for an unknown/forbidden session. Never reimplement those checks in the UI.
+- Gate features with `ChatSessionPermissions` on `ChatSessionInfo` — the control shows/hides affordances automatically. Set `MessageBodyPermissions` to control the markdown toolbar; set `CanSendImages` to allow attachments.
+- Raise `MessageReceived` for inbound messages and echoes of the sender's own messages; raise `MessageUpdated` with the right `MessageChangeKind` for edits/reactions/receipts; the control updates by `MessageId`.
+- `GetMessagesAsync` is cursor-based — return `HasMore=false` when there's no more history. Messages within a page must be chronological ascending.
+- For reactions, expose `PermittedEmojis` (or `null` for the default set); the control toggles via `ReactToMessageAsync(id, emoji, add)`.
+- Set `IsInputBarVisible = false` for read-only chats. Set `AdjustForKeyboard = false` when hosting inside a FloatingPanel.
+- For app-specific verbs (MAUI), add `ChatInputAction`/`ChatBubbleAction` — don't try to recreate the removed tool classes.
