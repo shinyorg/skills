@@ -4,7 +4,8 @@ A cross-platform camera control for **.NET MAUI** (iOS, Android, Windows, macOS 
 
 - **MAUI core**: `Shiny.Maui.Controls.Camera` — `CameraView` (handler-based `View`) + `CameraOverlayView` (drop-in box overlay), backed by AVFoundation (Apple), CameraX (Android), Media Capture (Windows). Register with `.UseShinyCamera()`.
 - **Blazor core**: `Shiny.Blazor.Controls.Camera` — `<CameraView>` component over `getUserMedia` / `MediaRecorder` / `BarcodeDetector`.
-- **Analyzer add-ons** (MAUI): `Shiny.Maui.Controls.Camera.Barcode`, `.Camera.Face`, `.Camera.Motion`, `.Camera.Ocr`, `.Camera.Documents` (Invoice / Receipt / DriversLicense / HealthCard / CreditCard / Passport). Add only what you need.
+- **Analyzer add-ons** (MAUI): `Shiny.Maui.Controls.Camera.Barcode`, `.Camera.Face`, `.Camera.Motion`, `.Camera.Ocr`, `.Camera.Documents` (Invoice / Receipt / DriversLicense / HealthCard / CreditCard / Passport), `.Camera.Ai` (AI document scanner — detect-then-send-to-`IChatClient`). Add only what you need.
+- **AI document scanner**: `Shiny.Maui.Controls.Camera.Ai` (MAUI) / `Shiny.Blazor.Controls.Camera.Ai` (Blazor) — detect a document is *present*, then send that one frame to a **Microsoft.Extensions.AI `IChatClient`** for structured extraction. See *AI document scanner* below.
 - **Shared contracts**: `Shiny.Controls.Camera` namespace — `IFrameAnalyzer`, `FrameAnalyzer` (base), `OverlayBox`, `CameraFrame`, `CoordinateTransform`, the document building blocks (`RecognizedText`, `DocumentField`, `DocumentLineItem`, `DocumentDetectedEventArgs<T>`, `IDocumentParser<T>`), and the enums (`CameraFacing`, `CameraFilter`, `CameraFlashMode`, `PreviewScaleMode`).
 
 **One analyzer at a time:** `CameraView.Analyzer` holds a **single** `IFrameAnalyzer` (null = none) — assign or swap it live; it's the content property so it can be declared inline in XAML.
@@ -23,6 +24,7 @@ dotnet add package Shiny.Maui.Controls.Camera.Face
 dotnet add package Shiny.Maui.Controls.Camera.Motion
 dotnet add package Shiny.Maui.Controls.Camera.Ocr
 dotnet add package Shiny.Maui.Controls.Camera.Documents   # Invoice / Receipt / DriversLicense / HealthCard / CreditCard / Passport
+dotnet add package Shiny.Maui.Controls.Camera.Ai          # AI document scanner — detect a document, then parse it with Microsoft.Extensions.AI
 ```
 
 ```csharp
@@ -382,6 +384,52 @@ public LoyaltyCard Merge(LoyaltyCard a, LoyaltyCard b) => a with
 public bool IsComplete(LoyaltyCard d) => d.MemberNumber is not null;
 ```
 
+### AI document scanner (`Shiny.Maui.Controls.Camera.Ai` — detect, then let an LLM read it)
+
+When you don't want to write parse rules — or the document is free-form — use **`AiDocumentAnalyzer<TDocument>`**. It splits the work to save time and money: a **cheap, native presence detector** runs every frame (Apple Vision document segmentation; managed edge detection on Android/Windows — **no OCR**) and draws a live outline, but the **(paid) model call fires at most once per document**, only when one is **steadily in view** and the analyzer is **armed**. At that moment it encodes *just that one frame* to JPEG (cropped to the document) and sends it to a **Microsoft.Extensions.AI `IChatClient`**, parsing the reply straight into `TDocument` via MEAI **structured output**. The model call runs **off the analysis thread**, so the preview never stalls.
+
+```csharp
+using Shiny.Maui.Controls.Camera.Ai;
+using Shiny.Controls.Camera;          // AiDocument (built-in schema-free payload)
+
+// any IChatClient with a vision model — Azure OpenAI / OpenAI / Ollama / …
+IChatClient chat = serviceProvider.GetRequiredService<IChatClient>();
+
+// 1) zero-setup: free-form AiDocument (DocumentType + Summary + label/value Fields), trim/AOT-safe
+var ai = new AiDocumentAnalyzer(chat) { Prompt = "Extract every field from this document." };
+ai.DocumentDetected += (_, e) =>
+{
+    AiDocument doc = e.Document;       // doc.DocumentType, doc.Summary, doc.Fields[]
+    foreach (var f in doc.Fields) Console.WriteLine($"{f.Label}: {f.Value}");
+};
+
+// 2) strongly typed: your own record (give it context-backed JsonSerializerOptions for AOT)
+public record Invoice(string? Number, decimal? Total, string[] LineItems);
+var typed = new AiDocumentAnalyzer<Invoice>(chat) { SerializerOptions = MyJsonContext.Default.Options };
+typed.DocumentDetected += (_, e) => { Invoice inv = e.Document; /* ... */ };
+
+Camera.Analyzer = ai;
+Camera.Scan();   // arm — the model is called once the document is held steady; OnDetected → true keeps scanning
+```
+
+It reuses the document delivery model — `DocumentDetected` event, `DocumentDetectedCommand`, `OnDetected` (`Func<DocumentDetectedEventArgs<TDocument>, Task<bool>>`), `ShowBoundingBox`, `OverlayProvider`. Tuning: `Prompt`, `Options` (`ChatOptions` — model id/temperature), `SerializerOptions`, `StabilityFrames` (frames a doc must persist before shipping, default 3), `CropPadding` / `SendWholeFrame`, `BoxColor`. An `Error` event surfaces network/auth/parse failures without tearing down the pipeline. Encoding is native per platform (Apple Core Image, Android YUV→JPEG, Windows `BitmapEncoder`); **bare `net10.0` has no encoder, so the analyzer is inert there** (detection still runs).
+
+**Blazor parity** (`Shiny.Blazor.Controls.Camera.Ai`): assign a **`DocumentAnalyzer`** to the camera's `Analyzer` (an in-browser luminance/edge heuristic detects presence + draws the outline), then drive it with **`AiDocumentScanner<TDocument>`** (or `AiDocumentScanner` for `AiDocument`):
+
+```razor
+@using Shiny.Blazor.Controls.Camera.Ai
+@code {
+    readonly AiDocumentScanner scanner = new(chatClient);   // IChatClient
+    // camera.Analyzer = new DocumentAnalyzer();
+    async Task Scan()
+    {
+        AiDocument? doc = await scanner.ScanAsync(camera);   // waits for a steady doc, ships the frame, parses
+    }
+}
+```
+
+`ScanAsync` awaits `CameraView.RequestDocumentImageAsync` (the gated "next steadily-present document → cropped JPEG") then sends it to the `IChatClient`. Give the scanner context-backed `SerializerOptions` for trim/AOT-safe WASM (the non-generic `AiDocumentScanner` does this for you).
+
 ### Capture & stop on detection ("scan then freeze")
 
 There's no declarative capture/stop flag — do it explicitly inside the analyzer's `OnDetected`. Arm with
@@ -463,7 +511,7 @@ public Func<DocumentDetectedEventArgs<Passport>, Task<bool>> OnPassport => async
 }
 ```
 
-Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (today `BarcodeAnalyzer`, which carries `ScanWindow`; `FaceAnalyzer` is a placeholder that reports "not supported") — `null` disables analysis. It mirrors the gated model **imperatively** via `@ref`: boxes draw continuously, but a decoded value is only delivered through **`RequestBarcodeAsync(ct)`** — it arms the detector, resolves on the next barcode, then goes quiet (`await` = the gate; looping = "keep scanning"). `ct` cancels an outstanding request. The **`BarcodesDetected`** `EventCallback<IReadOnlyList<CameraBarcode>>` still exists but is **gated** — it fires (with every code in the frame) only while a `RequestBarcodeAsync` is outstanding, so the default is quiet (no per-frame firehose). Set `Analyzer.ScanWindow` to a normalized `RectF` to restrict scanning to a band (the JS overlay dims outside it and draws a reticle). Barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) and `ShowOverlay="true"` (JS-canvas boxes) are unaffected. Changing `Facing`/`CameraId`/`Analyzer`/`ShowOverlay` while running re-acquires the stream; `Filter` updates live and is baked into `CapturePhotoAsync` stills. **Only barcode detection runs in the browser** — face/motion/OCR/document analyzers are MAUI-native.
+Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (today `BarcodeAnalyzer`, which carries `ScanWindow`; `FaceAnalyzer` is a placeholder that reports "not supported") — `null` disables analysis. It mirrors the gated model **imperatively** via `@ref`: boxes draw continuously, but a decoded value is only delivered through **`RequestBarcodeAsync(ct)`** — it arms the detector, resolves on the next barcode, then goes quiet (`await` = the gate; looping = "keep scanning"). `ct` cancels an outstanding request. The **`BarcodesDetected`** `EventCallback<IReadOnlyList<CameraBarcode>>` still exists but is **gated** — it fires (with every code in the frame) only while a `RequestBarcodeAsync` is outstanding, so the default is quiet (no per-frame firehose). Set `Analyzer.ScanWindow` to a normalized `RectF` to restrict scanning to a band (the JS overlay dims outside it and draws a reticle). Barcode scanning uses the browser `BarcodeDetector` (Chromium only); on unsupported browsers `OnError` fires once and preview continues. `OverlaysChanged` (`IReadOnlyList<OverlayBox>`) and `ShowOverlay="true"` (JS-canvas boxes) are unaffected. Changing `Facing`/`CameraId`/`Analyzer`/`ShowOverlay` while running re-acquires the stream; `Filter` updates live and is baked into `CapturePhotoAsync` stills. Two analyzers run in the browser: **`BarcodeAnalyzer`** (native `BarcodeDetector`) and **`DocumentAnalyzer`** (an in-browser presence heuristic that pairs with `RequestDocumentImageAsync` + the `Shiny.Blazor.Controls.Camera.Ai` `AiDocumentScanner` — see *AI document scanner* above). Face/motion/OCR analyzers are MAUI-native.
 
 ## Properties (MAUI `CameraView`)
 
@@ -502,6 +550,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so delivery marshals to the UI thread, they get `IsEnabled` + `ShowBoundingBox` + arming, and their `Command`/`OnDetected` bind in XAML. Deliver a confirmed result with `Deliver(args, raiseEvent, command, onDetected)` — it's gated by arming (does nothing while disarmed), consumes the arm so a lingering detection won't re-fire, and re-arms when `onDetected` returns `true`. Expose your own typed `OnDetected` (`Func<TArgs, Task<bool>>`) bindable property and pass it through. Return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` (independent of arming — boxes always draw; suppressed only when `ShowBoundingBox` is `false`).
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix; declare the **one** active analyzer inside `<cam:CameraView>` (content property = `Analyzer`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`. To offer several detectors, build them once and assign the chosen one to `Camera.Analyzer` (see the sample).
 - Invoice/health-card parsing is **best-effort rules** — swap accuracy in via a custom `IDocumentParser<T>`. Driver's-license parsing is deterministic (AAMVA).
+- **AI document scanner** (`AiDocumentAnalyzer` / Blazor `AiDocumentScanner`) needs an `IChatClient` (a **vision** model) supplied by the consumer — it ships images, not text. It detects presence cheaply every frame but only calls the model **while armed + the document is steady** (one call per document), so it stays cost-efficient. For trim/AOT, pass `SerializerOptions` built from a `JsonSerializerContext` for your `TDocument` (the built-in `AiDocument` already is). MAUI encoding is native per platform; **inert on bare `net10.0`** (no encoder).
 - Use `QRCodeView`/`BarcodeView` from `Shiny.Maui.Controls.Barcodes` to *render* (generate) a code; use the CameraView `BarcodeAnalyzer` to *scan* one. They are different packages for different jobs.
 
 ## Common Pitfalls
@@ -528,6 +577,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Scan a business card** → set `Camera.Analyzer = new BusinessCardAnalyzer()` and handle `DocumentDetected` (`BusinessCard` — name/title/company + `.Emails` / `.Phones` / website).
 - **Scan a driver's license / health card** → set `Camera.Analyzer` to `DriversLicenseAnalyzer` (deterministic AAMVA) or `HealthCardAnalyzer` from `.Camera.Documents`.
 - **Scan a passport** → `PassportAnalyzer` (deterministic MRZ); **read a credit card** → `CreditCardAnalyzer` (brand+number deterministic).
+- **Parse a free-form or unknown document with AI** → `Camera.Analyzer = new AiDocumentAnalyzer(chatClient)` from `.Camera.Ai` (detects presence, then sends one frame to a Microsoft.Extensions.AI `IChatClient`). On Blazor, assign a `DocumentAnalyzer` and drive it with `AiDocumentScanner`. Use a strongly-typed `AiDocumentAnalyzer<T>` when you have a fixed schema.
 - **Offer a choice of detectors** → build them once, assign the chosen one to `Camera.Analyzer` (only one runs at a time).
 - **Apply a live look** → set `Filter`.
 - **Pick a specific lens / webcam** → `GetAvailableCamerasAsync()` + `CameraId`.
