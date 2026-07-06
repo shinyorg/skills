@@ -4,19 +4,26 @@
 
 ```bash
 dotnet add package Shiny.Speech
+dotnet add package Shiny.Audio                   # Referenced transitively by Shiny.Speech; add directly for audio-only use
 dotnet add package Shiny.Speech.Azure            # Optional: Azure AI Speech
 dotnet add package Shiny.Speech.ElevenLabs       # Optional: ElevenLabs STT (Scribe) + TTS
+dotnet add package Shiny.Speech.Typecast         # Optional: Typecast TTS (TTS only)
 ```
 
-## Namespace
+## Namespaces
 
 ```csharp
-using Shiny.Speech;
+using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
+using Shiny.Audio;  // IAudioSource, IAudioPlayer, PipeStream, AccessState
 ```
+
+`AccessState` and the audio interfaces moved from `Shiny.Speech` into the standalone `Shiny.Audio`
+package/namespace. DI extension methods (`AddSpeechServices`, `AddAudioServices`, `AddAudioSource`,
+`AddAudioPlayer`, …) remain in the `Shiny` namespace.
 
 ## AccessState Enum
 
-Permission/availability states for speech services.
+Permission/availability states for speech and audio services (namespace `Shiny.Audio`).
 
 ```csharp
 public enum AccessState
@@ -228,8 +235,13 @@ Platform-native audio playback. Registered as singleton. Implements `IAsyncDispo
 ```csharp
 public interface IAudioPlayer : IAsyncDisposable
 {
-    // Play MP3 format audio from a stream
+    // Play audio (e.g. MP3) from a stream
     Task PlayAsync(Stream audioStream, CancellationToken cancellationToken = default);
+
+    // Play from a remote http/https URL or a local file path — the platform resolves the
+    // source natively (no platform-specific file URI needed). Remote sources stream on
+    // Android/Windows/Browser and are buffered on Apple.
+    Task PlayAsync(string source, CancellationToken cancellationToken = default);
 
     // Stop playback
     Task StopAsync();
