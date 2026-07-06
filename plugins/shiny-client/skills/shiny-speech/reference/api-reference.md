@@ -220,13 +220,52 @@ Platform-native microphone audio capture. Registered as transient. Implements `I
 ```csharp
 public interface IAudioSource : IAsyncDisposable
 {
-    // Start capturing raw PCM audio (16kHz, 16-bit, mono)
-    Task<Stream> StartCaptureAsync(CancellationToken cancellationToken = default);
+    // Optional runtime mic-permission request (Available on platforms without a runtime prompt)
+    Task<AccessState> RequestAccess() => Task.FromResult(AccessState.Available);
+
+    // Start capturing raw PCM audio (16kHz, 16-bit, mono). The optional processing argument
+    // requests best-effort voice-processing effects (AEC / noise suppression / AGC).
+    Task<Stream> StartCaptureAsync(
+        AudioProcessingOptions? processing = null,
+        CancellationToken cancellationToken = default
+    );
 
     // Stop audio capture
     Task StopCaptureAsync();
 }
 ```
+
+## AudioProcessingOptions Record
+
+Best-effort microphone voice-processing effects (in the `Shiny.Audio` namespace). Any effect a
+platform or device can't honor is silently skipped.
+
+```csharp
+public record AudioProcessingOptions
+{
+    // Acoustic echo cancellation — subtracts the device's own speaker/TTS output from the mic
+    // signal so it isn't re-captured while the mic is open (barge-in).
+    bool EchoCancellation { get; init; }
+
+    // Noise suppression — attenuates steady background noise.
+    bool NoiseSuppression { get; init; }
+
+    // Automatic gain control — normalizes capture level.
+    bool AutomaticGainControl { get; init; }
+
+    // True when at least one effect is requested.
+    bool AnyEnabled { get; }
+
+    static AudioProcessingOptions VoiceChat { get; }  // all three enabled
+    static AudioProcessingOptions None { get; }       // raw capture
+}
+```
+
+Platform mapping: **Apple** → single Voice-Processing I/O unit (any flag enables all three);
+**Android** → `AcousticEchoCanceler` / `NoiseSuppressor` / `AutomaticGainControl` (+ `VoiceCommunication`
+source when AEC requested); **Windows** → `Communications` capture category (no per-effect control);
+**Browser** → `getUserMedia` constraints (WebRTC AEC3). Native on-device `ISpeechToTextService`
+manages its own mic and ignores this.
 
 ## IAudioPlayer Interface
 
@@ -293,6 +332,11 @@ public record SpeechRecognitionOptions
     // Keywords for keyword detection (null = no keyword detection)
     // When set, KeywordHeard event fires on case-insensitive whole-word matches
     string[]? Keywords { get; init; }
+
+    // Voice-processing effects applied when a provider captures via IAudioSource (cloud
+    // providers). Enable EchoCancellation to stop TTS bleeding into the mic. null = raw.
+    // Native on-device recognizers ignore this.
+    AudioProcessingOptions? AudioProcessing { get; init; }
 }
 ```
 
@@ -378,14 +422,11 @@ When running in a Blazor WebAssembly app, `AddSpeechServices()` auto-detects the
 - **`BrowserSpeechToTextService`** — Uses the Web Speech API `SpeechRecognition` interface via `[JSImport]`/`[JSExport]` interop. Raises `ResultReceived`, `KeywordHeard`, and `Error` events.
 - **`BrowserTextToSpeechService`** — Uses the Web Speech API `SpeechSynthesis` interface via `[JSImport]`/`[JSExport]` interop
 - **`BrowserAudioPlayer`** — Converts streams to base64 data URLs and plays via HTML5 `Audio` element
-- **`BrowserAudioSource`** — Throws `PlatformNotSupportedException` (raw PCM capture is not available in the browser; the Web Speech API handles audio internally)
+- **`BrowserAudioSource`** — Captures raw PCM (16 kHz, 16-bit, mono) via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`); honors `AudioProcessingOptions` through `getUserMedia` constraints
 
 All browser implementations are annotated with `[SupportedOSPlatform("browser")]`.
 
-Blazor WASM apps must include the JS interop module in `index.html`:
-```html
-<script src="shiny-speech.js"></script>
-```
+The JS interop module (`shiny-audio.js`) ships as a static web asset inside the **`Shiny.Audio`** package (`_content/Shiny.Audio/shiny-audio.js`) and is imported on demand via `JSHost.ImportAsync`. **No `<script>` tag and no manual `wwwroot` copy are needed** — referencing the NuGet package is sufficient.
 
 ## DI Extension Methods
 
@@ -529,9 +570,9 @@ public record ElevenLabsConfig
 - Verify API keys and region settings
 
 ### Browser/WASM speech not working
-- Ensure `shiny-speech.js` is included in `index.html` via `<script src="shiny-speech.js"></script>`
+- `shiny-audio.js` ships in the `Shiny.Audio` package (`_content/Shiny.Audio/shiny-audio.js`) and loads automatically — do **not** add a `<script>` tag or copy it into `wwwroot`. If a stale `wwwroot/shiny-speech.js` exists from an older version (when consumers copied it manually), delete it
 - Check browser support: `SpeechRecognition` is not supported in all browsers (Firefox lacks support as of 2026)
-- `IAudioSource` is not supported in the browser — use `ISpeechToTextService` directly (the Web Speech API handles audio internally)
+- `IAudioSource` **is** supported in the browser (raw PCM capture via the Web Audio API); `AudioProcessingOptions` maps to `getUserMedia` constraints (echo cancellation / noise suppression / auto gain)
 - The browser will prompt for microphone permission automatically — no manifest entries needed
 
 ### TTS voice not found

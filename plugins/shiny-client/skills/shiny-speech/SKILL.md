@@ -38,6 +38,19 @@ triggers:
   - GetVoicesAsync
   - StartCaptureAsync
   - StopCaptureAsync
+  - AudioProcessingOptions
+  - noise suppression
+  - background noise
+  - echo cancellation
+  - acoustic echo cancellation
+  - AEC
+  - automatic gain control
+  - AGC
+  - voice processing
+  - barge-in
+  - EchoCancellation
+  - NoiseSuppression
+  - AutomaticGainControl
   - AddSpeechServices
   - AddSpeechToText
   - AddTextToSpeech
@@ -272,10 +285,7 @@ Providers that cache an SDK/HTTP client (ElevenLabs, Typecast) rebuild it automa
 <string>This app uses the microphone for speech recognition</string>
 ```
 
-**Browser (Blazor WebAssembly)** — No manifest changes needed. The browser prompts the user for microphone access automatically. Include the JS interop module in `index.html`:
-```html
-<script src="shiny-speech.js"></script>
-```
+**Browser (Blazor WebAssembly)** — No manifest changes and **no `<script>` tag** needed. The browser prompts for microphone access automatically, and the JS interop module ships **inside the `Shiny.Audio` package** as a static web asset (`_content/Shiny.Audio/shiny-audio.js`), loaded on demand via `JSHost.ImportAsync`. Do **not** copy the JS into `wwwroot` or add a `<script>` reference — just reference the NuGet package.
 
 > **Note:** `IAudioSource` captures raw PCM audio in the browser using the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono — the same format as other platforms.
 
@@ -424,8 +434,10 @@ public class MyViewModel(IAudioSource audioSource)
 {
     async Task CaptureAudio(CancellationToken ct)
     {
-        // Returns raw PCM stream (16kHz, 16-bit, mono)
-        await using var stream = await audioSource.StartCaptureAsync(ct);
+        // Returns raw PCM stream (16kHz, 16-bit, mono).
+        // NOTE: StartCaptureAsync(AudioProcessingOptions?, CancellationToken) — the first
+        // parameter is the processing options, so pass the token by name (or null first).
+        await using var stream = await audioSource.StartCaptureAsync(cancellationToken: ct);
 
         // Read audio data from stream...
         // Stream remains open until StopCaptureAsync is called
@@ -434,6 +446,45 @@ public class MyViewModel(IAudioSource audioSource)
     }
 }
 ```
+
+#### Voice Processing (noise suppression & echo cancellation)
+
+Request platform voice-processing effects via `AudioProcessingOptions` to strip background noise and
+cancel the device's own speaker/TTS output from the mic (barge-in) so it isn't re-captured:
+
+```csharp
+using Shiny.Audio;
+
+// All three effects (AEC + noise suppression + AGC)
+var stream = await audioSource.StartCaptureAsync(AudioProcessingOptions.VoiceChat, ct);
+
+// Or select individually
+var stream2 = await audioSource.StartCaptureAsync(new AudioProcessingOptions
+{
+    EchoCancellation = true,       // subtracts speaker/TTS output — stops TTS bleeding into the mic
+    NoiseSuppression = true,       // attenuates steady background noise
+    AutomaticGainControl = true    // normalizes capture level
+}, ct);
+```
+
+With cloud STT providers, set it on `SpeechRecognitionOptions.AudioProcessing` (they capture through
+`IAudioSource`):
+
+```csharp
+await stt.Start(new SpeechRecognitionOptions
+{
+    Culture = CultureInfo.GetCultureInfo("en-US"),
+    AudioProcessing = AudioProcessingOptions.VoiceChat
+});
+```
+
+Behavior notes when generating code:
+- Effects are **best-effort** and device/driver dependent — never assume an effect is active.
+- **Apple** bundles all three into one Voice-Processing I/O unit: any flag enables the whole chain (no independent toggles).
+- **Android**: each flag maps to `AcousticEchoCanceler` / `NoiseSuppressor` / `AutomaticGainControl`, gated on `.IsAvailable`; echo cancellation also routes capture through `VoiceCommunication`.
+- **Windows**: no per-effect API — any flag selects the `Communications` capture category (driver-provided AEC/NS when present).
+- **Browser**: maps to `getUserMedia` constraints (`echoCancellation` / `noiseSuppression` / `autoGainControl`); AEC uses WebRTC AEC3 and cancels page-rendered TTS.
+- **Native on-device `ISpeechToTextService`** manages its own mic and ignores `AudioProcessing` — the setting only affects `IAudioSource` capture (cloud providers, raw capture).
 
 ### 4. Audio Playback
 
@@ -540,7 +591,7 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 15. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
 16. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
 17. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
-18. **Include the JS interop module** — Blazor WASM apps must include `shiny-speech.js` in `index.html` for speech services to work
+18. **No JS setup in the browser** — `shiny-audio.js` ships as a static web asset inside the `Shiny.Audio` package (`_content/Shiny.Audio/shiny-audio.js`) and is imported automatically via `JSHost.ImportAsync`; never copy it into `wwwroot` or add a `<script>` tag
 19. **CarPlay compatible** — iOS audio session uses `PlayAndRecord` with `AllowBluetooth` / `AllowBluetoothA2dp` / `DefaultToSpeaker`, so when CarPlay is active iOS automatically routes audio through the car's microphone and speakers — no CarPlay-specific code needed
 20. **VU meter gating** — always check `IsPlayerAnalysisSupported` before showing meter UI; events do not fire on platforms where metering isn't available (Windows native TTS, Browser)
 21. **Marshal `AudioLevelChanged` to the UI thread** — the event fires from the audio render / synthesizer thread; use `MainThread.BeginInvokeOnMainThread` in MAUI or equivalent in Blazor before mutating bound properties
