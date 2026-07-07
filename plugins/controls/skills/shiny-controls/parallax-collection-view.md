@@ -108,6 +108,11 @@ Both hosts are pure cross-platform — **no platform handlers**:
 | `Height` (Blazor) | — | `string` | — | CSS height for the scroll container; omit to fill parent |
 | `CssClass` (Blazor) | — | `string` | — | Extra class names on the root element |
 
+## Methods (MAUI)
+
+- `ScrollTo(index/item, position, animate)` — passthrough to the inner `CollectionView`.
+- `ScrollToTop(bool animate = true)` — returns the list to the very top **including the hero header** (drives the native scroll offset on iOS; falls back to scrolling the first item to the top elsewhere). Use this for a "tap title to scroll up" affordance, since iOS's status-bar-tap gesture is unreliable for nested collection views.
+
 ## Events
 
 Both hosts fire a `Scrolled` event with `ParallaxScrollEventArgs`:
@@ -125,6 +130,7 @@ Use this to drive a sticky title that fades in once the hero is mostly hidden, d
   - The hero is whatever you put in `HeaderTemplate`. A `Grid` with a `LinearGradientBrush` background reads well and renders cheaply during the translation.
   - For multi-column item layouts, set `ItemsLayout` to a `<GridItemsLayout Span="2" Orientation="Vertical" />`. The hero stays full width.
   - Don't try to use a regular `CollectionView.Header` for the hero — `Header` scrolls with content at 1× and cannot be transformed independently. Use `HeaderTemplate` on `ParallaxCollectionView` instead; the control already handles the transparent placeholder header internally so the list scrolls over the hero correctly.
+  - If you don't need a hero, simply omit `HeaderTemplate` — the control then reserves **no** header space (no blank/gray band at the top). `HeaderHeight` only applies when a `HeaderTemplate` is set.
 - **Blazor**:
   - The control's parent must have a fixed `height` (px, vh) — `<ParallaxList>` fills its container so it has something to scroll inside.
   - The JS interop module is loaded once per component instance from `./_content/Shiny.Blazor.Controls/parallax-list.js`. The scroll handler uses `requestAnimationFrame` to avoid re-rendering Razor on every scroll event.
