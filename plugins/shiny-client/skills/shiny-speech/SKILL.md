@@ -77,6 +77,10 @@ triggers:
   - CloudTextToSpeech
   - Shiny.Speech
   - Shiny.Audio
+  - Shiny.Core
+  - Shiny.Hosting.Maui
+  - UseShiny
+  - AndroidPlatform
   - Shiny.Speech.Cloud
   - Shiny.Speech.Azure
   - Shiny.Speech.ElevenLabs
@@ -181,9 +185,20 @@ dotnet add package Shiny.Speech.ElevenLabs
 
 **Platform-native speech services:**
 ```csharp
+builder
+    .UseMauiApp<App>()
+    .UseShiny(); // REQUIRED for native STT/audio — registers Shiny.Core's AndroidPlatform
+
 builder.Services.AddSpeechServices(); // Registers STT, TTS, AudioSource, AudioPlayer
 // On Browser/WASM: auto-detected via OperatingSystem.IsBrowser()
 ```
+
+> **`UseShiny()` is mandatory for native speech/audio.** Android runtime permission requests
+> (`RECORD_AUDIO`) and current-activity tracking are delegated to `Shiny.Core`'s `AndroidPlatform`.
+> Reference the `Shiny.Hosting.Maui` package and call `.UseShiny()` on the `MauiAppBuilder` (before
+> building) so `AndroidPlatform` is registered and receives `OnRequestPermissionsResult` callbacks.
+> Without it, `RequestAccess()` throws a `TimeoutException` ("no current activity"). This replaced the
+> library's old self-contained `ActivityProvider` + `PermissionRequestFragment`.
 
 Or register individually:
 ```csharp
@@ -194,12 +209,15 @@ builder.Services.AddAudioSource();    // IAudioSource only
 builder.Services.AddAudioPlayer();    // IAudioPlayer only
 ```
 
-> **Namespace:** `IAudioSource`, `IAudioPlayer`, `PipeStream`, and `AccessState` live in the
-> **`Shiny.Audio`** namespace (shipped in the standalone `Shiny.Audio` package, referenced by
-> `Shiny.Speech`). Add `using Shiny.Audio;` when consuming them. All the DI extension methods above
-> are in the `Shiny` namespace regardless of package. `AddAudioServices()` / `AddAudioSource()` /
-> `AddAudioPlayer()` come from `Shiny.Audio` and can be used **without** `Shiny.Speech` for
-> capture/playback-only scenarios.
+> **Namespace:** `IAudioSource`, `IAudioPlayer`, and `PipeStream` live in the **`Shiny.Audio`**
+> namespace (shipped in the standalone `Shiny.Audio` package, referenced by `Shiny.Speech`). Add
+> `using Shiny.Audio;` when consuming them. `AccessState` now comes from **`Shiny.Core`** and lives in
+> the **`Shiny`** namespace — because `Shiny` is a parent namespace, code inside `Shiny.Audio`/
+> `Shiny.Speech` resolves it automatically; add `using Shiny;` only where you reference it elsewhere.
+> All the DI extension methods above are in the `Shiny` namespace regardless of package.
+> `AddAudioServices()` / `AddAudioSource()` / `AddAudioPlayer()` come from `Shiny.Audio` and can be used
+> **without** `Shiny.Speech` for capture/playback-only scenarios (still require `.UseShiny()` on
+> Android).
 
 **Azure AI Speech (replaces platform-native with cloud):**
 ```csharp
@@ -428,7 +446,8 @@ public class MyViewModel(ITextToSpeechService tts)
 ### 3. Audio Capture
 
 ```csharp
-using Shiny.Audio; // IAudioSource, IAudioPlayer, PipeStream, AccessState
+using Shiny.Audio; // IAudioSource, IAudioPlayer, PipeStream
+using Shiny;       // AccessState (from Shiny.Core)
 
 public class MyViewModel(IAudioSource audioSource)
 {

@@ -13,25 +13,35 @@ dotnet add package Shiny.Speech.Typecast         # Optional: Typecast TTS (TTS o
 ## Namespaces
 
 ```csharp
+using Shiny;        // AccessState (from Shiny.Core), AddSpeechServices/AddAudio* DI extensions, UseShiny
 using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
-using Shiny.Audio;  // IAudioSource, IAudioPlayer, PipeStream, AccessState
+using Shiny.Audio;  // IAudioSource, IAudioPlayer, PipeStream
 ```
 
-`AccessState` and the audio interfaces moved from `Shiny.Speech` into the standalone `Shiny.Audio`
-package/namespace. DI extension methods (`AddSpeechServices`, `AddAudioServices`, `AddAudioSource`,
-`AddAudioPlayer`, …) remain in the `Shiny` namespace.
+The audio interfaces live in the standalone `Shiny.Audio` package/namespace. `AccessState` comes from
+`Shiny.Core` (namespace `Shiny`) — it is a parent namespace of `Shiny.Audio`/`Shiny.Speech`, so those
+resolve it without an extra `using`. DI extension methods (`AddSpeechServices`, `AddAudioServices`,
+`AddAudioSource`, `AddAudioPlayer`, …) and `UseShiny()` are in the `Shiny` namespace.
+
+> **Native speech/audio require `.UseShiny()`** (from `Shiny.Hosting.Maui`) so Shiny.Core's
+> `AndroidPlatform` is registered — it performs the Android `RECORD_AUDIO` permission request and
+> current-activity tracking that `RequestAccess()` relies on.
 
 ## AccessState Enum
 
-Permission/availability states for speech and audio services (namespace `Shiny.Audio`).
+Permission/availability states from `Shiny.Core` (namespace `Shiny`). The speech/audio services return
+`Unknown`, `NotSupported`, `Denied`, `Restricted`, and `Available`; the full enum also defines
+`NotSetup` and `Disabled` for other Shiny modules.
 
 ```csharp
 public enum AccessState
 {
     Unknown,        // State has not been determined
     NotSupported,   // Feature is not supported on this platform
-    Denied,         // User denied permission
+    NotSetup,       // Not configured
+    Disabled,       // Feature is switched off at the OS level
     Restricted,     // Access is restricted (e.g., parental controls)
+    Denied,         // User denied permission
     Available       // Ready to use
 }
 ```
