@@ -1,4 +1,4 @@
----
+--
 name: shiny-documentdb
 description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, DuckDB, IndexedDB (Blazor WASM), MySQL, SQL Server, PostgreSQL, and Oracle with LINQ queries, spatial/geo queries, and AOT support
 auto_invoke: true
@@ -170,6 +170,24 @@ triggers:
   - spatial query
   - geo query
   - geolocation
+  - Geometry
+  - GeoLineString
+  - GeoPolygon
+  - GeoMultiPoint
+  - GeoMultiLineString
+  - GeoMultiPolygon
+  - GeoGeometryCollection
+  - GeoIntersects
+  - GeoContainedBy
+  - GeoContains
+  - GeoDisjoint
+  - GeoTouches
+  - GeoCrosses
+  - GeoOverlaps
+  - GeoEquals
+  - GeoCovers
+  - GeoCoveredBy
+  - GeoWithinDistance
   - ClearAllAsync
   - ClearAll
   - IDocumentMaintenance
@@ -1495,7 +1513,7 @@ The `Shiny.DocumentDb.MongoDb` provider implements `IDocumentStore` natively ove
 - **`Upsert` deep-merges in C#** — null properties are stripped recursively (RFC 7396 semantics).
 - **`UnitOfWork` uses a compensating model** — single-node MongoDB cannot use ACID multi-document transactions without a replica set. The provider tracks inserts and deletes them on failure (matches the CosmosDB provider).
 - **`MapTypeToCollection<T>(...)`** — fluent options API with overloads for auto-derived collection names, explicit names, and custom Id expressions.
-- **No spatial** — MongoDB supports native geospatial indexing but the provider does not currently expose `WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`.
+- **Spatial supported** — MongoDB implements the full spatial surface via a `2dsphere` index: point queries (`WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`) and the full geometry predicate family (`GeoIntersects`/`GeoContainedBy`/… via native `$geoIntersects`/`$geoWithin`/`$near`, with finer predicates refined in-process).
 - **Pre-configured client** — set `MongoDbDocumentStoreOptions.MongoClient` to share an existing `IMongoClient` (pooled, process-wide). When null, the provider creates one from `ConnectionString`.
 
 ```csharp
@@ -1522,7 +1540,7 @@ The `Shiny.DocumentDb.DuckDb` provider uses [DuckDB](https://duckdb.org/) — an
 - **`SetProperty`/`RemoveProperty`** — implemented via `json_merge_patch` because DuckDB has no `json_set`/`json_remove`. Path parts are folded into a merge-patch document on the server.
 - **JSON extension auto-loaded** — `InitializeConnectionAsync` runs `INSTALL json; LOAD json;` on every connection.
 - **Raw SQL supported** — use `json_extract_string(Data, '$.path')` in `Query<T>("...", parameters)` calls.
-- **No spatial** — the DuckDB `spatial` extension exists but the provider does not currently wire it into `WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`.
+- **Spatial supported** — via the dependency-free envelope-sidecar path (bbox prune + C# refine), not the DuckDB `spatial` extension. Full point + geometry surface.
 - **Best fit** — analytical workloads, on-device aggregates, embedded reporting, file-based collaboration with Parquet/CSV import via DuckDB's native ingestion (outside the document API).
 
 ```csharp
@@ -1632,7 +1650,28 @@ All other features (LINQ queries, JSON indexes, table-per-type mapping, transact
 
 ## Spatial / Geo Queries
 
-Spatial queries are supported on **SQLite** (via R*Tree virtual tables) and **CosmosDB** (via native GeoJSON + `ST_DISTANCE`/`ST_WITHIN`). Other providers throw `NotSupportedException`.
+Spatial queries are supported on **SQLite** (R*Tree bbox), **PostgreSQL / MySQL / SQL Server / Oracle / DuckDB** (dependency-free envelope-sidecar bbox), all with in-process relate/refine — plus **CosmosDB** (native GeoJSON `ST_INTERSECTS`/`ST_WITHIN`/`ST_DISTANCE`) and **MongoDB** (`2dsphere` + `$geoIntersects`/`$geoWithin`/`$near`). The fallback stores (LiteDB, IndexedDB, Azure Table, DynamoDB) throw `NotSupportedException`. Both **point** queries and **full OGC geometry** are supported.
+
+### Full geometry (v11+)
+
+Map a `Geometry?` property (not just `GeoPoint`) and query with the `Geo`-prefixed predicate family. The geometry model — `GeoLineString`, `GeoPolygon` (exterior ring + optional holes), `GeoMultiPoint`, `GeoMultiLineString`, `GeoMultiPolygon`, `GeoGeometryCollection` — serializes as GeoJSON; `GeoPoint` implicitly converts to a point geometry so you can pass a bare point.
+
+```csharp
+public class Zone { public string Id { get; set; } = ""; public Geometry? Area { get; set; } }
+
+options.MapSpatialProperty<Zone>(z => z.Area);        // or ("Area", z => z.Area) for AOT
+
+// stored-geometry <predicate> query-geometry; optional orderByDistanceFrom + filter; returns SpatialResult<T>
+var containing = await store.GeoIntersects<Zone>(new GeoPoint(45.5, -122.6));   // "which zones contain this point?"
+var inside     = await store.GeoContainedBy<Zone>(searchPolygon, orderByDistanceFrom: origin);
+var near       = await store.GeoWithinDistance<Zone>(routeLine, meters: 500);
+```
+
+Predicate methods: `GeoIntersects`, `GeoContainedBy`, `GeoContains`, `GeoDisjoint`, `GeoTouches`, `GeoCrosses`, `GeoOverlaps`, `GeoEquals`, `GeoCovers`, `GeoCoveredBy`, `GeoWithinDistance(geometry, meters)`. Each takes `(Geometry, Geometry? orderByDistanceFrom = null, Expression<Func<T,bool>>? filter = null)` and returns `IReadOnlyList<SpatialResult<T>>` (`DistanceMeters` populated when `orderByDistanceFrom` is given). `NearestNeighbors` works over geometry-mapped types too.
+
+- **Measurement/validity:** `Geometry` exposes `Area` (m²), `Length`/`Perimeter`, `Centroid`, `NumPoints`, `NumGeometries`, `IsValid`, `IsSimple`, `MakeValid()`. Index measurement via a materialized `MapComputedProperty<Zone>(z => z.Area!.Area, indexed: true)` then filter `z.Area!.Area > X` server-side.
+- **`GeoDisjoint`** is anti-selective — it scans the type (O(n)) on SQLite/refine paths. Use sparingly on large corpora.
+- **Fidelity:** SQLite / refine-path distances are Haversine/planar approximations; native `ST_DISTANCE` is geodesic. Ordering can differ on near-ties across providers.
 
 ### Spatial Types
 
@@ -2897,7 +2936,7 @@ Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWi
 22. **Distinguish in-process vs native change feeds** — `IObservableDocumentStore.NotifyOnChange<T>` only sees writes through this store instance. To observe other writers, use `IChangeFeedDocumentStore.SubscribeChanges<T>` (Postgres / SQL Server / Cosmos only).
 12. **DI registration uses the extensions package** — install `Shiny.DocumentDb.Extensions.DependencyInjection` and call `services.AddDocumentStore(opts => { opts.DatabaseProvider = ...; })`. There are no provider-specific DI methods.
 13. **Raw SQL is provider-specific** — LINQ expressions work identically across all providers, but raw SQL queries (`store.Query<T>("sql")`) use provider-specific JSON functions. Prefer the fluent query builder for portable code. MongoDB, LiteDB, and IndexedDB do not accept raw SQL at all.
-14. **Spatial queries require `MapSpatialProperty`** — call `options.MapSpatialProperty<T>(x => x.Location)` at setup to register which `GeoPoint` property drives spatial indexing. The property may be nullable (`GeoPoint?`); documents with a `null` location are skipped by the index (no throw on write, never returned by spatial queries). Only SQLite and CosmosDB support spatial; other providers throw `NotSupportedException`.
+14. **Spatial queries require `MapSpatialProperty`** — call `options.MapSpatialProperty<T>(x => x.Location)` (a `GeoPoint?`) or `MapSpatialProperty<T>(x => x.Area)` (a `Geometry?`) at setup to register which property drives spatial indexing. The property may be nullable; documents with a `null` location are skipped by the index (no throw on write, never returned by spatial queries). All SQL providers (**SQLite, PostgreSQL, MySQL, SQL Server, Oracle, DuckDB**) plus **CosmosDB** and **MongoDB** support spatial; the fallback stores (LiteDB, IndexedDB, Azure Table, DynamoDB) throw `NotSupportedException`. Full geometry (lines/polygons + the `Geo*` predicate family) requires v11+.
 15. **Backup is on concrete types, not `IDocumentStore`** — use `SqliteDocumentStore.Backup()`, `SqlCipherDocumentStore.Backup()`, or `LiteDbDocumentStore.Backup()` directly. Cast or store the concrete type.
 16. **`ClearAllAsync` is SQLite-only** — available on `SqliteDocumentStore` only, deletes all documents across all tables including spatial sidecar data.
 17. **Multi-tenancy uses the DI extensions package** — `AddDocumentStore(configure, multiTenant: true)` for shared-table, `AddMultiTenantDocumentStore(factory)` for tenant-per-database. Both require `ITenantResolver` to be registered.
