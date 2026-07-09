@@ -15,7 +15,7 @@ dotnet add package Shiny.Speech.Typecast         # Optional: Typecast TTS (TTS o
 ```csharp
 using Shiny;        // AccessState (from Shiny.Core), AddSpeechServices/AddAudio* DI extensions, UseShiny
 using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
-using Shiny.Audio;  // IAudioSource, IAudioPlayer, PipeStream
+using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, AudioDevice, PipeStream
 ```
 
 The audio interfaces live in the standalone `Shiny.Audio` package/namespace. `AccessState` comes from
@@ -306,6 +306,77 @@ public interface IAudioPlayer : IAsyncDisposable
 }
 ```
 
+## IAudio Interface (facade)
+
+One-stop discovery entry point over the focused audio services. Registered as singleton by
+`AddAudioServices()`. Each member resolves the underlying service on demand, preserving lifetimes.
+`Monitor`/`Devices` throw `PlatformNotSupportedException` on platforms without an implementation
+(Windows/Browser).
+
+```csharp
+public interface IAudio
+{
+    IAudioPlayer  Player  { get; }   // singleton
+    IAudioSource  Source  { get; }   // fresh transient per access
+    IAudioMonitor Monitor { get; }   // iOS/Mac Catalyst + Android
+    IAudioDevices Devices { get; }   // iOS/Mac Catalyst + Android
+}
+```
+
+## IAudioMonitor Interface
+
+Live mic-to-output passthrough (PA). Registered as singleton (iOS/Mac Catalyst + Android). Implements
+`IAsyncDisposable`.
+
+```csharp
+public interface IAudioMonitor : IAsyncDisposable
+{
+    Task<AccessState> RequestAccess();
+    Task Start(AudioMonitorOptions? options = null, CancellationToken cancellationToken = default);
+    Task Stop();
+    bool IsMonitoring { get; }
+    double Gain { get; set; }                         // 0.0 - 1.0, adjustable live
+    Task SetInputDevice(AudioDevice? device);         // null = OS default
+    Task SetOutputDevice(AudioDevice? device);        // best-effort (iOS: speaker override only)
+    event EventHandler<double>? InputLevelChanged;    // 0.0 - 1.0 VU signal
+}
+
+public record AudioMonitorOptions
+{
+    public AudioProcessingOptions? Processing { get; init; }  // AEC/NS/AGC (feedback defense)
+    public double Gain { get; init; } = 1.0;
+    public AudioDevice? InputDevice { get; init; }
+    public AudioDevice? OutputDevice { get; init; }
+}
+```
+
+## IAudioDevices Interface
+
+Audio route enumeration and current-route reporting. Registered as singleton (iOS/Mac Catalyst +
+Android). Selection is applied via `IAudioMonitor.SetInputDevice`/`SetOutputDevice`.
+
+```csharp
+public interface IAudioDevices
+{
+    IReadOnlyList<AudioDevice> GetInputs();
+    IReadOnlyList<AudioDevice> GetOutputs();
+    AudioDevice? CurrentInput { get; }
+    AudioDevice? CurrentOutput { get; }
+    Task ShowOutputPicker();          // OS route picker where available; no-op otherwise
+    event EventHandler? Changed;      // fires on route add/remove/switch
+}
+
+public enum AudioDeviceIo { Input, Output }
+
+public enum AudioDeviceType
+{
+    Unknown, BuiltInMic, BuiltInSpeaker, BuiltInReceiver, WiredHeadset, WiredHeadphones,
+    Bluetooth, BluetoothA2dp, Usb, CarAudio, Hdmi, AirPlay
+}
+
+public record AudioDevice(string Id, string Name, AudioDeviceIo Io, AudioDeviceType Type, bool IsCurrent);
+```
+
 ## SpeechRecognitionResult Record
 
 ```csharp
@@ -464,6 +535,17 @@ public static class SpeechServiceCollectionExtensions
     // Register IAudioPlayer (singleton)
     // On Browser: registers BrowserAudioPlayer
     IServiceCollection AddAudioPlayer(this IServiceCollection services);
+}
+
+// From Shiny.Audio (Shiny namespace). AddSpeechServices() calls AddAudioSource()/AddAudioPlayer()
+// but NOT the monitor/devices — use AddAudioServices() to get the full set + the IAudio facade.
+public static class AudioServiceCollectionExtensions
+{
+    // Registers IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudio
+    IServiceCollection AddAudioServices(this IServiceCollection services);
+
+    IServiceCollection AddAudioMonitor(this IServiceCollection services);  // IAudioMonitor (iOS/MacCat + Android)
+    IServiceCollection AddAudioDevices(this IServiceCollection services);  // IAudioDevices (iOS/MacCat + Android)
 }
 ```
 

@@ -20,6 +20,26 @@ triggers:
   - ITextToSpeechService
   - IAudioSource
   - IAudioPlayer
+  - IAudio
+  - IAudioMonitor
+  - IAudioDevices
+  - AudioDevice
+  - AudioMonitorOptions
+  - microphone monitor
+  - mic passthrough
+  - live monitoring
+  - PA
+  - megaphone
+  - talk over bluetooth speaker
+  - audio route
+  - output device
+  - input device
+  - device selection
+  - AddAudioMonitor
+  - AddAudioDevices
+  - SetInputDevice
+  - SetOutputDevice
+  - InputLevelChanged
   - ISpeechToTextProvider
   - ITextToSpeechProvider
   - SpeechRecognitionResult
@@ -152,6 +172,9 @@ Shiny Speech provides:
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
 - Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser)
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
+- Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android only
+- Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android only
+- One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
 - ElevenLabs integration (Scribe STT + TTS)
@@ -204,9 +227,11 @@ Or register individually:
 ```csharp
 builder.Services.AddSpeechToText();   // ISpeechToTextService only
 builder.Services.AddTextToSpeech();   // ITextToSpeechService only
-builder.Services.AddAudioServices();  // IAudioSource + IAudioPlayer (from Shiny.Audio)
+builder.Services.AddAudioServices();  // IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudio (from Shiny.Audio)
 builder.Services.AddAudioSource();    // IAudioSource only
 builder.Services.AddAudioPlayer();    // IAudioPlayer only
+builder.Services.AddAudioMonitor();   // IAudioMonitor only (iOS/Mac Catalyst + Android)
+builder.Services.AddAudioDevices();   // IAudioDevices only (iOS/Mac Catalyst + Android)
 ```
 
 > **Namespace:** `IAudioSource`, `IAudioPlayer`, and `PipeStream` live in the **`Shiny.Audio`**
@@ -555,6 +580,59 @@ Platform behaviour:
 
 Apple native TTS plays through `AVAudioEngine` + `AVAudioPlayerNode` so a tap on the player node can compute RMS. The engine is created lazily on first speak and kept warm — first utterance adds ~50–150 ms; subsequent utterances are indistinguishable. Reset `AudioLevel` to `0` on speak completion / `StopAsync` so the meter drains.
 
+### 6. Microphone Monitor & Device Selection (`IAudio` / `IAudioMonitor` / `IAudioDevices`)
+
+Inject the `IAudio` facade to reach the whole surface (`Player` / `Source` / `Monitor` / `Devices`),
+or inject the focused interfaces directly. `IAudioMonitor` routes the mic to the current output live
+(PA / "talk over a Bluetooth speaker"); `IAudioDevices` enumerates routes.
+
+```csharp
+using Shiny.Audio;
+using Shiny; // AccessState
+
+public partial class MicViewModel(IAudio audio) : ObservableObject
+{
+    [ObservableProperty] double level;
+
+    async Task Toggle()
+    {
+        if (audio.Monitor.IsMonitoring)
+        {
+            await audio.Monitor.Stop();
+            return;
+        }
+        if (await audio.Monitor.RequestAccess() != AccessState.Available)
+            return;
+
+        audio.Monitor.InputLevelChanged += (_, l) =>
+            MainThread.BeginInvokeOnMainThread(() => Level = l);
+
+        await audio.Monitor.Start(new AudioMonitorOptions
+        {
+            Gain = 1.0,
+            Processing = AudioProcessingOptions.VoiceChat,   // AEC/NS/AGC — fights feedback
+            InputDevice = audio.Devices.CurrentInput
+        });
+    }
+
+    void ListOutputs()
+    {
+        foreach (var d in audio.Devices.GetOutputs())      // AudioDevice: Id, Name, Io, Type, IsCurrent
+            Console.WriteLine($"{d.Name} ({d.Type}){(d.IsCurrent ? " *" : "")}");
+    }
+
+    Task ChooseMic(AudioDevice mic) => audio.Monitor.SetInputDevice(mic);   // live device switch
+}
+```
+
+Behavior notes when generating code:
+- `IAudioMonitor` and `IAudioDevices` are implemented on **iOS/Mac Catalyst and Android only**. The `IAudio` facade throws `PlatformNotSupportedException` if `Monitor`/`Devices` are accessed elsewhere — guard by platform.
+- **Bluetooth speaker vs. echo cancellation (iOS):** leave `AudioMonitorOptions.Processing` **null** to route to a Bluetooth A2DP speaker (phone mic + BT output). Enabling processing (AEC) engages iOS's voice-processing unit, which forces Bluetooth onto the low-quality HFP profile — an A2DP-only speaker then drops back to the phone. Only enable processing for phone-speaker output where feedback is a problem.
+- **AirPlay (HomePod / Apple TV) is NOT supported for a live mic** — iOS only permits AirPlay for playback, not while recording. Use Bluetooth for a wireless live PA.
+- **Feedback** (mic hearing the phone speaker) — keep distance, lower `Gain`, or enable AEC (accepting the Bluetooth trade-off). **Always stop the monitor on page-disappear / app-background.**
+- **Device selection is Android-first.** `IAudioMonitor.SetInputDevice`/`SetOutputDevice`: Android enumerates and selects both input and output; iOS can select the input but treats **output as observe-only** (no app-level output enumeration/selection — AirPlay/Bluetooth output is owned by the system picker). Use `IAudioDevices.CurrentInput`/`CurrentOutput` (with `.Type`) as a **display** property everywhere.
+- `IAudioSource` (pull-stream capture) and `IAudioMonitor` (live passthrough) are different tools — use the monitor for real-time mic→speaker, not a capture-stream-into-player loop.
+
 ### 5. Custom Cloud Provider
 
 Implement `ISpeechToTextProvider` and/or `ITextToSpeechProvider`:
@@ -615,6 +693,9 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 20. **VU meter gating** — always check `IsPlayerAnalysisSupported` before showing meter UI; events do not fire on platforms where metering isn't available (Windows native TTS, Browser)
 21. **Marshal `AudioLevelChanged` to the UI thread** — the event fires from the audio render / synthesizer thread; use `MainThread.BeginInvokeOnMainThread` in MAUI or equivalent in Blazor before mutating bound properties
 22. **Reset audio level on completion** — set your bound `AudioLevel` back to `0` after `SpeakAsync` returns or `StopAsync` is called so the meter drains visually
+23. **Stop the mic monitor when leaving** — always `IAudioMonitor.Stop()` on page-disappear and app-background; a live monitor left open is feedback and battery drain
+24. **Guard monitor/devices by platform** — `IAudioMonitor` / `IAudioDevices` exist on iOS/Mac Catalyst + Android only; accessing them via the `IAudio` facade elsewhere throws `PlatformNotSupportedException`
+25. **Prefer the `IAudio` facade for discovery** — inject one `IAudio` to reach `Player`/`Source`/`Monitor`/`Devices`; inject the focused interface directly when a class only needs one
 
 ## Reference Files
 
