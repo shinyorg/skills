@@ -1,6 +1,6 @@
 --
 name: shiny-documentdb
-description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, DuckDB, IndexedDB (Blazor WASM), MySQL, SQL Server, PostgreSQL, and Oracle with LINQ queries, spatial/geo queries, and AOT support
+description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, DuckDB, IndexedDB (Blazor WASM), MySQL, MariaDB, SQL Server, PostgreSQL, CockroachDB, and Oracle with LINQ queries, spatial/geo queries, and AOT support
 auto_invoke: true
 triggers:
   - document store
@@ -29,6 +29,9 @@ triggers:
   - MapFullTextProperty
   - FullTextResult
   - FullTextLanguage
+  - LuceneMatch
+  - LuceneScore
+  - lucene
   - FTS5
   - tsvector
   - computed property
@@ -76,8 +79,10 @@ triggers:
   - sqlcipher
   - encrypted sqlite
   - MySqlDatabaseProvider
+  - MariaDbDatabaseProvider
   - SqlServerDatabaseProvider
   - PostgreSqlDatabaseProvider
+  - CockroachDbDatabaseProvider
   - OracleDatabaseProvider
   - Shiny.DocumentDb.Oracle
   - oracle
@@ -88,11 +93,26 @@ triggers:
   - PageResult
   - PagedResults
   - paged results
+  - ToCursorPage
+  - CursorPage
+  - ToCursorStream
+  - cursor pagination
+  - keyset pagination
+  - seek pagination
+  - infinite scroll
   - dynamic sort
   - sort by string
   - OrderBy string
   - Where string
   - dynamic filter
+  - GroupBy
+  - grouped aggregation
+  - IGroupedDocumentQuery
+  - IDocumentGroup
+  - Having
+  - Sql.Count
+  - Sql.Sum
+  - Sql.Avg
   - interpolated filter
   - FilterInterpolatedStringHandler
   - MapTypeToTable
@@ -188,6 +208,7 @@ triggers:
   - GeoCovers
   - GeoCoveredBy
   - GeoWithinDistance
+  - DocumentFunctions
   - ClearAllAsync
   - ClearAll
   - IDocumentMaintenance
@@ -350,7 +371,7 @@ triggers:
 
 # Shiny DocumentDb Skill
 
-You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **MongoDB**, **Azure Table Storage** (and Cosmos DB Table API), **Amazon DynamoDB**, **DuckDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **SQL Server**, **PostgreSQL**, and **Oracle**.
+You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **MongoDB**, **Azure Table Storage** (and Cosmos DB Table API), **Amazon DynamoDB**, **DuckDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **MariaDB**, **SQL Server**, **PostgreSQL**, **CockroachDB**, and **Oracle**.
 
 ## When to Use This Skill
 
@@ -363,7 +384,7 @@ Invoke this skill when the user wants to:
 - Create JSON property indexes for faster queries
 - Project query results into DTOs at the SQL level
 - Compute aggregates (Max, Min, Sum, Average) across documents
-- Use aggregate projections with GROUP BY via `Sql.*` markers
+- Roll up one row per key with `GroupBy(keySelector).Having(…).Select(g => …)` (`g.Key`, `g.Count()`, `g.Sum`)
 - Sort query results with expression-based OrderBy/OrderByDescending
 - Sort query results by a property name (string) — AOT-safe via `JsonTypeInfo<T>`, supports dotted paths, for dynamic UIs / REST `?sort=` query strings
 - Paginate query results with LIMIT/OFFSET
@@ -410,8 +431,10 @@ Invoke this skill when the user wants to:
   - `Shiny.DocumentDb.Sqlite` — SQLite provider + DI extensions
   - `Shiny.DocumentDb.Sqlite.SqlCipher` — SQLCipher (encrypted SQLite) provider + DI extensions
   - `Shiny.DocumentDb.MySql` — MySQL provider + DI extensions
+  - `Shiny.DocumentDb.MariaDb` — MariaDB provider (extends the MySQL provider; portable spatial tier, no full-text proximity; **no array-unnest queries** — `Any`/`All` over a collection, collection aggregates, and `GroupBy` over an array element throw `NotSupportedException` because MariaDB has no `JSON_TABLE`)
   - `Shiny.DocumentDb.SqlServer` — SQL Server provider + DI extensions
   - `Shiny.DocumentDb.PostgreSql` — PostgreSQL provider + DI extensions
+  - `Shiny.DocumentDb.CockroachDb` — CockroachDB provider (extends the PostgreSQL provider; native spatial, full-text, and pgvector-compatible vector search — brute-force; no change-feed/bulk-copy/soundex)
   - `Shiny.DocumentDb.Oracle` — Oracle (23ai+) provider + DI extensions
   - `Shiny.DocumentDb.LiteDb` — LiteDB provider + DI extensions
   - `Shiny.DocumentDb.CosmosDb` — Azure Cosmos DB provider + DI extensions
@@ -429,8 +452,10 @@ Invoke this skill when the user wants to:
   - SQLite: `Microsoft.Data.Sqlite`
   - SQLCipher: `Microsoft.Data.Sqlite.Core` + `SQLitePCLRaw.bundle_e_sqlcipher`
   - MySQL: `MySqlConnector`
+  - MariaDB: `MySqlConnector` (via the MySQL provider)
   - SQL Server: `Microsoft.Data.SqlClient`
   - PostgreSQL: `Npgsql`
+  - CockroachDB: `Npgsql` (via the PostgreSQL provider)
   - Oracle: `Oracle.ManagedDataAccess.Core` (requires Oracle Database 23ai+)
   - LiteDB: `LiteDB`
   - CosmosDB: `Microsoft.Azure.Cosmos`
@@ -1110,7 +1135,13 @@ await store.Insert(user);
 
 // Explicit ID
 await store.Insert(new User { Id = "user-1", Name = "Alice", Age = 25 });
+
+// Update = full replace; Upsert = RFC 7396 merge-or-insert. Pick the mode explicitly with a flag:
+await store.Update(doc, patch: true);          // merge into the existing doc (update-only; throws if absent)
+await store.Upsert(doc, patchIfUpdate: false); // replace the body wholesale on update; insert if absent
 ```
+
+**Merge vs replace flags** (`Update(patch)`, `Upsert(patchIfUpdate)`): merge modes strip null properties (unset fields are left unchanged, never deleted). A typed object serializes *every* property, so `patch: true` on it only skips `null` fields — a non-nullable default (`int Count = 0`) is still written. For a precise "change only these keys" update, make the patch type's fields nullable **or** use the JSON lane: `store.Update(typeof(User), new JsonObject { ["id"]="u1", ["name"]="Bob" }, patch: true)`. The two defaults (`Update` replace, `Upsert` merge) work on every provider; the non-default modes (`Update(patch: true)`, `Upsert(patchIfUpdate: false)`) are relational-provider + JSON-lane only (document-native/key-partitioned stores throw `NotSupportedException`).
 
 ### Batch insert
 
@@ -1495,9 +1526,11 @@ services.AddOpenTelemetry()
     .WithTracing(t => t.AddSource("Shiny.DocumentDb"));
 ```
 
-When registering via `Shiny.DocumentDb.Extensions.DependencyInjection` you can skip the separate call and set `o.Instrumentation = true` in the `AddDocumentStore` options instead (that package bundles the Diagnostics decorator). Honored by the non-keyed overloads only; setting it on a keyed/named store throws `NotSupportedException`. Still subscribe your OTel pipeline to the `Shiny.DocumentDb` meter/source.
+When registering via `Shiny.DocumentDb.Extensions.DependencyInjection` you can skip the separate call and set `o.Instrumentation = true` in the `AddDocumentStore` options instead (that package bundles the Diagnostics decorator). Honored by the non-keyed overloads **and** the eager keyed overload `AddDocumentStore(name, Action<DocumentStoreOptions>)`; on the lazy keyed overload `AddDocumentStore(name, Action<IServiceProvider, DocumentStoreOptions>)` the flag can't be read at registration, so call `AddDocumentStoreInstrumentation(name)` explicitly there. Still subscribe your OTel pipeline to the `Shiny.DocumentDb` meter/source.
 
-Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivitySource`. Emits, per the OTel database client semantic conventions: a `db.client.operation.duration` histogram (plus a `db.client.operations` counter and a `db.client.response.returned_rows` histogram), tagged `db.system.name` / `db.operation.name` / `db.collection.name` / `outcome` / `error.type`; and a `{system}.{operation}` `ActivityKind.Client` span per call with error status + exception capture. `db.system.name` is derived from the wrapped store, so one decorator covers all providers.
+**Keyed/named stores:** instrument one with the name overload — `services.AddDocumentStoreInstrumentation("orders")` (or `o.Instrumentation = true` on the eager keyed registration). Signals from that store carry an extra `db.namespace = "orders"` tag so multiple stores are distinguishable. Idempotent; throws `InvalidOperationException` if no keyed store is registered under that name. The non-keyed path omits `db.namespace`.
+
+Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivitySource`. Emits, per the OTel database client semantic conventions: a `db.client.operation.duration` histogram (plus a `db.client.operations` counter and a `db.client.response.returned_rows` histogram), tagged `db.system.name` / `db.operation.name` / `db.collection.name` / `outcome` / `error.type` (plus `db.namespace` on named stores); and a `{system}.{operation}` `ActivityKind.Client` span per call with error status + exception capture. `db.system.name` is derived from the wrapped store, so one decorator covers all providers.
 
 - **Decorator type**: `InstrumentedDocumentStore` implements `IDocumentStore` + `ITemporalDocumentStore` + `IObservableDocumentStore` + `IChangeFeedDocumentStore` (faithful — casts/pattern-matches keep working); wrapped store is on `.Inner`. Construct directly (`new InstrumentedDocumentStore(inner, new DocumentStoreMetrics(meterFactory))`) when not using DI.
 - **Coverage**: CRUD, string `Query`/`QueryStream`, the fluent-query terminals (`ToList`/`ToAsyncEnumerable`/`Count`/`Any`/`ExecuteDelete`/`ExecuteUpdate`/`Max`/`Min`/`Sum`/`Average`/`NearestVectors`), spatial/vector, all `ITemporalDocumentStore` ops, and `UnitOfWork.SaveChanges` (inner ops become child spans of the transaction span).
@@ -1669,7 +1702,15 @@ var near       = await store.GeoWithinDistance<Zone>(routeLine, meters: 500);
 
 Predicate methods: `GeoIntersects`, `GeoContainedBy`, `GeoContains`, `GeoDisjoint`, `GeoTouches`, `GeoCrosses`, `GeoOverlaps`, `GeoEquals`, `GeoCovers`, `GeoCoveredBy`, `GeoWithinDistance(geometry, meters)`. Each takes `(Geometry, Geometry? orderByDistanceFrom = null, Expression<Func<T,bool>>? filter = null)` and returns `IReadOnlyList<SpatialResult<T>>` (`DistanceMeters` populated when `orderByDistanceFrom` is given). `NearestNeighbors` works over geometry-mapped types too.
 
-- **Measurement/validity:** `Geometry` exposes `Area` (m²), `Length`/`Perimeter`, `Centroid`, `NumPoints`, `NumGeometries`, `IsValid`, `IsSimple`, `MakeValid()`. Index measurement via a materialized `MapComputedProperty<Zone>(z => z.Area!.Area, indexed: true)` then filter `z.Area!.Area > X` server-side.
+- **Measurement/validity:** `Geometry` exposes **in-memory** `Area` (m²), `Length`/`Perimeter`, `Centroid`, `NumPoints`, `NumGeometries`, `IsValid`, `IsSimple`, `MakeValid()`. These are C# accessors — they do **not** translate to SQL and do **not** compose with `MapComputedProperty` (computed properties are lowered to SQL). To filter/sort by a measurement server-side, compute the scalar in your app, store it as a normal property, and query that field. Use `MakeValid()` as a pre-insert guard so native Mongo/Cosmos indexes don't reject a shape.
+- **LINQ composition (`DocumentFunctions`, v11+):** to compose a spatial predicate with other `Where` clauses / `OrderBy` / `Count` / paging server-side, use `DocumentFunctions` inside `Query<T>().Where(...)`:
+  ```csharp
+  store.Query<Zone>()
+       .Where(z => DocumentFunctions.Intersects(z.Area!, area) && z.Active)
+       .OrderBy(z => DocumentFunctions.Distance(z.Area!, origin));
+  ```
+  Family: `Intersects`/`Disjoint`/`Contains`/`Within`/`Covers`/`CoveredBy`/`Touches`/`Crosses`/`Overlaps`/`GeoEquals`/`WithinDistance` (in `Where`) + `Distance` (in `OrderBy`). Read as `field <predicate> query`. Lowers to native per provider: **SQLite** (R\*Tree + `docdb_st_*` UDF — all predicates), **MySQL/PostgreSQL** (native `ST_*`; PostgreSQL needs PostGIS — all predicates), **DuckDB** (native `ST_*`, auto-loads `spatial` — all except `WithinDistance`), **SQL Server** (native planar `geometry` column + `.ST*` — all except `Covers`/`CoveredBy` and `WithinDistance`), **Oracle** (native `SDO_GEOMETRY` column + MDSYS spatial index + `SDO_RELATE` operators, needs Oracle Spatial — all except `Crosses`), **CosmosDB** (`ST_INTERSECTS`/`ST_WITHIN`/`ST_DISTANCE` — intersects/within/disjoint/withindistance), **MongoDB** (`$geoIntersects`/`$geoWithin` — intersects/within/point-withindistance). `WithinDistance` in a `Where` needs a geodesic distance function, which SQL Server (planar `geometry`) and DuckDB (no polygon geodesic) lack — they **throw** rather than approximate wrongly; use `store.GeoWithinDistance(...)` (exact Haversine, every provider). `Distance`-in-`OrderBy` is native on SQLite/PostgreSQL/MySQL/DuckDB/SQL Server (SQL Server sorts by planar `STDistance` over the indexed column); on MongoDB use `store.NearestNeighbors`/`orderByDistanceFrom`. Where a predicate isn't native, the `DocumentFunctions` call in a `Where` **throws** — use the dedicated `store.Geo*` method (all predicates, every spatial provider). `PortableSpatial = true` on a relational provider forces the dependency-free envelope tier.
+  **String-expression parity:** the same geo functions work in the string surface — `Where("…")`, interpolated `Where($"…")`, `OrderBy("…")`, `Project("…")` — using the same names (`intersects`/`within`/`withindistance`/`distance`/…). Supply the query geometry as an **interpolated `{value}`** (a `Geometry`/`GeoPoint`, bound as a parameter — only where the string carries args, i.e. `Where($"…")`) or an inline **GeoJSON string literal** (works everywhere incl. `OrderBy`/`Project`). E.g. `store.Query<Zone>().Where($"intersects(area, {poly}) and active == true")`, `.OrderBy("distance(area, '<geojson>')")`. `contains(field, …)` is geo when `field` is a `Geometry` property, else the string `Contains`.
 - **`GeoDisjoint`** is anti-selective — it scans the type (O(n)) on SQLite/refine paths. Use sparingly on large corpora.
 - **Fidelity:** SQLite / refine-path distances are Haversine/planar approximations; native `ST_DISTANCE` is geodesic. Ordering can differ on near-ties across providers.
 
@@ -1825,6 +1866,39 @@ var hits2 = await store.Query<Article>()
 
 `FullTextResult<T>` carries `Document` and a normalized `double Score` (higher = more relevant; absolute scale is provider-specific — compare only within one result set). `MapFullTextProperty` also has an AOT-safe overload taking `propertyNames` + a `Func<T, IEnumerable<string?>>` selector (for combining fields or indexing a string collection), and an optional `FullTextLanguage` (controls stemming where the backend supports it). The index is engine-maintained, so `Insert`/`Update`/`Remove`/`Clear` keep it in sync automatically. Notes: engines with one full-text index per table (SQL Server, MongoDB) support a single mapped type per table/collection; **Oracle Text** and **SQL Server Full-Text Search** are optional server components that must be installed; Cosmos full-text needs `Microsoft.Azure.Cosmos` 3.61.0+.
 
+### Composable full-text with Lucene syntax (`DocumentFunctions.LuceneMatch` / `LuceneScore`)
+
+For full-text as a **composable predicate** (not a separate ranked call), use `DocumentFunctions.LuceneMatch(field, luceneQuery)` inside a `Where`, and `DocumentFunctions.LuceneScore(field, luceneQuery)` inside an `OrderBy`/projection. They translate to the provider's native full-text engine over the **same `MapFullTextProperty` index** — so the type must still be mapped first. The `field` argument identifies the mapping (pass a mapped property); the search spans the whole combined index for the type.
+
+```csharp
+// AND with an ordinary predicate, page, and sort by relevance — one query
+var hits = await store.Query<Article>()
+    .Where(a => a.Category == "tech" && DocumentFunctions.LuceneMatch(a.Body, "orleans AND grain NOT deprecated"))
+    .OrderByDescending(a => DocumentFunctions.LuceneScore(a.Body, "orleans grain"))
+    .Skip(0).Take(20)
+    .ToList();
+
+// String-expression grammar (AOT-safe) — same IR:
+store.Query<Article>().Where("lucenematch(body, 'title:quick AND brown~')");
+store.Query<Article>().Where($"lucenematch(body, {userQuery})").OrderBy("lucenescore(body, 'orleans') desc");
+```
+
+**Lucene grammar:** terms, `"phrases"`, `AND`/`OR`/`NOT` (also `&&`/`||`/`!` and `+`/`-`), `(` grouping `)`, prefix `foo*`, fuzzy `foo~`/`foo~1`, proximity `"a b"~5`, boost `foo^2`. Ranges (`[a TO b]`) and non-trailing wildcards are rejected.
+
+**Provider support (v1)** — operators a backend can't express throw `NotSupportedException` (they never silently degrade):
+
+| Provider | LuceneMatch | LuceneScore | Advanced operators |
+|---|---|---|---|
+| SQLite (FTS5) | ✅ | ✅ | prefix, proximity |
+| PostgreSQL | ✅ | ✅ | prefix |
+| MySQL | ✅ | ✅ | prefix, proximity |
+| SQL Server | ✅ | ✅ | prefix, proximity |
+| Oracle Text | ✅ | ❌ (use `FullTextSearch`) | prefix, fuzzy, proximity |
+| LiteDB / IndexedDB (in-memory) | ✅ | ✅ | **all** (incl. fuzzy) |
+| DuckDB, CosmosDB, MongoDB | ❌ — use `store.FullTextSearch(...)` | ❌ | — |
+
+Baseline (terms, phrases, AND/OR/NOT, grouping) works on every supported provider. Field-scoped terms (`title:foo`) are **not** supported in v1 on any provider (the index is a single combined field) and throw. Use `store.FullTextSearch<T>(...)` for ranking on the providers that don't support composable queries.
+
 ## Fluent Query Builder (IDocumentQuery<T>)
 
 The fluent query builder is the primary way to query documents. Start with `store.Query<T>()` and chain builder methods, then terminate with a materialization method.
@@ -1839,7 +1913,7 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | `.OrderBy(selector)` / `.OrderByDescending(selector)` | Sort by property (expression). |
 | `.OrderBy(name[, jsonTypeInfo])` / `.OrderByDescending(name[, jsonTypeInfo])` | Sort by property name (string) — AOT-safe via `JsonTypeInfo<T>`. Supports dotted paths. |
 | `.OrderBy(name, direction[, jsonTypeInfo])` | Sort by property name with a runtime direction string (`asc`/`ascending`/`desc`/`descending`, case-insensitive; empty → ascending). |
-| `.GroupBy(selector)` | Group by property (for aggregate projections). |
+| `.GroupBy(keySelector)` | Group into one row per key for an aggregate projection (`.Select(g => …)` with `g.Key` + `g.Count()`/`g.Sum(x => x.P)`). |
 | `.Paginate(offset, take)` | Limit results with SQL LIMIT/OFFSET. |
 | `.Select(selector, resultTypeInfo?)` | Project into a different shape via `json_object`. |
 | `.Project(fields[, jsonTypeInfo])` | Project a runtime-chosen field list (e.g. `"name,email"`) into `IDocumentQuery<JsonObject>` — AOT-safe. For REST sparse fieldsets; no DTO required. Supports scalar functions with an alias (`"lower(email) as email"`) on every provider. |
@@ -1859,6 +1933,8 @@ The fluent query builder is the primary way to query documents. Start with `stor
 | `.Sum(selector)` | `Task<TValue>` | Sum of a property. |
 | `.Average(selector)` | `Task<double>` | Average of a property. |
 | `.PageResult(page, pageSize, zeroBased?)` | `Task<PagedResults<T>>` | Run the query and return records + total count in one envelope. 1-based by default. |
+| `.ToCursorPage(cursor, take)` | `Task<CursorPage<T>>` | One forward seek/keyset page. `null` cursor = first page; `NextCursor` null = last page. See Pagination. |
+| `.ToCursorStream(pageSize?)` | `IAsyncEnumerable<T>` | Walk every cursor page automatically — resumable full scan, no deep-offset cost. |
 | `.ToQueryString()` | `DocumentQueryString` | Build the query the configuration **would** run **without executing it** — for debugging/logging. See below. |
 
 ### Inspecting the generated query — `.ToQueryString()`
@@ -2018,6 +2094,34 @@ var result = await store.Query<User>()
 - `TotalCount` reflects the current `Where` predicates (and any global query filters) — pagination state is ignored when counting.
 - Overrides any prior `.Paginate(...)` call on the query.
 - `pageSize` must be > 0; `page` must be `>= 1` (or `>= 0` when `zeroBased: true`). Otherwise throws `ArgumentOutOfRangeException`.
+
+### `ToCursorPage` — cursor / keyset (seek) pagination
+
+For **infinite scroll, deep paging, or large exports**, prefer cursor paging over offset paging: it stays O(log n) per page (with an index on the sort key) and doesn't skip/duplicate rows when documents change between fetches. Pass `null` for the first page; hand the previous page's `NextCursor` back for each subsequent one; a `null` `NextCursor` marks the end. The keyset is derived from the query's `OrderBy` (an `Id` tiebreaker is appended automatically).
+
+```csharp
+string? cursor = null;
+do
+{
+    var page = await store.Query<Order>()
+        .Where(o => o.Status == "open")
+        .OrderByDescending(o => o.CreatedAt)   // keyset derived from THIS OrderBy
+        .ToCursorPage(cursor, take: 50);       // CursorPage<T> { Items, NextCursor, HasMore }
+
+    Render(page.Items);
+    cursor = page.NextCursor;                  // null ⇒ last page
+}
+while (cursor != null);
+
+// Or walk every page automatically (resumable full scan, no deep-offset cost):
+await foreach (var o in store.Query<Order>().OrderByDescending(x => x.CreatedAt).ToCursorStream(pageSize: 200))
+    Export(o);
+```
+
+- **Choose offset (`PageResult`) when you need a page number or a total count**; choose cursor when you only move forward, page deep, or forever-scroll.
+- A cursor is valid only for the **exact same `OrderBy` + filters** that produced it — reusing it under a different sort throws `InvalidOperationException` (a shape hash catches it). Not valid after `Select`/`Project`/`GroupBy` (throws `NotSupportedException`). `take` must be `> 0` and `≤ 10,000`.
+- Index the sort key (`MapIndexedProperty`) for hot cursor paths, and order by a **non-nullable** column (a `NULL` sort value at a page boundary can skip rows).
+- **Provider tier:** relational providers seek server-side; LiteDB/IndexedDB/MongoDB page the keyset client-side; Cosmos/DynamoDB/Azure Table throw `NotSupportedException` (not yet supported).
 
 ### Dynamic sort columns (string-based OrderBy)
 
@@ -2333,33 +2437,47 @@ var maxAge = await store.Query<User>()
     .Max(u => u.Age);
 ```
 
-## Aggregate Projections (GROUP BY)
+## Grouped Aggregation (GROUP BY)
 
-Use `Sql` marker class for aggregate projections with automatic GROUP BY via `.Select()`.
+Use the explicit `GroupBy(keySelector).Select(g => …)` surface for a roll-up of one row per key.
+Use `g.Key` for the group value and the `Sql` group aggregates — `g.Count()`, `g.Sum(x => x.Prop)`,
+`g.Avg`, `g.Min`, `g.Max` — over the group's members. (For a single total over the **whole** filtered
+set, prefer the scalar terminals `.Count()` / `.Sum()` / `.Average()` instead.) Aggregates are typed by the
+selected member: `g.Sum`/`g.Avg` of a `decimal` keep full scale (exact on providers with a native decimal
+type; SQLite aggregates as `REAL`), and `g.Min`/`g.Max` work over **dates and strings**, not just numbers.
 
 ```csharp
-var results = await store.Query<Order>()
-    .Select(o => new OrderStats
+var rollup = await store.Query<Order>()
+    .Where(o => o.CreatedAt >= since)
+    .GroupBy(o => o.Status)                              // group key = a JSON property
+    .Having(g => g.Sum(o => o.Total) > 10_000)          // optional: filter groups by an aggregate
+    .Select(g => new StatusRollup
     {
-        Status = o.Status,            // GROUP BY column
-        OrderCount = Sql.Count(),     // COUNT(*)
+        Status  = g.Key,                                // the group key
+        Count   = g.Count(),
+        Revenue = g.Sum(o => o.Total),
+        AvgLine = g.Avg(o => o.Total)
     })
+    .OrderByDescending(r => r.Revenue)                  // order the grouped rows (by an output column)
+    .Paginate(0, 10)
     .ToList();
 
-// All Sql markers: Sql.Count(), Sql.Max(x.Prop), Sql.Min(x.Prop), Sql.Sum(x.Prop), Sql.Avg(x.Prop)
+// Nested key:   .GroupBy(o => o.ShippingAddress.Country)
+// Derived key:  .GroupBy(o => o.CreatedAt.Month)          // "revenue by month" — no stored column
+// Multi-key:    .GroupBy(o => new { o.Status, o.Region }) // g.Key.Status / g.Key.Region
 
-// With predicate filter
-var results = await store.Query<Order>()
-    .Where(o => o.Status == "Shipped")
-    .Select(o => new OrderStats { Status = o.Status, OrderCount = Sql.Count() })
-    .ToList();
-
-// Explicit GroupBy
-var results = await store.Query<Order>()
-    .GroupBy(o => o.Status)
-    .Select(o => new OrderStats { Status = o.Status, OrderCount = Sql.Count() })
+// String grammar (relational only): count()/sum(x)/avg(x)/min(x)/max(x) each need an alias.
+var rows = await store.Query<Order>()
+    .GroupBy("status")
+    .Having("sum(total) > 10000")
+    .Project("status, count() as orders, sum(total) as revenue")   // → JsonObject rows
     .ToList();
 ```
+
+**Provider tier:** push-down on the relational providers (SQLite, SQLCipher, PostgreSQL, MySQL, SQL
+Server, Oracle, DuckDB — `GROUP BY` + `HAVING` + grouped `ORDER BY` + multi/derived keys). MongoDB,
+Cosmos, LiteDB and IndexedDB group **client-side** (typed surface only — no string grammar). Azure Table
+and DynamoDB **throw** `NotSupportedException` (key-partitioned).
 
 ## Streaming
 
