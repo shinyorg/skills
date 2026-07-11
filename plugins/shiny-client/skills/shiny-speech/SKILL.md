@@ -112,6 +112,13 @@ triggers:
   - IsPlayerAnalysisSupported
   - VU meter
   - audio level
+  - Volume
+  - set volume
+  - read volume
+  - VolumeChanged
+  - IsVolumeControlSupported
+  - system volume
+  - media volume
   - wake word
   - keyword detection
   - hey siri
