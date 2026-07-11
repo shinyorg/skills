@@ -303,8 +303,48 @@ public interface IAudioPlayer : IAsyncDisposable
 
     // Fires periodically during playback with the current RMS level (0.0 - 1.0).
     event EventHandler<double>? AudioLevelChanged;
+
+    // True when SETTING Volume is supported (Android, Windows, macOS*, Browser);
+    // false on iOS / Mac Catalyst. Reading Volume works everywhere. Always guard a set with this.
+    bool IsVolumeControlSupported { get; }
+
+    // Device media volume, 0.0-1.0 (app media-element volume in the browser).
+    // Getter works on all platforms. Setter throws NotSupportedException on iOS / Mac Catalyst.
+    float Volume { get; set; }
+
+    // Raised when the volume changes: hardware buttons, the OS volume UI, or a successful set.
+    event EventHandler<float>? VolumeChanged;
 }
 ```
+
+### Volume
+
+`Volume` is the **system media volume** (0.0-1.0) on device platforms — the level the hardware buttons
+control, independent of any per-request TTS `Volume`. Reading works everywhere an `IAudioPlayer`
+exists; **setting is platform-limited — always guard with `IsVolumeControlSupported`**:
+
+```csharp
+var level = player.Volume;                 // read anywhere
+
+if (player.IsVolumeControlSupported)       // iOS / Mac Catalyst setter throws NotSupportedException
+    player.Volume = 0.5f;
+
+player.VolumeChanged += (_, v) => { /* new volume 0.0-1.0 */ };
+```
+
+| Platform | Read | Set | `VolumeChanged` | Backing API |
+|---|---|---|---|---|
+| Android | ✅ | ✅ | system settings observer | `AudioManager` `STREAM_MUSIC` (integer-stepped → set value is quantized) |
+| Windows | ✅ | ✅ | endpoint callback | WASAPI `IAudioEndpointVolume` on the default render endpoint |
+| macOS | ✅ | ✅* | CoreAudio property listener | HAL virtual main volume of the default output device |
+| iOS / Mac Catalyst | ✅ | ❌ | KVO on `outputVolume` | `AVAudioSession.OutputVolume` (read-only; no supported set API) |
+| Browser (WASM) | ✅ | ✅ | echoed on set | `HTMLAudioElement.volume` (app-local, **not** the OS volume; persists across plays) |
+
+\* macOS reports `IsVolumeControlSupported = false` when the current default output device has no
+settable virtual main volume (e.g. some HDMI / aggregate devices).
+
+Marshal `VolumeChanged` to the UI thread before mutating bound properties — it fires from the audio /
+observer thread.
 
 ## IAudio Interface (facade)
 
