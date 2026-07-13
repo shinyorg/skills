@@ -1,6 +1,6 @@
 ---
 name: shiny-extensions-push
-description: Generate code using Shiny.Extensions.Push, a server-side push notification dispatch library for .NET with a provider-agnostic core and transports for APNs (.p8/ES256), FCM (HTTP v1), Web Push (VAPID + RFC 8291) and WNS (Windows App SDK / Entra auth), plus Shiny.DocumentDb persistence, structured targeting, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing — fully AOT/trim-safe.
+description: Generate code using Shiny.Extensions.Push, a server-side push notification dispatch library for .NET with a provider-agnostic core and transports for APNs (.p8/ES256), FCM (HTTP v1), Web Push (VAPID + RFC 8291) and WNS (Windows App SDK / Entra auth), plus Shiny.DocumentDb persistence, structured targeting, topics, interceptors, dead-token pruning, multi-app keyed registration, runtime static/dynamic (multi-tenant) configuration via IPushConfigurationProvider, and System.Diagnostics.Metrics + tracing — fully AOT/trim-safe.
 auto_invoke: true
 triggers:
   - AddPushNotifications
@@ -9,6 +9,8 @@ triggers:
   - IPushBatchProvider
   - IPushRepository
   - IPushInterceptor
+  - IPushEventReceiver
+  - AddEventReceiver
   - PushNotification
   - DeviceRegistration
   - PushFilter
@@ -28,6 +30,14 @@ triggers:
   - WnsOptions
   - WindowsPushOptions
   - WnsNotificationType
+  - IPushConfigurationProvider
+  - PushConfiguration
+  - UsePushConfiguration
+  - multi-tenant push
+  - multi-tenant configuration
+  - dynamic push configuration
+  - rotate push keys
+  - tenant push configuration
   - UseDocumentDb
   - DocumentDbPushRepository
   - PushMetrics
@@ -67,6 +77,7 @@ Invoke this skill when the user wants to:
 - Talk to **APNs directly** with a `.p8` auth key (iOS/macOS), **FCM** (HTTP v1) for Android, **Web Push** (VAPID) for browsers, or **WNS** (Windows App SDK / Entra auth) for Windows
 - Subscribe devices to **topics** and send to a topic
 - Mutate, localize, personalize, or suppress notifications per-device via interceptors
+- Observe the send lifecycle (batch start/finish, per-device sent/failed) for telemetry, receipts or dead-letter capture via event receivers
 - Automatically prune expired/invalid device tokens and apply rotated tokens
 - Serve **multiple apps** from one server (keyed registrations per provider)
 - Emit push delivery metrics + traces for OpenTelemetry
@@ -245,6 +256,35 @@ public sealed class LocalizationInterceptor : IPushInterceptor
 }
 ```
 
+## Event receivers (observe the send lifecycle — telemetry, receipts, dead-letter)
+
+When you just want to *watch* sends — not mutate them — implement `IPushEventReceiver` and register with
+`push.AddEventReceiver<T>()` (additive; register zero or more). Unlike interceptors, receivers can't skip
+or mutate; they're pure observers with **batch lifecycle** hooks (`OnBatchStarted`/`OnBatchFinished`) plus
+per-device `OnSent`/`OnFailed`. A receiver that throws is logged and swallowed — it never breaks a batch.
+
+`OnFailed` fires for **every** failed device, including the normalized failures that never throw
+(`TokenExpired`, `InvalidToken`, `RateLimited`, `Error`) — inspect `result.Status`/`result.Reason`.
+(Interceptor `Skip` and no-provider outcomes aren't failures; read them from the `OnBatchFinished`
+`PushSendResult` counts instead.)
+
+```csharp
+public sealed class PushTelemetry : IPushEventReceiver
+{
+    public Task OnBatchStarted(Guid batchId, PushFilter filter, PushNotification n, CancellationToken ct = default) => Task.CompletedTask;
+    public Task OnSent(Guid batchId, DeviceRegistration reg, PushNotification n, PushDeliveryResult r, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task OnFailed(Guid batchId, DeviceRegistration reg, PushNotification n, PushDeliveryResult r, CancellationToken ct = default)
+    {
+        // capture dead-letters, alert on RateLimited, etc.
+        return Task.CompletedTask;
+    }
+
+    public Task OnBatchFinished(Guid batchId, PushNotification n, PushSendResult result, CancellationToken ct = default)
+        => Task.CompletedTask; // result.Sent / .Failed / .TokensRemoved / .Skipped
+}
+```
+
 ## Dead-token pruning & rotation (automatic)
 
 Providers return a normalized `PushDeliveryStatus`. The manager auto-removes tokens reported
@@ -322,6 +362,47 @@ await pushManager.RegisterDevice(new DeviceRegistration
 });
 
 await pushManager.Send(notification, new PushFilter { AppId = "driver", Tags = ["on-shift"] });
+```
+
+## Runtime configuration provider (dynamic / multi-tenant)
+
+The **static** path is the plain `AddApns(o => …)` / `AddApns("key", o => …)` registration (config baked in).
+
+For a **dynamic** setup — many apps, or tenants/keys that change without a restart — supply credentials at
+**send time** via `IPushConfigurationProvider.GetConfiguration(appId)` → `PushConfiguration?` (one record
+bundling optional `Apns`/`Fcm`/`WebPush`/`Wns` option objects), keyed by `DeviceRegistration.AppId`. Register
+the provider once with `UsePushConfiguration<T>()`, then opt each transport in with its **no-argument**
+overload (`AddApns()` / `AddFcm()` / `AddWebPush()` / `AddWns()`).
+
+Rules to follow when generating code:
+- `UsePushConfiguration<T>()` registers the provider **scoped** — so it may inject scoped services (e.g. an EF
+  `DbContext`). Don't make it a singleton. Cache inside it if the lookup is expensive; it's on the hot path.
+- Use the config-driven overload **or** the keyed `AddApns("key", …)` for a given transport, **not both**
+  (both would claim the platform).
+- An unknown/unconfigured `AppId` yields a failed `PushDeliveryResult` (`Error`, reason
+  `"app not configured for …"`) — it does **not** prune the token.
+- Rotation is automatic: the library reuses each app's minted JWT/bearer on the transport's normal token
+  lifetime and re-reads your current config on refresh, so a rotated key applies within one window. Don't
+  add version/etag fields — there's no such concept.
+
+```csharp
+public sealed class MyTenantConfig(MyDbContext db) : IPushConfigurationProvider   // scoped
+{
+    public async ValueTask<PushConfiguration?> GetConfiguration(string appId, CancellationToken ct = default)
+    {
+        var t = await db.Tenants.FindAsync([appId], ct);
+        return t is null ? null : new PushConfiguration
+        {
+            AppId = appId,
+            Apns  = t.HasApns ? new ApnsOptions { TeamId = t.TeamId, KeyId = t.KeyId, BundleId = t.BundleId, PrivateKey = t.P8 } : null
+        };
+    }
+}
+
+services.AddPushNotifications(push => push
+    .UsePushConfiguration<MyTenantConfig>()
+    .AddApns()
+    .AddFcm());
 ```
 
 ## Metrics
