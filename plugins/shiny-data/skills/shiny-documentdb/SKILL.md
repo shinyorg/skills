@@ -1,6 +1,6 @@
 --
 name: shiny-documentdb
-description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, DuckDB, IndexedDB (Blazor WASM), MySQL, MariaDB, SQL Server, PostgreSQL, CockroachDB, and Oracle with LINQ queries, spatial/geo queries, and AOT support
+description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, Amazon DocumentDB, Redis, RavenDB, Google Firestore, DuckDB, IndexedDB (Blazor WASM), MySQL, MariaDB, SQL Server, PostgreSQL, CockroachDB, and Oracle with LINQ queries, spatial/geo queries, and AOT support
 auto_invoke: true
 triggers:
   - document store
@@ -23,6 +23,10 @@ triggers:
   - vector search
   - NearestVectors
   - MapVectorProperty
+  - AutoEmbedOnInsert
+  - auto-embed
+  - IEmbeddingGenerator
+  - OnBeforeWrite
   - full-text search
   - FullTextSearch
   - FullTextMatch
@@ -119,14 +123,22 @@ triggers:
   - table per type
   - GetDiff
   - JsonPatchDocument
-  - UnitOfWork
-  - CreateUnitOfWork
+  - IDocumentSession
+  - OpenSession
+  - IDocumentSessionFactory
+  - AddScopedDocumentSession
+  - IDocumentTransaction
+  - BeginTransaction
+  - LockMode
   - SaveChanges
   - unit of work
   - transaction
   - atomic writes
   - IDocumentInterceptor
   - IDocumentBulkInterceptor
+  - ctx.Services
+  - ctx.Store
+  - ctx.Session
   - OnBeforeWrite
   - OnAfterWrite
   - interceptor
@@ -170,6 +182,30 @@ triggers:
   - DynamoDb
   - DynamoDB
   - AWS
+  - DocumentDbDocumentStore
+  - DocumentDbDocumentStoreOptions
+  - Shiny.DocumentDb.DocumentDb
+  - AddDocumentDbDocumentStore
+  - Amazon DocumentDB
+  - RedisDocumentStore
+  - RedisDocumentStoreOptions
+  - Shiny.DocumentDb.Redis
+  - AddRedisDocumentStore
+  - Redis
+  - Redis Stack
+  - RedisJSON
+  - RediSearch
+  - RavenDbDocumentStore
+  - RavenDbDocumentStoreOptions
+  - Shiny.DocumentDb.RavenDb
+  - AddRavenDbDocumentStore
+  - RavenDB
+  - FirestoreDocumentStore
+  - FirestoreDocumentStoreOptions
+  - Shiny.DocumentDb.Firestore
+  - AddFirestoreDocumentStore
+  - Firestore
+  - Google Firestore
   - DynamoDB Streams
   - MapIndexedProperty
   - promoted column
@@ -249,7 +285,7 @@ triggers:
   - row versioning
   - version property
   - AddDocumentStore
-  - IDocumentStoreProvider
+  - IDocumentSessionFactory
   - FromKeyedServices
   - keyed service
   - named store
@@ -371,7 +407,35 @@ triggers:
 
 # Shiny DocumentDb Skill
 
-You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **MongoDB**, **Azure Table Storage** (and Cosmos DB Table API), **Amazon DynamoDB**, **DuckDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **MariaDB**, **SQL Server**, **PostgreSQL**, **CockroachDB**, and **Oracle**.
+You are an expert in Shiny.DocumentDb, a lightweight multi-provider document store for .NET that turns relational databases into a schema-free JSON document database with LINQ querying, spatial/geo queries, and full AOT/trimming support. Supports **SQLite**, **SQLCipher** (encrypted SQLite), **LiteDB**, **CosmosDB**, **MongoDB**, **Amazon DocumentDB** (MongoDB-compatible), **Redis** (Redis Stack), **RavenDB**, **Google Firestore**, **Azure Table Storage** (and Cosmos DB Table API), **Amazon DynamoDB**, **DuckDB**, **IndexedDB** (Blazor WebAssembly), **MySQL**, **MariaDB**, **SQL Server**, **PostgreSQL**, **CockroachDB**, and **Oracle**.
+
+## Upgrading from v10 → v11
+
+**Only relevant when a codebase is on v10** — do this migration when the user asks to upgrade, or when you see
+v10-only signals in the code: `CreateUnitOfWork(`, the public `UnitOfWork` type in a signature,
+`IDocumentStoreProvider`, `AddDocumentStoreInstrumentation(` / `o.Instrumentation = true`, or a `PackageReference`
+to `Shiny.DocumentDb.Extensions.DependencyInjection` / `Shiny.DocumentDb.Diagnostics`. (Do **not** treat normal
+v11 API — `IDocumentSession`, `OpenSession`, `AddScopedDocumentSession` — as a migration signal.)
+
+v11 is a clean break (no `[Obsolete]` shims). Apply these mechanical transforms:
+
+| v10 | v11 |
+|---|---|
+| `PackageReference` to `…Extensions.DependencyInjection` / `…Diagnostics` | **remove both** — folded into core `Shiny.DocumentDb`, namespaces unchanged |
+| `var uow = store.CreateUnitOfWork();` | `await using var session = store.OpenSession();` (buffered `Add`/`Update`/`Upsert`/`Remove` + `SaveChanges` identical) |
+| `uow.Clear()` | `session.ClearPending()` |
+| `UnitOfWork` in a signature (`Action<UnitOfWork,…>`, `void F(UnitOfWork uow)`) | `IDocumentSession` (the public type is now internal) |
+| `IDocumentStoreProvider` | `IDocumentSessionFactory` (`GetStore(name)` unchanged; `OpenSession(name)` added) |
+| `new AppContext(store)` (generated `DocumentContext`) | `new AppContext(store.OpenSession())`; the context is now `IAsyncDisposable` — `await using` it; `context.CreateUnitOfWork()` → `context.Add`/`SaveChanges` |
+| `services.AddDocumentStoreInstrumentation();` / `o.Instrumentation = true` | remove — telemetry is embedded/always-on; subscribe OTel to `.AddSource("Shiny.DocumentDb")` / `.AddMeter("Shiny.DocumentDb")` |
+
+**Session registration by host:** ASP.NET Core → add `.AddScopedDocumentSession()` and inject scoped
+`IDocumentSession`; MAUI/desktop/background/Orleans → inject the singleton `IDocumentSessionFactory` and
+`OpenSession()` per unit of work (`await using`); immediate one-offs → keep injecting `IDocumentStore`. Ask the
+user which host if it isn't obvious. Interceptors don't break (v11 adds `ctx.Services`/`ctx.Session` + scoped
+support). **After migrating, build (expect 0 errors) and run the FULL test suite** (needs Docker for non-SQLite
+providers; if Docker is off, tell the user to start it). Full guide + before/after code:
+[`/documentdb/migrate-v10-to-v11`](https://shinylib.net/documentdb/migrate-v10-to-v11).
 
 ## When to Use This Skill
 
@@ -441,11 +505,14 @@ Invoke this skill when the user wants to:
   - `Shiny.DocumentDb.MongoDb` — MongoDB provider + DI extensions
   - `Shiny.DocumentDb.AzureTable` — Azure Table Storage (and Cosmos DB Table API) provider + `AddAzureTableDocumentStore(...)`
   - `Shiny.DocumentDb.DynamoDb` — Amazon DynamoDB provider + `AddDynamoDbDocumentStore(...)`
+  - `Shiny.DocumentDb.DocumentDb` — Amazon DocumentDB provider (thin MongoDB-provider subclass; TLS + `retryWrites=false` defaults; no `$text` full-text / no vector) + `AddDocumentDbDocumentStore(...)`
+  - `Shiny.DocumentDb.Redis` — Redis Stack (RedisJSON + RediSearch) provider — server-side full-text/vector(KNN)/geo, `MapIndexedProperty` push-down to `FT.SEARCH`, `INCR`-based Int/Long Id auto-gen, keyspace-notification change feed + `AddRedisDocumentStore(...)`
+  - `Shiny.DocumentDb.RavenDb` — RavenDB provider (opaque STJ envelope, client-side LINQ over id-prefix streams, RQL `ToQueryString`) + `AddRavenDbDocumentStore(...)`
+  - `Shiny.DocumentDb.Firestore` — Google Firestore provider (native-map storage, single-field push-down + full-scan fallback, native cursor paging, snapshot-listener change feed) + `AddFirestoreDocumentStore(...)`
   - `Shiny.DocumentDb.DuckDb` — DuckDB (embedded analytical) provider + DI extensions
   - `Shiny.DocumentDb.IndexedDb` — IndexedDB provider for Blazor WebAssembly + DI extensions
-  - `Shiny.DocumentDb.Extensions.DependencyInjection` — generic (provider-agnostic) DI extensions
   - `Shiny.DocumentDb.Extensions.AI` — Microsoft.Extensions.AI tool surface (AIFunction tools for LLM agents)
-  - `Shiny.DocumentDb.Diagnostics` — OpenTelemetry metrics + tracing (instrumentation decorator over any provider)
+  - **DI registration** (`AddDocumentStore`, `AddDocumentContext`, seeding) and **OpenTelemetry instrumentation** (`AddDocumentStoreInstrumentation`, metrics + tracing) ship **in the core `Shiny.DocumentDb` package** — no separate DI-extensions or Diagnostics package (folded into core in 11.0)
   - `Shiny.DocumentDb.Orleans` — Microsoft Orleans grain storage (`IGrainStorage` + `PubSubStore`) over any `IDocumentStore` backend
   - `Shiny.DocumentDb.Orleans.MongoDb` / `Shiny.DocumentDb.Orleans.CosmosDb` — first-class Orleans grain-storage registration for MongoDB / Cosmos DB
 - **Provider dependencies**:
@@ -565,7 +632,7 @@ var store = new DocumentStore(new DocumentStoreOptions
 
 ### Dependency Injection
 
-Install `Shiny.DocumentDb.Extensions.DependencyInjection` and use `AddDocumentStore` to register `IDocumentStore` as a singleton:
+`AddDocumentStore` (in the core `Shiny.DocumentDb` package — DI registration is built in) registers `IDocumentStore` as a singleton:
 
 ```csharp
 using Shiny.DocumentDb;
@@ -659,7 +726,7 @@ services.AddDynamoDbDocumentStore(o =>
 - **Optimistic concurrency:** `MapVersionProperty<T>` uses the Table `ETag` (If-Match) or a DynamoDB conditional write on a top-level `Version` attribute → `ConcurrencyException` on conflict. Blind (unversioned) upsert is last-write-wins.
 - **Not supported:** spatial, vector, full-text, temporal (`SupportsSpatial`/`SupportsVector`/`SupportsFullText` stay `false`; no `ITemporalDocumentStore`). `IDocumentMaintenance.ClearAll` **is** supported.
 - **Size limits:** Azure Table caps the JSON body at ~64 KB (per-property) and DynamoDB caps an item at 400 KB — an oversized document throws a clear `NotSupportedException`, not a raw storage error.
-- **Native batch:** `BatchInsert`/`BatchRemove` use native transactions/bulk writes in bounded waves (≤100 per PartitionKey on Table, ≤25 per request on DynamoDB). `CreateUnitOfWork()` is a compensating tracker (no cross-partition atomicity), matching Cosmos.
+- **Native batch:** `BatchInsert`/`BatchRemove` use native transactions/bulk writes in bounded waves (≤100 per PartitionKey on Table, ≤25 per request on DynamoDB). `store.OpenSession()` is a compensating tracker (no cross-partition atomicity), matching Cosmos.
 
 #### Named stores (multiple databases)
 
@@ -676,7 +743,7 @@ services.AddDocumentStore("analytics", opts =>
 });
 ```
 
-Inject via `[FromKeyedServices("name")]` attribute or resolve dynamically via `IDocumentStoreProvider`:
+Inject via `[FromKeyedServices("name")]` attribute or resolve dynamically via `IDocumentSessionFactory`:
 
 ```csharp
 // Attribute injection
@@ -685,7 +752,7 @@ public class MyService(
     [FromKeyedServices("analytics")] IDocumentStore analyticsStore) { }
 
 // Dynamic resolution
-public class MyService(IDocumentStoreProvider stores)
+public class MyService(IDocumentSessionFactory stores)
 {
     void DoWork() => stores.GetStore("users").Insert(...);
 }
@@ -693,7 +760,7 @@ public class MyService(IDocumentStoreProvider stores)
 
 ### Multi-Tenancy
 
-Two isolation strategies are supported via `Shiny.DocumentDb.Extensions.DependencyInjection`. Both use a user-implemented `ITenantResolver` to identify the current tenant.
+Two isolation strategies are supported. Both use a user-implemented `ITenantResolver` to identify the current tenant. **Scope-aware (11.0):** register `ITenantResolver` **scoped** (`services.AddScoped<ITenantResolver, …>()`) and it resolves from the caller's **session DI scope** when writing/reading through a scoped `IDocumentSession`/`DocumentContext` — the request's own tenant, no ambient `IHttpContextAccessor` needed. The immediate path (`store.Insert`, no scope) falls back to the root.
 
 #### ITenantResolver Interface
 
@@ -987,8 +1054,9 @@ Rules / guidance:
   `JsonSerializerContext`; supports POCOs with a parameterless ctor + settable props of primitives, enums,
   nullable value types, nested objects, `List<T>`, arrays — anything else raises `DDB005`, use `JsonContext`).
 - **Sets are immediate** (`Insert`/`Update`/`Upsert`/`Remove(id)`/`BatchInsert`/…) and queries return the
-  store's `IDocumentQuery<T>` as-is (`Query()`/`Where(...)` → full query surface). Transactions via
-  `db.CreateUnitOfWork()`. **No** change tracking, identity map, or navigation/`Include`.
+  store's `IDocumentQuery<T>` as-is (`Query()`/`Where(...)` → full query surface). The context **is** a unit of
+  work (`context.Add(x)` + `await context.SaveChanges()`, or `context.BeginTransaction()`); reach the raw session
+  via `context.Session`. **No** change tracking, identity map, or navigation/`Include`.
 - Works over **any** provider (only needs `IDocumentStore`). The generated `ConfigureModel`/`Add<Context>`
   target the relational `DocumentStoreOptions`; for LiteDB/MongoDB/Cosmos build that store yourself and pass
   it: `new AppContext(liteDbStore)`.
@@ -1173,7 +1241,7 @@ await store.BatchUpdate(users);                                  // full replace
 int removed = await store.BatchRemove<User>(new object[] { 1, 2, 3 });
 ```
 
-### Unit of work (grouping writes)
+### Unit of work — `IDocumentSession` (`store.OpenSession()`)
 
 To group several writes into one transaction, create a `UnitOfWork` from the store, queue
 `Add`/`AddRange`/`Update`/`Upsert`/`Remove`, then call `SaveChanges`. All commit or all roll back.
@@ -1182,7 +1250,7 @@ matching batch method. There is no `RunInTransaction` — `UnitOfWork` is the on
 transaction.
 
 ```csharp
-var uow = store.CreateUnitOfWork();
+await using var uow = store.OpenSession();   // IDocumentSession is the unit of work
 uow.Add(order)
    .AddRange(orderLines)   // coalesced into one batch insert
    .Update(customer)
@@ -1244,7 +1312,7 @@ await store.Upsert(new User { Id = "user-1", Name = "Alice", Age = 30 });
 
 ### Late-bound JSON lane (Type + JsonNode)
 
-For dynamic ingestion where you hold a registered document `Type` but not a CLR `T` (generic HTTP intake, ETL, gateways). Writes store the JSON **as-is**; reads return raw `JsonNode`. Relational providers only (SQLite, SQLCipher, MySQL, SQL Server, PostgreSQL, Oracle, DuckDB); document-native and key-partitioned providers throw `NotSupportedException`, and it is unavailable inside `CreateUnitOfWork()`.
+For dynamic ingestion where you hold a registered document `Type` but not a CLR `T` (generic HTTP intake, ETL, gateways). Writes store the JSON **as-is**; reads return raw `JsonNode`. Relational providers only (SQLite, SQLCipher, MySQL, SQL Server, PostgreSQL, Oracle, DuckDB); document-native and key-partitioned providers throw `NotSupportedException`, and it is unavailable inside a session transaction.
 
 ```csharp
 using System.Text.Json.Nodes;
@@ -1333,14 +1401,16 @@ var count = await store.Count<User>(
     new { minAge = 30 });
 ```
 
-### Transactions (UnitOfWork)
+### Transactions (IDocumentSession)
 
 ```csharp
-var uow = store.CreateUnitOfWork();
+await using var uow = store.OpenSession();   // IDocumentSession is the unit of work
 uow.Add(new User { Id = "u1", Name = "Alice", Age = 25 })
    .Add(new User { Id = "u2", Name = "Bob", Age = 30 });
 await uow.SaveChanges(); // commits on success, rolls back on exception
 ```
+
+**Explicit transactions + consistent reads (11.0, relational):** `await using var tx = await session.BeginTransaction();` (one active at a time) for locking reads (`session.Get(id, LockMode.Update)`) and grouping multiple `ExecuteUpdate`/`ExecuteDelete`; `SaveChanges` joins the active tx. Pass an isolation level for a **consistent-read session** — `await session.BeginTransaction(IsolationLevel.Snapshot)` — so every read sees one snapshot. **Telemetry:** a session emits a `<system>.unit_of_work` parent span (tag `db.session.id`) so its ops nest into one correlated trace, and `SaveChanges` records the `db.client.unit_of_work.operations` histogram (buffered writes per commit). Zero-cost when unobserved.
 
 ### Rekeying (SQLCipher only)
 
@@ -1477,6 +1547,9 @@ options.MapTemporal<Order>(o =>
     o.Retention    = TimeSpan.FromDays(90);   // prune expired (closed) versions older than this
     o.MaxVersions  = 50;                      // …or keep only the newest N versions per document
     o.CaptureActor = () => currentUser.Id;    // optional "who" recorded per version
+    // Scope-aware (11.0): resolve the actor from the write's session DI scope (a request-scoped ICurrentUser);
+    // takes precedence over CaptureActor. Ideal for ASP.NET where the user is per-request.
+    o.ResolveActor = sp => sp.GetService<ICurrentUser>()?.Id;
 });
 ```
 
@@ -1516,20 +1589,21 @@ IReadOnlyList<DocumentVersion<Order>> log    = await store.ChangesBetween<Order>
 
 ## Telemetry & Diagnostics
 
-`Shiny.DocumentDb.Diagnostics` adds OpenTelemetry-native metrics + tracing to any provider via a drop-in decorator. Register a store, then call `AddDocumentStoreInstrumentation()` **after** it, and subscribe from OTel with the meter/source name `Shiny.DocumentDb`:
+The core `Shiny.DocumentDb` package emits OpenTelemetry-native metrics + tracing for every operation — **embedded and always-on** on every provider and construction path (no decorator, no opt-in, no separate package; zero-cost when unobserved). Just subscribe your OTel pipeline to the meter/source `Shiny.DocumentDb`:
 
 ```csharp
 services.AddDocumentStore(o => o.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db"));
-services.AddDocumentStoreInstrumentation();
 
 services.AddOpenTelemetry()
     .WithMetrics(m => m.AddMeter("Shiny.DocumentDb"))
     .WithTracing(t => t.AddSource("Shiny.DocumentDb"));
 ```
 
-When registering via `Shiny.DocumentDb.Extensions.DependencyInjection` you can skip the separate call and set `o.Instrumentation = true` in the `AddDocumentStore` options instead (that package bundles the Diagnostics decorator). Honored by the non-keyed overloads **and** the eager keyed overload `AddDocumentStore(name, Action<DocumentStoreOptions>)`; on the lazy keyed overload `AddDocumentStore(name, Action<IServiceProvider, DocumentStoreOptions>)` the flag can't be read at registration, so call `AddDocumentStoreInstrumentation(name)` explicitly there. Still subscribe your OTel pipeline to the `Shiny.DocumentDb` meter/source.
+**REMOVED in 11.0** (do not generate): `AddDocumentStoreInstrumentation()`, `InstrumentedDocumentStore`, and `DocumentStoreOptions.Instrumentation`. Instrumentation is embedded; there is nothing to call. A `UnitOfWork` emits one `transaction` span (inner writes span-free).
 
-**Keyed/named stores:** instrument one with the name overload — `services.AddDocumentStoreInstrumentation("orders")` (or `o.Instrumentation = true` on the eager keyed registration). Signals from that store carry an extra `db.namespace = "orders"` tag so multiple stores are distinguishable. Idempotent; throws `InvalidOperationException` if no keyed store is registered under that name. The non-keyed path omits `db.namespace`.
+**Structured `ILogger` logging:** when a store is created from the container (any provider's `Add…DocumentStore` or `IServiceProvider` ctor) with an `ILoggerFactory` registered, every SQL / operation statement is logged at `Debug` under the `Shiny.DocumentDb` category (control via `Logging:LogLevel:Shiny.DocumentDb`), composed with the `options.Logging` string callback — on the relational core and all six non-relational providers. Container-free `new …DocumentStore(options)` is callback-only, unchanged.
+
+**Keyed/named stores:** a store registered with `AddDocumentStore("orders", …)` automatically tags its signals with `db.namespace = "orders"` so multiple stores are distinguishable. The non-keyed path omits `db.namespace`.
 
 Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivitySource`. Emits, per the OTel database client semantic conventions: a `db.client.operation.duration` histogram (plus a `db.client.operations` counter and a `db.client.response.returned_rows` histogram), tagged `db.system.name` / `db.operation.name` / `db.collection.name` / `outcome` / `error.type` (plus `db.namespace` on named stores); and a `{system}.{operation}` `ActivityKind.Client` span per call with error status + exception capture. `db.system.name` is derived from the wrapped store, so one decorator covers all providers.
 
@@ -1815,7 +1889,7 @@ Spatial sidecar data is automatically maintained — no manual steps needed:
 
 ## Vector / Similarity Search
 
-Embedding-similarity search via `store.NearestVectors<T>(query, k)`. Supported on PostgreSQL (`pgvector`), SQL Server 2025, Oracle 23ai, CosmosDB (DiskANN), MongoDB (Atlas `$vectorSearch`), DuckDB (`vss`), and **SQLite** (`sqlite-vec`). LiteDB, IndexedDB, and MySQL throw `NotSupportedException`.
+Embedding-similarity search via `store.NearestVectors<T>(query, k)` — also on `IDocumentSession` (`session.NearestVectors<T>(...)`), where inside `BeginTransaction` it reads the transaction's consistent snapshot. Capability is a store property: check `session.Store.SupportsVector` (not duplicated on the session). Supported on PostgreSQL (`pgvector`), SQL Server 2025, Oracle 23ai, CosmosDB (DiskANN), MongoDB (Atlas `$vectorSearch`), DuckDB (`vss`), and **SQLite** (`sqlite-vec`). LiteDB, IndexedDB, and MySQL throw `NotSupportedException`.
 
 ```csharp
 options.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536, metric: VectorDistance.Cosine);
@@ -1823,6 +1897,30 @@ var hits = await store.NearestVectors<Doc>(queryEmbedding, k: 5);
 ```
 
 `VectorResult<T>.Score` semantics are **provider-specific by design** (no lossless canonical scale): for Cosine/Euclidean the relational providers return a *distance* (lower = closer) while MongoDB/CosmosDB return a normalized *similarity* (higher = closer). Results are always ordered **nearest-first regardless of provider**, so rely on the ordering — not the raw `Score` value — for portable ranking, and don't compare scores or apply a fixed threshold across providers.
+
+### Auto-embed on insert (`Shiny.DocumentDb.Extensions.AI`)
+
+Populate the vector automatically from a text property. `AutoEmbedOnInsert<T>` is a **write interceptor**, so it runs on **every** provider (relational and document-native — Cosmos/Mongo/Redis/…), inside the write's transaction, on `Insert`/`BatchInsert`/`Upsert`. Two overloads:
+
+```csharp
+using Shiny.DocumentDb.Extensions.AI;
+
+// DI overload (recommended): resolves IEmbeddingGenerator per-write from the caller's scope (ctx.Services),
+// so a scoped session picks the caller's own generator. Register the generator in DI.
+services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(/* ... */);
+services.AddDocumentStore(o =>
+    o.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536)
+     .AutoEmbedOnInsert<Doc>(
+         sourceSelector: d => d.Content,
+         targetSetter:   (d, v) => d.Embedding = v,
+         targetGetter:   d => d.Embedding));   // optional: skip when already set
+
+// Explicit-generator overload: a fixed instance, for the container-free `new DocumentStore(options)` path.
+opts.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536)
+    .AutoEmbedOnInsert<Doc>(generator, d => d.Content, (d, v) => d.Embedding = v, d => d.Embedding);
+```
+
+Skips when the source text is null/empty or the target vector is already set. With the DI overload, a missing generator throws `InvalidOperationException` (register one, or use the explicit overload). There is **no** `OnBeforeInsert` hook anymore — for non-embedding "compute a derived field" needs use `OnBeforeWrite<T>` (an `IDocumentInterceptor` lambda over `ctx.Document`).
 
 ### SQLite — loading `sqlite-vec`
 
@@ -2556,13 +2654,13 @@ await store.DropAllIndexesAsync<User>();
 
 Index names are deterministic (`idx_json_{typeName}_{jsonPath}`). `CreateIndexAsync` uses `IF NOT EXISTS`, so calling it multiple times is safe.
 
-## Transactions (UnitOfWork)
+## Transactions (IDocumentSession)
 
 Grouping writes into one transaction is done through a `UnitOfWork` created from the store — there is
 no `RunInTransaction`. Queue `Add`/`AddRange`/`Update`/`Upsert`/`Remove`, then `SaveChanges`.
 
 ```csharp
-var uow = store.CreateUnitOfWork();
+await using var uow = store.OpenSession();   // IDocumentSession is the unit of work
 uow.Add(new User { Id = "u1", Name = "Alice", Age = 25 })
    .Add(new User { Id = "u2", Name = "Bob", Age = 30 });
 await uow.SaveChanges(); // commits on success, rolls back on exception
@@ -2592,7 +2690,7 @@ opts.OnBeforeWrite<Order>((ctx, ct) => { /* mutate ctx.Document or throw to abor
 opts.OnAfterWrite<Order>((ctx, ct) => outbox.Enqueue(ctx.Id, ctx.Operation, ct));
 ```
 
-Interceptors can also be **registered in DI** to get constructor-injected dependencies. `AddDocumentStore` resolves every `IDocumentInterceptor` / `IDocumentBulkInterceptor` from the container and runs them after the options-registered ones (deterministic order). Resolved once from the store's provider — register as singletons (use `IServiceScopeFactory` inside the hook for scoped services).
+Interceptors can also be **registered in DI** to get constructor-injected dependencies. `AddDocumentStore` resolves every `IDocumentInterceptor` / `IDocumentBulkInterceptor` from the container and runs them after the options-registered ones. Since 11.0 this fires on **every** provider (previously DI interceptors silently never ran on the non-relational providers or in Orleans grain storage).
 
 ```csharp
 public sealed class OutboxInterceptor(IOutbox outbox) : IDocumentInterceptor
@@ -2605,7 +2703,35 @@ services.AddSingleton<IDocumentInterceptor, OutboxInterceptor>();
 services.AddDocumentStore(opts => opts.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db"));
 ```
 
-Register DI interceptors as **Singleton** (recommended) or **Transient** — the store is a singleton and resolves them once from the root provider. A **Scoped** `IDocumentInterceptor`/`IDocumentBulkInterceptor` registration makes `AddDocumentStore` throw a clear error at startup; for per-operation scoped services, inject `IServiceScopeFactory` and open a scope inside the hook.
+Register DI interceptors as **Singleton** (recommended) or **Transient** — the store is a singleton and resolves them once from the root provider. A **Scoped** `IDocumentInterceptor`/`IDocumentBulkInterceptor` registration makes `AddDocumentStore` throw a clear error at startup.
+
+**Scoped services in a write — `ctx.Services` (11.0):** resolve scoped services from `ctx.Services` **inside the hook** (never the constructor). **No marker interface** — any DI-registered interceptor gets a scope, and `ctx.Services` is never null; interceptors are resolved fresh from the flowing scope per write, so **scoped interceptors are allowed** (`services.AddScoped<IDocumentInterceptor, X>()`). Through a scoped `IDocumentSession`/`DocumentContext` it's the caller's own request scope; through a raw singleton-store immediate write (MAUI/Orleans/background) the unit-of-work engine opens a fresh child scope per unit when DI interceptors are registered. **Do NOT** ship a `CreatedBy`/`UpdatedBy` audit interceptor on this — temporal (`CaptureActor` + `ChangesByActor`) already owns audit.
+
+```csharp
+public sealed class OrderValidationInterceptor : IDocumentInterceptor   // no marker; scoped registration also fine
+{
+    public int Order => 0;                                   // lower runs first
+    public async Task BeforeWrite(DocumentWriteContext ctx, CancellationToken ct)
+    {
+        if (ctx.DocumentType != typeof(Order)) return;
+        var validator = ctx.Services.GetRequiredService<IOrderValidator>();   // scoped; ctx.Services never null
+        await validator.EnsureCanPlace((Order)ctx.Document!, ct);
+    }
+    public Task AfterWrite(DocumentWriteContext ctx, CancellationToken ct) => Task.CompletedTask;
+}
+```
+
+**Transaction-visible store — `ctx.Store` (11.0):** a single write with per-doc interceptors runs as an implicit one-op unit of work, so `ctx.Store` is bound to that transaction. Read this unit's uncommitted rows and write side effects (an outbox row) that commit **atomically** with the triggering write. Use `ctx.Store`, NOT a DI-resolved `IDocumentStore` (that opens its own connection → not atomic + shared-connection deadlock). Wrap re-entrant side-effect writes in `ctx.Store.SuppressInterceptors()`. Full read-your-writes visibility is relational + LiteDB; other backends are committed-state. `ctx.Store` is never null; valid only within the hook.
+
+```csharp
+public async Task AfterWrite(DocumentWriteContext ctx, CancellationToken ct)
+{
+    using (ctx.Store.SuppressInterceptors())
+        await ctx.Store.Insert(new OutboxEntry(ctx.Id!, "OrderPlaced"), ct);
+}
+```
+
+**Ordering:** both interceptor interfaces expose `int Order => 0` — lower runs first; ties keep registration order (options before DI).
 
 **The serialized JSON on the context:** inside `BeforeWrite`, `ctx.GetJson()` returns the exact JSON
 about to be persisted (serialized with the store's own options/`JsonTypeInfo`, cached, and invalidated
@@ -2837,7 +2963,7 @@ await foreach (var change in pending.NotifyOnChange(ct))
 Changes performed in a `UnitOfWork` are buffered and emitted *after* `SaveChanges` commits. A rollback discards the buffered events.
 
 ```csharp
-var uow = store.CreateUnitOfWork();
+await using var uow = store.OpenSession();   // IDocumentSession is the unit of work
 uow.Add(new User { Id = "u1", Name = "Alice" })
    .Add(new User { Id = "u2", Name = "Bob" });
 // Subscribers see nothing yet.
