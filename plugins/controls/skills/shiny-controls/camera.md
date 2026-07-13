@@ -91,6 +91,23 @@ CameraPhoto photo = await this.Camera.CapturePhotoAsync();   // photo.Data is JP
 await this.Camera.StartVideoRecordingAsync(new VideoRecordingOptions { IncludeAudio = true });
 CameraVideo video = await this.Camera.StopVideoRecordingAsync();   // video.FilePath
 
+// Burn an overlay INTO the recorded file (watermark, timestamp, reticle) — composited into every frame,
+// not just the live preview. DrawOverlay runs off the UI thread per encoded frame; draw in pixel space.
+// iOS / Mac Catalyst / macOS / Android; Windows records the raw feed for now. Omit Overlay for the fast path.
+await this.Camera.StartVideoRecordingAsync(new VideoRecordingOptions
+{
+    IncludeAudio = true,
+    Overlay = new DelegateVideoOverlay((canvas, frame, ctx) =>
+    {
+        canvas.FontColor = Colors.White;
+        canvas.FontSize = Math.Max(24, frame.Height * 0.04f);
+        canvas.DrawString(ctx.Elapsed.ToString(@"mm\:ss"), 20, 20, frame.Width, 60,
+            HorizontalAlignment.Left, VerticalAlignment.Top);
+    })
+    // or Overlay = new DrawableVideoOverlay(existingCameraOverlayDrawable) to reuse an IDrawable
+});
+CameraVideo overlaid = await this.Camera.StopVideoRecordingAsync();
+
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
@@ -556,6 +573,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 ## Common Pitfalls
 
 - **Android: video + analyzer together** — CameraX caps concurrent use-cases, so the camera binds either `ImageAnalysis` (while an analyzer is **enabled**) or `VideoCapture`, not both. To record, disable the analyzer (`IsEnabled = false`) or set `Camera.Analyzer = null` — the camera rebinds automatically; `StartVideoRecordingAsync` throws a clear error while an enabled analyzer is attached.
+- **Burn-in video overlay ≠ live overlay** — the `CameraOverlayView` / `CameraOverlayDrawable` only paint the on-screen preview; nothing they draw reaches the saved file. To composite into the *recording*, set `VideoRecordingOptions.Overlay` (`IVideoOverlayRenderer` / `DelegateVideoOverlay` / `DrawableVideoOverlay`). `DrawOverlay` runs **off the UI thread** once per encoded frame — read UI state via a volatile/immutable snapshot, never touch UI objects — and draws in **frame pixel space** (`ctx.Width`/`Height`), origin top-left, front camera already un-mirrored. Supported on iOS / Mac Catalyst / macOS / Android; **Windows throws `PlatformNotSupportedException`** for now (record without the overlay, or use the on-preview overlay). Omitting `Overlay` keeps the fast native recorder.
 - **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there). On **Android the live-preview filter needs API 31+** (it uses `RenderEffect`); on older Android the preview is unfiltered but captured photos are still filtered. The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
 - **"Camera permission denied" but the preview works** — you're gating on `RequestPermissionAsync()` in `OnAppearing` before the handler is connected (it returns `false` → looks denied, and the early-return also leaves the lens list empty). Don't gate on it; rely on auto-start + `CameraError`, and load cameras once the view is loaded.
 - **Android minSdk** — CameraX requires API 23+. Set `<SupportedOSPlatformVersion>` to 23 or higher in the consuming app or you'll get a manifest-merge error.
