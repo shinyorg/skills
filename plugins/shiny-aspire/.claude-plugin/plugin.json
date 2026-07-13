@@ -1,6 +1,6 @@
 {
   "name": "shiny-aspire",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Shiny .NET Aspire integrations — Orleans ADO.NET hosting with selective schema provisioning (clustering, persistence, reminders) and Gluetun VPN container routing with WireGuard/OpenVPN, HTTP proxy, Shadowsocks, and firewall subnet controls",
   "author": {
     "name": "Allan Ritchie",

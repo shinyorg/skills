@@ -1,7 +1,7 @@
 {
   "name": "shiny-maui",
-  "version": "1.11.0",
-  "description": ".NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, pluggable dialogs, and cross-platform device contact store with CRUD, LINQ queries, paging, and permissions",
+  "version": "1.12.0",
+  "description": ".NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, and pluggable dialogs",
   "author": {
     "name": "Allan Ritchie",
     "email": "allan@shinysoft.biz",
@@ -10,6 +10,6 @@
   "homepage": "https://shinylib.net/",
   "repository": "https://github.com/shinyorg/skills",
   "license": "MIT",
-  "keywords": ["maui", "shell", "navigation", "contacts", "contactstore", "xaml", "mvvm", "mobile", "cross-platform"],
+  "keywords": ["maui", "shell", "navigation", "xaml", "mvvm", "mobile", "cross-platform"],
   "skills": "./skills/"
 }
