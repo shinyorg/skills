@@ -66,8 +66,39 @@ Full-screen overlay controls that integrate with `OverlayHost`/`ShinyContentPage
 | AnimationDuration | uint | 250 | Fade in/out duration in ms |
 | BlurRadius | double | 0 | When > 0, applies a frosted glass blur effect behind the backdrop (uses FrostedGlassView) |
 | OverlayContentTemplate | DataTemplate | null | Custom overlay content |
+| CloseOnBackdropTap | bool | true | When true, tapping the backdrop hides the overlay; set false to keep it up until dismissed in code |
 
 Backdrop color and opacity are controlled by `ShinyContentPage.BackdropColor` and `ShinyContentPage.BackdropMaxOpacity` (or the equivalent properties on `OverlayHost`).
+
+### Built-in loading overlay on ShinyContentPage (MAUI)
+
+Every `ShinyContentPage` ships with a **built-in `LoadingOverlay`** — you do not need to add one to `Panels`. Just bind `IsLoading` on the page; it is brought to the front when shown and never dismisses on a backdrop tap (`CloseOnBackdropTap = false`). Customize it with the `Loading*` passthrough properties.
+
+```xml
+<shiny:ShinyContentPage IsLoading="{Binding IsBusy}"
+                        LoadingMessage="Working on it…"
+                        LoadingBlurRadius="8">
+    <ScrollView>...</ScrollView>
+
+    <!-- optional: fully custom loading content (passed through to OverlayContentTemplate) -->
+    <shiny:ShinyContentPage.LoadingContentTemplate>
+        <DataTemplate>
+            <Label Text="Please wait…" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+        </DataTemplate>
+    </shiny:ShinyContentPage.LoadingContentTemplate>
+</shiny:ShinyContentPage>
+```
+
+| ShinyContentPage loading property | Type | Default | Passes through to |
+|---|---|---|---|
+| IsLoading | bool | false | `LoadingOverlay.IsShown` (TwoWay) |
+| LoadingMessage | string? | null | `Message` |
+| LoadingIsIndeterminate | bool | true | `IsIndeterminate` |
+| LoadingProgress | double | 0 | `Progress` (TwoWay) |
+| LoadingSpinnerColor | Color? | null | `SpinnerColor` |
+| LoadingBlurRadius | double | 0 | `BlurRadius` |
+| LoadingContentTemplate | DataTemplate? | null | `OverlayContentTemplate` |
+| LoadingOverlay | LoadingOverlay | — | the underlying instance (read-only) |
 
 ### LoadingOverlay Properties (MAUI)
 
