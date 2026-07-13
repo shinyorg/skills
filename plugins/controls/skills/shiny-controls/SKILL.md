@@ -56,6 +56,22 @@ triggers:
   - annotate image
   - image annotation
   - photo editor
+  - media picker
+  - mediapicker
+  - media picker button
+  - photo picker
+  - pick photo
+  - pick image
+  - choose photo
+  - take photo
+  - add photos
+  - image upload
+  - photo upload
+  - gallery picker
+  - camera capture button
+  - compress photo
+  - image compression
+  - photo carousel
   - markdown
   - markdown view
   - markdown editor
@@ -417,6 +433,7 @@ references:
   - pillview.md
   - image-viewer.md
   - image-editor.md
+  - media-picker-button.md
   - chatview.md
   - security-pin.md
   - fab.md
@@ -462,6 +479,7 @@ The library contains:
 - **BadgeView**: A content-wrapping overlay that pins a small badge to one of the four corners (`TopLeft`/`TopRight`/`BottomLeft`/`BottomRight`) of a wrapped view. Setting `Text` to an empty string auto-hides the badge — bind your unread/count value directly. Supports configurable `BadgeColor`/`BadgeTextColor`/`BadgeBorderColor`/`BadgeBorderThickness`, `IsDot` mode for simple notification indicators, `MaxCount` numeric overflow rendering ("99+"), per-corner `OffsetX`/`OffsetY` nudge (default hangs the badge slightly outside the corner), scale-in/out animation (`IsAnimated`), and optional continuous `IsPulsing` to draw attention. Blazor honors `prefers-reduced-motion`
 - **ImageViewer**: A full-screen image overlay with pinch-to-zoom, pan when zoomed, double-tap to toggle zoom, animated open/close, and a close button
 - **ImageEditor**: An inline image editor with cropping (drag-handle selection with dimmed overlay), rotation, freehand drawing with color, text annotations, undo/redo, reset, and export to PNG/JPEG/WEBP at configurable resolutions
+- **MediaPickerButton**: A button that adds photos from the gallery and/or camera (built-in `MediaPicker` on MAUI; `<input type=file>`/`capture` on Blazor), compresses/re-encodes each to PNG or JPEG at a chosen quality (with optional max-dimension downscale), caps the count with `MaxPhotos` (added one at a time), and shows the collected photos inline as a tappable carousel (`ShowAsCarouselInView`, opening the ImageViewer with an optional Edit button that reuses the ImageEditor) or a compact pinch/zoom overlay. `AllowGallery`/`AllowCamera`/`AllowPhotoEdit` toggles, `PermissionDeniedText`, `NoImagesTemplate`, and a two-way `Photos` collection of `MediaPickerItem`. See media-picker-button.md
 - **ChatView**: A modern chat UI with message bubbles, per-participant colors and avatars, visual grouping by sender/minute, typing indicators, virtualized message list with load-more, auto-link detection, image messages, and a bottom input bar with send/attach
 - **SecurityPin**: A PIN/OTP entry control with individual cells, configurable length, keyboard, and optional character masking
 - **Fab**: A Material-style floating action button with Icon, Text, Command, custom colors, border, and shadow
