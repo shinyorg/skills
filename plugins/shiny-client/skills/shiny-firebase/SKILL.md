@@ -3,31 +3,19 @@ name: shiny-firebase
 description: Guide for implementing Firebase Cloud Messaging push notifications in .NET MAUI apps using Shiny.Push.FirebaseMessaging on iOS and Android.
 auto_invoke: true
 triggers:
-- "firebase"
-- "FCM"
-- "firebase cloud messaging"
-- "push notifications firebase"
-- "AddPushFirebaseMessaging"
-- "FirebaseConfiguration"
-- "GoogleService-Info.plist"
-- "google-services.json"
-- "firebase push"
-- "firebase messaging"
+  - firebase
+  - FCM
+  - firebase cloud messaging
+  - push notifications firebase
+  - AddPushFirebaseMessaging
+  - FirebaseConfiguration
+  - GoogleService-Info.plist
+  - google-services.json
+  - firebase push
+  - firebase messaging
 ---
 
 # Shiny Firebase Push Notifications Skill
-
-## Triggers
-- firebase
-- FCM
-- firebase cloud messaging
-- push notifications firebase
-- AddPushFirebaseMessaging
-- FirebaseConfiguration
-- GoogleService-Info.plist
-- google-services.json
-- firebase push
-- firebase messaging
 
 ## Overview
 
@@ -89,13 +77,19 @@ public class MyPushDelegate : IPushDelegate
         return Task.CompletedTask;
     }
 
-    public Task OnTokenChanged(string token)
+    public Task OnNewToken(string token)
     {
         // Handle FCM token changes - send to your backend
         return Task.CompletedTask;
     }
 
-    public Task OnEntry(PushNotificationResponse response)
+    public Task OnUnRegistered(string token)
+    {
+        // Handle when the device is unregistered from push
+        return Task.CompletedTask;
+    }
+
+    public Task OnEntry(PushNotification notification)
     {
         // Handle when user taps on a notification
         return Task.CompletedTask;
@@ -156,6 +150,6 @@ Registers Firebase push notification services. Pass `null` or omit for embedded 
 Registers Firebase push with a custom `IPushDelegate` implementation that handles notification events.
 
 ## Key Source Files
-- `Shiny.Push.FirebaseMessaging/FirebaseConfiguration.cs` - Configuration record
-- `Shiny.Push.FirebaseMessaging/Platforms/Shared/ServiceCollectionExtensions.cs` - DI registration
-- `Shiny.Push.FirebaseMessaging/Platforms/iOS/FirebasePushProvider.cs` - iOS FCM provider
+- `src/Shiny.Push.FirebaseMessaging/FirebaseConfiguration.cs` - Configuration record
+- `src/Shiny.Push.FirebaseMessaging/Platforms/Shared/ServiceCollectionExtensions.cs` - DI registration
+- `src/Shiny.Push.FirebaseMessaging/Platforms/iOS/FirebasePushProvider.cs` - iOS FCM provider
