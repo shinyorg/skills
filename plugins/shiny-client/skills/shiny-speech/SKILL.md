@@ -110,7 +110,12 @@ triggers:
   - IsSpeaking
   - AudioLevelChanged
   - IsPlayerAnalysisSupported
+  - InputLevelChanged
+  - IsInputAnalysisSupported
+  - AudioLevel
   - VU meter
+  - mic level
+  - input level
   - audio level
   - Volume
   - set volume
@@ -177,7 +182,7 @@ Shiny Speech provides:
 - Start/Stop lifecycle — call `Start()` to begin listening, `Stop()` to end; `Start()` throws if already listening
 - Built-in keyword detection — set `Keywords` in `SpeechRecognitionOptions` and subscribe to `KeywordHeard`
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
-- Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser)
+- Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser) with an `InputLevelChanged` VU signal on every platform
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
 - Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android only
 - Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android only
@@ -188,7 +193,9 @@ Shiny Speech provides:
 - Typecast integration (TTS only)
 - Convenience extension methods: `ListenUntilSilence`, `StatementAfterKeyword`, `WaitListenForKeywords`, `ListenForKeywords`
 - Permission management via `AccessState` and `RequestAccess()`
-- VU meter signal — `AudioLevelChanged` event on `ITextToSpeechService` and `IAudioPlayer` emits a normalized 0.0–1.0 RMS level during playback; `IsPlayerAnalysisSupported` reports per-platform availability
+- VU meter signal (outgoing) — `AudioLevelChanged` event on `ITextToSpeechService` and `IAudioPlayer` emits a normalized 0.0–1.0 RMS level during playback; `IsPlayerAnalysisSupported` reports per-platform availability
+- VU meter signal (incoming) — `InputLevelChanged` event on `ISpeechToTextService` (gated by `IsInputAnalysisSupported`), `IAudioSource`, and `IAudioMonitor` emits the same normalized 0.0–1.0 mic level while listening / capturing / monitoring
+- `AudioLevel` helper — the shared dBFS mapping (`FromRms` / `FromPcm16` / `FromSamples`) used by every meter, public so PCM you consume yourself meters on the same scale
 
 ## Setup
 
@@ -561,19 +568,34 @@ public class MyViewModel(IAudioPlayer audioPlayer)
 }
 ```
 
-### 5. VU Meter (Audio Level)
+### 5. VU Meters (Audio Levels)
 
-Subscribe to `AudioLevelChanged` on `ITextToSpeechService` (native + cloud TTS) or `IAudioPlayer` (generic audio playback). Each emitted value is a normalized RMS level in `0.0`–`1.0`. Always gate UI on `IsPlayerAnalysisSupported` — it is `false` on Windows native TTS and Browser.
+Both directions are metered on the same normalized `0.0`–`1.0` scale.
+
+**Outgoing (playback / TTS)** — subscribe to `AudioLevelChanged` on `ITextToSpeechService` (native + cloud TTS) or `IAudioPlayer` (generic audio playback). Always gate UI on `IsPlayerAnalysisSupported` — it is `false` on Windows native TTS and Browser.
+
+**Incoming (microphone)** — subscribe to `InputLevelChanged` on `ISpeechToTextService` (gate on `IsInputAnalysisSupported`), on `IAudioSource` when you drive capture yourself (supported everywhere, no flag), or on `IAudioMonitor` while live-monitoring.
 
 ```csharp
-public partial class TtsViewModel(ITextToSpeechService tts) : ObservableObject
+public partial class VoiceViewModel : ObservableObject
 {
-    [ObservableProperty] double audioLevel; // bind to ProgressBar.Progress
-    public bool IsVuSupported => tts.IsPlayerAnalysisSupported;
+    [ObservableProperty] double speakingLevel;   // bind to ProgressBar.Progress
+    [ObservableProperty] double listeningLevel;
 
-    public TtsViewModel(ITextToSpeechService tts) : this(tts)
-        => tts.AudioLevelChanged += (_, level) =>
-            MainThread.BeginInvokeOnMainThread(() => AudioLevel = level);
+    public bool IsSpeakingVuSupported { get; }
+    public bool IsListeningVuSupported { get; }
+
+    public VoiceViewModel(ITextToSpeechService tts, ISpeechToTextService stt)
+    {
+        IsSpeakingVuSupported = tts.IsPlayerAnalysisSupported;
+        IsListeningVuSupported = stt.IsInputAnalysisSupported;
+
+        tts.AudioLevelChanged += (_, level) =>
+            MainThread.BeginInvokeOnMainThread(() => SpeakingLevel = level);
+
+        stt.InputLevelChanged += (_, level) =>
+            MainThread.BeginInvokeOnMainThread(() => ListeningLevel = level);
+    }
 }
 ```
 
@@ -584,8 +606,19 @@ Platform behaviour:
 | Native TTS (`ITextToSpeechService`) | ✅ AVAudioEngine + player-node tap | ✅ `OnAudioAvailable` PCM RMS | ❌ | ❌ |
 | Cloud TTS (`CloudTextToSpeech`) | ✅ forwarded from `IAudioPlayer` | ✅ forwarded from `IAudioPlayer` | ❌ | ❌ |
 | Generic playback (`IAudioPlayer`) | ✅ `AVAudioPlayer.MeteringEnabled` | ✅ `Visualizer` on session | ❌ | ❌ |
+| Cloud STT (`CloudSpeechToText`) | ✅ forwarded from `IAudioSource` | ✅ forwarded from `IAudioSource` | ✅ forwarded from `IAudioSource` | ✅ forwarded from `IAudioSource` |
+| Native STT (`ISpeechToTextService`) | ✅ recognizer input tap | ✅ `OnRmsChanged` | ❌ | ❌ |
+| Capture (`IAudioSource`) | ✅ PCM RMS on the tap | ✅ PCM RMS on the read loop | ✅ PCM RMS per quantum | ✅ PCM RMS per worklet chunk |
+| Monitor (`IAudioMonitor`) | ✅ | ✅ | n/a (no monitor) | n/a (no monitor) |
 
-Apple native TTS plays through `AVAudioEngine` + `AVAudioPlayerNode` so a tap on the player node can compute RMS. The engine is created lazily on first speak and kept warm — first utterance adds ~50–150 ms; subsequent utterances are indistinguishable. Reset `AudioLevel` to `0` on speak completion / `StopAsync` so the meter drains.
+Apple native TTS plays through `AVAudioEngine` + `AVAudioPlayerNode` so a tap on the player node can compute RMS. The engine is created lazily on first speak and kept warm — first utterance adds ~50–150 ms; subsequent utterances are indistinguishable. Reset the bound level to `0` on speak completion / `StopAsync` / `Stop()` so the meter drains.
+
+Capture-side levels are throttled to ~20 events/sec (peak-held between emissions). If you consume the raw PCM stream yourself, compute the same value with the public `AudioLevel` helper:
+
+```csharp
+var read = await pcmStream.ReadAsync(buffer, ct);
+var level = AudioLevel.FromPcm16(buffer.AsSpan(0, read));   // 0.0 - 1.0, same scale as the events
+```
 
 ### 6. Microphone Monitor & Device Selection (`IAudio` / `IAudioMonitor` / `IAudioDevices`)
 
@@ -697,9 +730,9 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 17. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
 18. **No JS setup in the browser** — `shiny-audio.js` ships as a static web asset inside the `Shiny.Audio` package (`_content/Shiny.Audio/shiny-audio.js`) and is imported automatically via `JSHost.ImportAsync`; never copy it into `wwwroot` or add a `<script>` tag
 19. **CarPlay compatible** — iOS audio session uses `PlayAndRecord` with `AllowBluetooth` / `AllowBluetoothA2dp` / `DefaultToSpeaker`, so when CarPlay is active iOS automatically routes audio through the car's microphone and speakers — no CarPlay-specific code needed
-20. **VU meter gating** — always check `IsPlayerAnalysisSupported` before showing meter UI; events do not fire on platforms where metering isn't available (Windows native TTS, Browser)
-21. **Marshal `AudioLevelChanged` to the UI thread** — the event fires from the audio render / synthesizer thread; use `MainThread.BeginInvokeOnMainThread` in MAUI or equivalent in Blazor before mutating bound properties
-22. **Reset audio level on completion** — set your bound `AudioLevel` back to `0` after `SpeakAsync` returns or `StopAsync` is called so the meter drains visually
+20. **VU meter gating** — check `IsPlayerAnalysisSupported` before showing a playback meter and `IsInputAnalysisSupported` before showing a mic meter; events do not fire where metering isn't available (playback: Windows native TTS + Browser; mic: Windows + Browser native STT). `IAudioSource.InputLevelChanged` needs no gate — it works on every platform
+21. **Marshal level events to the UI thread** — `AudioLevelChanged` fires from the audio render / synthesizer thread and `InputLevelChanged` from the capture thread; use `MainThread.BeginInvokeOnMainThread` in MAUI or equivalent in Blazor before mutating bound properties
+22. **Reset audio level on completion** — set your bound level back to `0` after `SpeakAsync` returns, or after `StopAsync` / `Stop()`, so the meter drains visually
 23. **Stop the mic monitor when leaving** — always `IAudioMonitor.Stop()` on page-disappear and app-background; a live monitor left open is feedback and battery drain
 24. **Guard monitor/devices by platform** — `IAudioMonitor` / `IAudioDevices` exist on iOS/Mac Catalyst + Android only; accessing them via the `IAudio` facade elsewhere throws `PlatformNotSupportedException`
 25. **Prefer the `IAudio` facade for discovery** — inject one `IAudio` to reach `Player`/`Source`/`Monitor`/`Devices`; inject the focused interface directly when a class only needs one

@@ -15,7 +15,7 @@ dotnet add package Shiny.Speech.Typecast         # Optional: Typecast TTS (TTS o
 ```csharp
 using Shiny;        // AccessState (from Shiny.Core), AddSpeechServices/AddAudio* DI extensions, UseShiny
 using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
-using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, AudioDevice, PipeStream
+using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, AudioDevice, AudioLevel, PipeStream
 ```
 
 The audio interfaces live in the standalone `Shiny.Audio` package/namespace. `AccessState` comes from
@@ -59,6 +59,9 @@ public interface ISpeechToTextService
     // Whether speech recognition is currently active
     bool IsListening { get; }
 
+    // True when this service can emit InputLevelChanged while listening
+    bool IsInputAnalysisSupported { get; }
+
     // Request microphone and speech recognition permissions
     Task<AccessState> RequestAccess();
 
@@ -76,8 +79,21 @@ public interface ISpeechToTextService
 
     // Fires on recognition errors
     event EventHandler<SpeechRecognitionError> Error;
+
+    // Fires periodically while listening with the mic level, 0.0 - 1.0 (mic VU meter).
+    // Only fires where IsInputAnalysisSupported is true. Raised off the UI thread.
+    event EventHandler<double>? InputLevelChanged;
 }
 ```
+
+`IsInputAnalysisSupported` matrix:
+
+| Platform | Native STT | Cloud STT (Azure / OpenAI / ElevenLabs / custom) |
+|---|---|---|
+| iOS / macOS / Mac Catalyst | ✅ (recognizer input-node tap) | ✅ (forwarded from `IAudioSource`) |
+| Android | ✅ (`OnRmsChanged`, normalized from the -2..10 dB scale) | ✅ (forwarded from `IAudioSource`) |
+| Windows | ❌ (recognizer owns the mic) | ✅ (forwarded from `IAudioSource`) |
+| Browser | ❌ (Web Speech API owns the mic) | ✅ (forwarded from `IAudioSource`) |
 
 ### Usage
 
@@ -242,6 +258,27 @@ public interface IAudioSource : IAsyncDisposable
 
     // Stop audio capture
     Task StopCaptureAsync();
+
+    // Fires while capturing with the mic level, 0.0 - 1.0 (mic VU meter). Computed from the
+    // captured PCM and throttled to ~20/sec. Supported on every platform — no capability flag.
+    // Raised on the capture thread; marshal before binding.
+    event EventHandler<double>? InputLevelChanged;
+}
+```
+
+## AudioLevel (static helper)
+
+The shared dBFS mapping behind every meter in the library (`Shiny.Audio` namespace) — use it when you
+consume the raw PCM stream yourself and want a level on the same scale as the events.
+
+```csharp
+public static class AudioLevel
+{
+    public const double NoiseFloorDb = -50.0;              // below this reads as 0.0
+
+    public static double FromRms(double rms);              // linear RMS (0-1) -> meter value
+    public static double FromPcm16(ReadOnlySpan<byte> pcm); // 16-bit LE PCM (IAudioSource format)
+    public static double FromSamples(ReadOnlySpan<float> samples); // normalized -1..1 floats
 }
 ```
 
