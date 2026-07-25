@@ -84,8 +84,7 @@ builder.Services.AddCalendarStore();
 <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 ```
 
-**iOS 17+ / Mac Catalyst / macOS** — Add to `Info.plist` (and the macOS sandbox entitlement
-`com.apple.security.personal-information.calendars` if sandboxed):
+**iOS 17+ / Mac Catalyst / macOS** — Add to `Info.plist`:
 ```xml
 <key>NSCalendarsFullAccessUsageDescription</key>
 <string>This app needs access to your calendar.</string>
@@ -94,6 +93,14 @@ builder.Services.AddCalendarStore();
 <string>This app needs to add events to your calendar.</string>
 ```
 **iOS < 17** — Add `NSCalendarsUsageDescription`.
+
+**Mac Catalyst / sandboxed macOS** — the `Info.plist` keys are not enough. The App Sandbox (which
+Mac Catalyst enables by default) also requires the calendar entitlement, or `RequestAccess` returns
+`Denied` with no prompt ever appearing:
+```xml
+<CustomEntitlements Include="com.apple.security.personal-information.calendars"
+                    Type="Boolean" Value="true" />
+```
 
 **Windows** — Add to `Package.appxmanifest`:
 ```xml
@@ -144,7 +151,7 @@ public interface ICalendarStore
     IQueryable<CalendarEvent> Query();
     Task<string> CreateEvent(CalendarEvent calendarEvent, CancellationToken ct = default);
     Task UpdateEvent(CalendarEvent calendarEvent, CancellationToken ct = default);
-    Task DeleteEvent(string eventId, CancellationToken ct = default);
+    Task DeleteEvent(string eventId, bool deleteSeries = false, CancellationToken ct = default);
 }
 ```
 
@@ -215,8 +222,43 @@ var evt = await store.GetEvent(id);
 evt.Location = "Room 5";
 await store.UpdateEvent(evt);
 
+// Deletes only this occurrence when the event recurs.
 await store.DeleteEvent(id);
 ```
+
+#### Deleting a recurring event
+
+`deleteSeries` decides whether a recurring event loses one occurrence or the rest of the series. It
+is ignored for non-recurring events, so it is always safe to pass. **Never guess on a recurring
+event — prompt the user**, keyed off `CalendarEvent.IsRecurring`:
+
+```csharp
+if (evt.IsRecurring)
+{
+    var choice = await dialogs.ActionSheet(
+        $"Delete \"{evt.Title}\"?", "Cancel", "Delete All Future Events", "Delete This Event");
+
+    if (choice is not ("Delete This Event" or "Delete All Future Events"))
+        return;
+
+    await store.DeleteEvent(evt.Id!, choice == "Delete All Future Events");
+}
+else
+{
+    await store.DeleteEvent(evt.Id!);
+}
+```
+
+Platform behaviour:
+
+| Platform | `deleteSeries: false` | `deleteSeries: true` |
+|---|---|---|
+| iOS / Mac Catalyst / macOS | `EKSpan.ThisEvent` | `EKSpan.FutureEvents` |
+| Android | Inserts a cancellation exception for the occurrence | Deletes the `Events` row (whole series) |
+| Windows | Deletes the appointment — no per-instance delete exists in `AppointmentStore`, so the flag has no effect | Same |
+
+Android reads series masters from the `Events` table rather than expanded instances, so
+`deleteSeries: false` cancels the series' own `DTSTART` — i.e. the first occurrence.
 
 ## Models
 
