@@ -452,7 +452,23 @@ public enum AudioDeviceType
 }
 
 public record AudioDevice(string Id, string Name, AudioDeviceIo Io, AudioDeviceType Type, bool IsCurrent);
+
+// Route classification — each also exists as an extension on AudioDeviceType itself.
+public static class AudioDeviceExtensions
+{
+    public static bool IsWired(this AudioDevice device);        // WiredHeadphones | WiredHeadset | Usb
+    public static bool IsBluetooth(this AudioDevice device);    // Bluetooth (HFP/SCO) | BluetoothA2dp
+    public static bool IsBuiltIn(this AudioDevice device);      // BuiltInMic | BuiltInSpeaker | BuiltInReceiver
+    public static bool IsHeadphones(this AudioDevice device);   // wired or BT headphones/headsets
+    public static bool HasMicrophone(this AudioDevice device);  // WiredHeadset | Bluetooth
+}
 ```
+
+Wired routes: `WiredHeadphones` = output only, `WiredHeadset` = output **plus** mic. `IsWired()`
+deliberately includes `Usb` because USB-C is the wired option on jack-less handsets (Android reports
+`UsbHeadset`/`UsbDevice`, iOS reports `PortUsbAudio` — neither surfaces as a `Wired*` type); the
+trade-off is that a USB DAC/interface also matches. `HasMicrophone()` excludes `Usb` because neither
+platform reveals mic presence from the output device alone — check `GetInputs()` for a `Usb` entry.
 
 ## SpeechRecognitionResult Record
 
