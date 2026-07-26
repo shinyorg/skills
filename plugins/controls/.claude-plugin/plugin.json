@@ -1,6 +1,6 @@
 {
   "name": "shiny-controls",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Shiny Controls — shared .NET MAUI and Blazor UI components including TableView, FloatingPanel/OverlayHost, ShinyDurationPicker, FrostedGlassView, Toast service, ChatView, ImageViewer/ImageEditor, AutoCompleteEntry, CountryPicker, AddressEntry, PillView, SecurityPin, SignaturePad, Fab/FabMenu, scheduler/calendar views, TextEntry, Slider, ProgressBar, overlays, Markdown/Mermaid rendering, TextToSpeechButton, and feedback/haptics",
   "author": {
     "name": "Allan Ritchie",

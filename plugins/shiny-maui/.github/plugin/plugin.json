@@ -1,6 +1,6 @@
 {
   "name": "shiny-maui",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": ".NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, and pluggable dialogs",
   "author": {
     "name": "Allan Ritchie",
