@@ -1,6 +1,6 @@
 --
 name: shiny-music
-description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android, iOS, and Mac Catalyst with permissions, metadata querying, filtering, playback, lyrics, album art, and file copy
+description: Generate code using Shiny.Music, a unified API for accessing the device music library on Android, iOS, and Mac Catalyst with permissions, metadata querying, filtering, playback, lyrics, album art, audio output route detection (speaker/wired/USB/Bluetooth/car/HDMI/AirPlay), and file copy
 auto_invoke: true
 triggers:
   - music library
@@ -75,6 +75,33 @@ triggers:
   - Volume
   - VolumeChanged
   - IsVolumeControlSupported
+  - IAudioOutputDevices
+  - AudioOutputDevice
+  - AudioOutputType
+  - AudioOutputExtensions
+  - audio output
+  - output device
+  - output route
+  - audio route
+  - speaker or headphones
+  - is bluetooth
+  - IsBluetooth
+  - IsWired
+  - IsBuiltIn
+  - IsHeadphones
+  - IsExternalSystem
+  - headphones connected
+  - headphones unplugged
+  - bluetooth speaker
+  - wired headset
+  - USB audio
+  - AirPlay
+  - CarPlay
+  - car audio
+  - HDMI audio
+  - detect speaker
+  - playing through
+  - route changed
   - LRCLIB
   - Shiny.Music
   - music metadata
@@ -131,6 +158,7 @@ Invoke this skill when the user wants to:
 - Check for an active streaming subscription via `HasStreamingSubscriptionAsync()`
 - Fetch lyrics for a track (plain text or synced LRC format)
 - Retrieve album artwork for a track
+- Detect the audio **output** route (speaker, wired/USB, Bluetooth, car, HDMI, AirPlay) and react when it changes — e.g. pause when headphones are unplugged, or show a "playing on X" label
 - Copy music files from the device library to app storage
 - Understand DRM limitations on iOS (Apple Music subscription tracks)
 - Configure Android manifest permissions or iOS Info.plist for music access
@@ -559,6 +587,66 @@ player.VolumeChanged += (_, v) => Console.WriteLine($"Volume is now {v:P0}");
 
 - **Android**: `Volume` reads/writes the system `STREAM_MUSIC` level via `AudioManager` (settable). This is separate from ducking, which attenuates only this player's own output. `IsVolumeControlSupported` is `true`. The stream is integer-stepped, so a set value is quantized to the nearest step and reading it back may differ slightly. Setting silently (no system volume UI) still raises `VolumeChanged`.
 - **Apple platforms**: `Volume` reads `AVAudioSession.OutputVolume` (reliable). **The setter throws `NotSupportedException`** — iOS/Mac Catalyst expose no supported API to change the system volume (`MPMusicPlayerController.Volume` was deprecated in iOS 7 and is a no-op). `IsVolumeControlSupported` is `false`. Let the user adjust volume via the hardware buttons or an `MPVolumeView`. `VolumeChanged` fires from KVO on the audio session's output volume.
+
+### IAudioOutputDevices
+
+Reports the audio **output** route music is playing through, and raises an event when it changes. Registered by `AddShinyMusic()` as a singleton — resolve it from DI like any other service.
+
+```csharp
+public interface IAudioOutputDevices
+{
+    AudioOutputDevice? Current { get; }
+    IReadOnlyList<AudioOutputDevice> GetOutputs();
+    event EventHandler<AudioOutputDevice?>? Changed;
+}
+
+public record AudioOutputDevice(string Id, string Name, AudioOutputType Type, bool IsCurrent);
+
+public enum AudioOutputType
+{
+    Unknown, BuiltInSpeaker, BuiltInReceiver, WiredHeadphones, WiredHeadset,
+    Bluetooth, BluetoothA2dp, Usb, CarAudio, Hdmi, AirPlay
+}
+```
+
+**Output only and read-only.** There is no input/microphone enumeration (this is a music library) and no way to *set* the route — that is the user's job via the OS route picker / Control Center. **No permission is required.**
+
+#### Classification helpers (`AudioOutputExtensions`)
+
+Prefer these over switching on `AudioOutputType`. Each has an overload for both `AudioOutputDevice` and `AudioOutputType`:
+
+| Method | True for | Use it for |
+|--------|----------|------------|
+| `IsWired()` | `WiredHeadphones`, `WiredHeadset`, `Usb` | "is something plugged in" — USB counts because on handsets with no 3.5mm jack the wired option *is* USB-C |
+| `IsBluetooth()` | `Bluetooth` (HFP/SCO/LE), `BluetoothA2dp` | Bluetooth badge/icon; music normally routes over A2DP |
+| `IsBuiltIn()` | `BuiltInSpeaker`, `BuiltInReceiver` | nothing is plugged in or paired |
+| `IsHeadphones()` | wired or Bluetooth headphones/headsets | "audio is private to the user" |
+| `IsExternalSystem()` | `CarAudio`, `Hdmi`, `AirPlay` | playback has left the device |
+
+#### Typical usage
+
+```csharp
+var outputs = serviceProvider.GetRequiredService<IAudioOutputDevices>();
+
+var current = outputs.Current;                 // null when the platform reports no route
+if (current != null && current.IsBluetooth())
+    Console.WriteLine($"Playing on {current.Name}");
+
+// Pause when the user unplugs and audio falls back to the loudspeaker
+outputs.Changed += (_, device) =>
+{
+    if (device?.IsBuiltIn() == true)
+        MainThread.BeginInvokeOnMainThread(player.Pause);
+};
+```
+
+**Threading**: `Changed` is raised on whatever thread the OS delivers the route notification on. Always marshal to the UI thread (`MainThread.BeginInvokeOnMainThread`) before touching UI state.
+
+#### Platform notes — IMPORTANT when generating code
+
+- **Android**: `GetOutputs()` returns **all** connected outputs. `AudioDeviceInfo` has no "active" flag, so `Current` is **derived** — the connected outputs are ranked by the platform's own media routing priority (Bluetooth → wired → USB → car/HDMI → built-in speaker, earpiece last) and the winner wins. Good for media playback, but do not present it as a platform guarantee.
+- **Apple (iOS/Mac Catalyst)**: `Current` comes from `AVAudioSession.CurrentRoute`. The OS exposes **only the active route's ports**, so `GetOutputs()` returns that route (usually one entry) — **never write code that treats it as a picker/discovery list** of reachable AirPlay or Bluetooth destinations. A mic-equipped wired headset shows as `WiredHeadphones` (Apple reports the headset mic only on the input side), so use `IsWired()` / `IsHeadphones()` rather than testing for `WiredHeadset`.
+- Do **not** generate code that tries to switch the output route — neither platform allows an app to do that here.
 
 ### ILyricsProvider
 
