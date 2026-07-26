@@ -175,6 +175,10 @@ Supported: `Where`, `OrderBy`, `OrderByDescending`, `Paginate`, `ToList`, `ToAsy
 Translated predicate operators: `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `ICollection.Contains`.
 Anything else throws.
 
+The compared-against value may be a literal, a captured local, a field/property read, a method call, or an
+inline array (`new[] { "a", "b" }.Contains(p.Name)`). It is evaluated by walking the expression, not by
+compiling it, so generated predicates behave identically on a full-AOT build.
+
 ### Query gotchas
 
 - **Firestore rule: with an inequality filter, the first `OrderBy` must be on the inequality field.**
@@ -186,7 +190,10 @@ Anything else throws.
   has no offset. Deep pagination reads everything up to the offset.
 - `Max`/`Min`/`Sum`/`Average` materialize and compute in managed code.
 - `Select` projection throws `NotSupportedException` — `ToList` and project client-side.
-- `IgnoreQueryFilters(params string[])` ignores the names and drops **all** filters (all-or-nothing today).
+- `IgnoreQueryFilters(params string[])` ignores the names and drops **all** filters (all-or-nothing today),
+  and it **restarts the query from the collection** — call it before any `Where`, or that `Where` is lost.
+- **The builder returns a copy** (as of 2.0.0, matching every other provider). Always assign the result —
+  `q.Where(…);` on its own line is a no-op. Branching is safe: `var b = a.Where(…)` leaves `a` alone.
 - Grouping, cursor paging, vector, and full-text throw.
 
 ## Real-time
@@ -267,7 +274,7 @@ Do not tell users their rules are enforced per-user today, and do not generate r
 | `EmulatorHost` | `host:port`, points the native SDK at the emulator |
 | `TypeNameResolution` | Default `ShortName` |
 | `JsonSerializerOptions` | Drives field names and (de)serialization |
-| `UseReflectionFallback` | Default `true`; set `false` for iOS full-AOT |
+| `UseReflectionFallback` | Default `true`; set `false` for iOS full-AOT — see [Trimming and AOT](#trimming-and-aot) |
 | `Logging` | `Action<string>` diagnostic callback |
 | `MapTypeToCollection<T>(name)` | Override the collection (default: type name) |
 | `MapIdProperty<T>(x => x.MyId)` | Override the id property (default: `Id`) |
@@ -275,6 +282,27 @@ Do not tell users their rules are enforced per-user today, and do not generate r
 | `AddQueryFilter<T>(predicate)` | Global filter, auto-applied to every query; named overload available |
 | `MapVersionProperty<T>(...)` | **Registered but not enforced today** — see below |
 | `AddInterceptor` / `AddBulkInterceptor` / `OnBeforeWrite<T>` / `OnAfterWrite<T>` | **Registered but not invoked today** — see below |
+
+## Trimming and AOT
+
+The package is `IsAotCompatible` and warning-free. Document (de)serialization is the only reflection seam,
+and only when the caller omits a `JsonTypeInfo<T>`. **When generating code for a MAUI app that publishes
+trimmed or full-AOT, prefer the `JsonTypeInfo<T>` overloads:**
+
+```csharp
+[JsonSerializable(typeof(Play))]
+public partial class AppJsonContext : JsonSerializerContext;
+
+await store.Insert(play, AppJsonContext.Default.Play);
+var play = await store.Get("p1", AppJsonContext.Default.Play);
+var list = await store.Query(AppJsonContext.Default.Play).Where(p => p.Version >= 2).ToList();
+```
+
+Pair that with `o.UseReflectionFallback = false` to turn a missed overload into an
+`InvalidOperationException` naming the type at call time, instead of a debugger-only success that fails on a
+published build. Do not set it to `false` without also generating the context and passing the type infos.
+
+`AddFirebaseIdentity` needs nothing — its REST payloads use an internal source-generated context.
 
 ## Not implemented yet — these throw
 
