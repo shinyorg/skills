@@ -35,6 +35,15 @@ triggers:
   - output device
   - input device
   - device selection
+  - AudioDeviceType
+  - AudioDeviceExtensions
+  - wired headphones
+  - headphone jack
+  - headset detection
+  - headphones connected
+  - IsWired
+  - IsBluetooth
+  - IsHeadphones
   - AddAudioMonitor
   - AddAudioDevices
   - SetInputDevice
@@ -186,6 +195,7 @@ Shiny Speech provides:
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
 - Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android only
 - Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android only
+- Route classification via `AudioDeviceExtensions` — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` on both `AudioDevice` and `AudioDeviceType`; detects wired/jack/USB-C headphones and headsets alongside Bluetooth
 - One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
@@ -661,11 +671,22 @@ public partial class MicViewModel(IAudio audio) : ObservableObject
             Console.WriteLine($"{d.Name} ({d.Type}){(d.IsCurrent ? " *" : "")}");
     }
 
+    void ClassifyRoute()
+    {
+        var output = audio.Devices.CurrentOutput;
+        if (output?.IsWired() == true)      { /* 3.5mm jack, Lightning, or USB-C */ }
+        if (output?.IsBluetooth() == true)  { /* HFP/SCO or A2DP */ }
+        if (output?.IsBuiltIn() == true)    { /* phone speaker/earpiece — nothing attached */ }
+        if (output?.IsHeadphones() == true) { /* audio is private — safe to speak a TTS reply */ }
+        var accessoryMic = output?.HasMicrophone() == true;
+    }
+
     Task ChooseMic(AudioDevice mic) => audio.Monitor.SetInputDevice(mic);   // live device switch
 }
 ```
 
 Behavior notes when generating code:
+- **Detecting wired headphones.** `AudioDeviceType` has `WiredHeadphones` (output only) and `WiredHeadset` (output + mic), mapped on both platforms (iOS `PortHeadphones`/`PortHeadsetMic`, Android `WiredHeadphones`/`WiredHeadset`). Prefer the `AudioDeviceExtensions` helpers — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` — over matching enum members by hand; they exist on both `AudioDevice` and `AudioDeviceType`. `IsWired()` **includes `Usb`**, because on jack-less handsets USB-C is the wired option and neither platform reports it as a `Wired*` type (a USB DAC/interface therefore also matches). Bluetooth cannot be narrowed to earbuds-vs-speaker on any platform. Watch `IAudioDevices.Changed` for plug/unplug.
 - `IAudioMonitor` and `IAudioDevices` are implemented on **iOS/Mac Catalyst and Android only**. The `IAudio` facade throws `PlatformNotSupportedException` if `Monitor`/`Devices` are accessed elsewhere — guard by platform.
 - **Bluetooth speaker vs. echo cancellation (iOS):** leave `AudioMonitorOptions.Processing` **null** to route to a Bluetooth A2DP speaker (phone mic + BT output). Enabling processing (AEC) engages iOS's voice-processing unit, which forces Bluetooth onto the low-quality HFP profile — an A2DP-only speaker then drops back to the phone. Only enable processing for phone-speaker output where feedback is a problem.
 - **AirPlay (HomePod / Apple TV) is NOT supported for a live mic** — iOS only permits AirPlay for playback, not while recording. Use Bluetooth for a wireless live PA.
