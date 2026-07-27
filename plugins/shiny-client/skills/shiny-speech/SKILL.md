@@ -535,6 +535,28 @@ var stream2 = await audioSource.StartCaptureAsync(new AudioProcessingOptions
 }, ct);
 ```
 
+**If the audio feeds a model instead of a listener — speaker recognition/verification, wake words,
+anything producing an embedding — pass `AudioProcessingOptions.Analysis` instead:**
+
+```csharp
+var stream = await audioSource.StartCaptureAsync(AudioProcessingOptions.Analysis, ct);
+```
+
+It is `None` plus `AllowBluetooth = false`. Two things otherwise corrupt the signal for those models,
+and neither shows up as an error — only as a model that stops recognizing people:
+
+- **AGC/NS are adaptive and non-linear.** They exist to normalize away speaker and channel
+  characteristics, which is exactly what a speaker embedding encodes; because they adapt per session,
+  two recordings of one person come out different.
+- **A Bluetooth mic runs over HFP (8 kHz narrowband).** Fricatives (/s/, /ʃ/, /f/) live above that, so
+  the captured bandwidth silently depends on what happens to be paired.
+
+On iOS/Mac Catalyst, no requested effects means the session uses `Measurement` mode (minimum system
+input processing); `AllowBluetooth = false` drops the Bluetooth options from the session category.
+Android's raw mic source and Windows capture never route to a Bluetooth mic implicitly, so `Analysis`
+is a no-op there. **Record enrollment and matching through the same options** — the embedding encodes
+the channel, so a template captured differently from the probe carries an offset no threshold fixes.
+
 With cloud STT providers, set it on `SpeechRecognitionOptions.AudioProcessing` (they capture through
 `IAudioSource`):
 
