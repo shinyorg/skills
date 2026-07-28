@@ -13,13 +13,19 @@ triggers:
   - google-services.json
   - firebase push
   - firebase messaging
+  - RequestAccess hangs
+  - FCM token never returns
+  - duplicate FIRApp
+  - Class FIRApp is implemented in both
 ---
 
 # Shiny Firebase Push Notifications Skill
 
 ## Overview
 
-Shiny.Push.FirebaseMessaging provides Firebase Cloud Messaging (FCM) push notification support for .NET MAUI applications on iOS and Android. It wraps the native Firebase iOS SDK (via Slim Bindings) and Android FCM through the Shiny Push infrastructure.
+Shiny.Push.FirebaseMessaging provides Firebase Cloud Messaging (FCM) push notification support for .NET MAUI applications on iOS and Android. It wraps the native Firebase iOS SDK (via a Slim Binding) and Android FCM through the Shiny Push infrastructure.
+
+On iOS everything ships in **one** binding — `Shiny.Firebase.iOS.Binding`, pulled in automatically — which embeds a single copy of FirebaseCore alongside the Messaging and Analytics shims. Do **not** add another Firebase iOS binding package (e.g. `AdamE.Firebase.iOS.*`) to the same app: a second FirebaseCore means a second `FIRApp`, and whichever one gets configured is not necessarily the one the token request reads.
 
 ## NuGet Package
 
@@ -149,7 +155,31 @@ Registers Firebase push notification services. Pass `null` or omit for embedded 
 ### `AddPushFirebaseMessaging<TPushDelegate>(FirebaseConfiguration? config = null)`
 Registers Firebase push with a custom `IPushDelegate` implementation that handles notification events.
 
+## Troubleshooting
+
+### iOS: `RequestAccess()` never completes — no token, no exception, no `OnNewToken`
+
+Check the startup log for:
+
+```
+objc[xxxx]: Class FIRApp is implemented in both .../SomeFramework and .../AnotherFramework.
+One of the two will be used. Which one is undefined.
+```
+
+The app has two copies of FirebaseCore, so `FirebaseApp.configure()` configures one `FIRApp` while the FCM
+token request reads the other, still-unconfigured one — the native completion block never fires and the await
+hangs forever.
+
+- **On `Shiny.Push.FirebaseMessaging` 5.0.2 or earlier, this is a library bug** — the Core shim shipped in a
+  different framework from the Messaging shim. Upgrade to 5.1.0+, where both live in one framework.
+- **On 5.1.0+**, it means a *second* Firebase iOS SDK is in the app. Remove the other Firebase binding package,
+  or drop `Shiny.Push.FirebaseMessaging` and use that SDK's own provider — do not run both.
+
+From 5.1.0 the native shim also fails fast: if Firebase was never configured, `RequestAccess()` throws
+`Firebase has not been configured` instead of hanging.
+
 ## Key Source Files
 - `src/Shiny.Push.FirebaseMessaging/FirebaseConfiguration.cs` - Configuration record
 - `src/Shiny.Push.FirebaseMessaging/Platforms/Shared/ServiceCollectionExtensions.cs` - DI registration
 - `src/Shiny.Push.FirebaseMessaging/Platforms/iOS/FirebasePushProvider.cs` - iOS FCM provider
+- `src/Shiny.Firebase.iOS.Binding/ApiDefinitions.cs` - the single iOS binding (Core + Messaging + Analytics)
