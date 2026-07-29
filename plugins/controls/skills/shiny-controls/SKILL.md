@@ -929,7 +929,25 @@ When generating code with Shiny.Maui.Controls:
 - Commands use default `Mode=OneWay`
 - RadioCell selection binds at section level: `shiny:RadioCell.SelectedValue="{Binding Prop, Mode=TwoWay}"`
 
-### 4. FloatingPanel Placement (MAUI)
+### 4. Styling (MAUI)
+- Every control accepts an implicit or explicit `Style`. Prefer an app-wide implicit style for
+  consistent theming instead of repeating the same properties at each usage site:
+  ```xml
+  <Style TargetType="shiny:AutoCompleteEntry">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="CornerRadius" Value="12" />
+  </Style>
+  ```
+- Leave colour properties unset to inherit the active Shiny theme; set one explicitly only to
+  override that theme default.
+- When authoring a **new** control in this repo, route any `propertyChanged` callback that
+  touches a child field through `StyleGuard.WhenReady`, and call
+  `StyleGuard.MarkReady(this, typeof(TheControl))` as the last line of the constructor. MAUI
+  applies an implicit style from `StyleableElement`'s constructor, before the derived
+  constructor body runs, so an unguarded callback dereferences a null child and the page fails
+  to inflate. `ImplicitStyleConstructionTests` fails the build if a control misses this.
+
+### 5. FloatingPanel Placement (MAUI)
 Use `ShinyContentPage` for the simplest setup:
 
 ```xml
@@ -964,12 +982,12 @@ Or use `OverlayHost` manually in a Grid:
 </ContentPage>
 ```
 
-### 5. Dark Mode
+### 6. Dark Mode
 - Do NOT hardcode colors. Leave color properties as `null` to inherit system defaults.
 - Only set explicit colors when the design requires specific brand colors.
 - The controls respect `Application.Current.UserAppTheme` automatically.
 
-### 6. Styling Strategy
+### 7. Styling Strategy
 - Set global styles on `shiny:TableView` for consistent appearance
 - Override at section level for section-specific header/footer styling
 - Override at cell level only for individual cell emphasis

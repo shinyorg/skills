@@ -36,6 +36,25 @@ A text input with debounced search, dropdown suggestions, busy indicator, and cu
     CornerRadius="8" />
 ```
 
+### MAUI Styling
+
+The control can be targeted by an implicit or explicit `Style`, so app-wide appearance is set
+once rather than repeated at every usage site:
+
+```xml
+<!-- App.xaml -->
+<Style TargetType="shiny:AutoCompleteEntry">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="TextColor" Value="{AppThemeBinding Light=Black, Dark=White}" />
+    <Setter Property="DropDownBackgroundColor" Value="{AppThemeBinding Light=White, Dark=#222922}" />
+    <Setter Property="DropDownBorderColor" Value="{AppThemeBinding Light=#E1E5DA, Dark=#3E463F}" />
+</Style>
+```
+
+Leave the colour properties unset to inherit the active Shiny theme (`Surface`, `Outline`,
+`OnSurfaceVariant`); setting one explicitly overrides that theme default for that instance.
+
 ### MAUI Custom Item Template
 
 ```csharp
