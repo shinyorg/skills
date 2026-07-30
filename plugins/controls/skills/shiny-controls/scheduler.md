@@ -378,3 +378,13 @@ Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`Sel
 - All-day events always sort to top within their day group
 - Custom templates must use AOT-safe static lambda bindings, never string-based bindings
 - `AdditionalTimezones` is an `IList<TimeZoneInfo>` — add timezones in code-behind
+- **Let `GetEvents()` throw and it is now handled, not fatal.** The views load through `async void`, so
+  before this an exception from your provider (failed request, malformed data) escaped to the
+  synchronization context and terminated the app. It is now caught, written to `Debug`, and the view is
+  left usable — but you still get no user-facing error, so surface failures from inside your provider
+  (return an empty list and raise your own state) rather than relying on the throw.
+- Leave the Scheduler's colour properties unset to follow the active theme — `CalendarCellColor`,
+  `CalendarCellSelectedColor`, `CurrentDayColor`, `TimezoneColor`, `DefaultEventColor`,
+  `SeparatorColor` and `CurrentTimeMarkerColor` all default to `null` and resolve from theme tokens.
+  A `SchedulerEvent.Color` (or a user's `BubbleColor`) still wins for that item, since per-item colour
+  is data.

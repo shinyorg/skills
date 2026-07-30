@@ -6,7 +6,7 @@ The built-in placeholder is a stack of shimmer "lines" (good for text/paragraph 
 
 ## MAUI
 
-`SkeletonView` derives from `Grid` and uses `Content` for the wrapped content (set it directly as the child element). The shimmer is a gradient highlight that sweeps left-to-right across the placeholder area.
+`SkeletonView` derives from `Grid` and uses `Content` for the wrapped content (set it directly as the child element). The shimmer is a gradient highlight that sweeps left-to-right across the placeholder area, and it is always masked to the placeholder shapes — the gaps between them never shimmer. Built-in lines each clip their own copy of the sweep; a `SkeletonTemplate` is masked to the silhouettes of its shapes.
 
 ### Default placeholder (text lines)
 
@@ -24,14 +24,15 @@ The child element is the `Content` (it is the `ContentProperty`), so you do not 
 ### Custom placeholder (match the content shape)
 
 ```xml
-<shiny:SkeletonView IsBusy="{Binding IsBusy}">
+<shiny:SkeletonView IsBusy="{Binding IsBusy}"
+                    BaseColor="{AppThemeBinding Light=#E1E1E6, Dark=#242B32}">
     <shiny:SkeletonView.SkeletonTemplate>
         <DataTemplate>
             <HorizontalStackLayout Spacing="12">
-                <BoxView WidthRequest="56" HeightRequest="56" CornerRadius="28" Color="#E1E1E6" />
+                <BoxView WidthRequest="56" HeightRequest="56" CornerRadius="28" Color="{AppThemeBinding Light=#E1E1E6, Dark=#242B32}" />
                 <VerticalStackLayout Spacing="10" VerticalOptions="Center" WidthRequest="200">
-                    <BoxView HeightRequest="14" CornerRadius="6" Color="#E1E1E6" HorizontalOptions="Fill" />
-                    <BoxView HeightRequest="14" CornerRadius="6" Color="#E1E1E6" WidthRequest="120" HorizontalOptions="Start" />
+                    <BoxView HeightRequest="14" CornerRadius="6" Color="{AppThemeBinding Light=#E1E1E6, Dark=#242B32}" HorizontalOptions="Fill" />
+                    <BoxView HeightRequest="14" CornerRadius="6" Color="{AppThemeBinding Light=#E1E1E6, Dark=#242B32}" WidthRequest="120" HorizontalOptions="Start" />
                 </VerticalStackLayout>
             </HorizontalStackLayout>
         </DataTemplate>
@@ -48,7 +49,7 @@ The child element is the `Content` (it is the `ContentProperty`), so you do not 
 </shiny:SkeletonView>
 ```
 
-The sweeping shimmer is drawn over the whole placeholder area. Use `BaseColor` for the placeholder fill in your `SkeletonTemplate` so it matches the built-in look.
+The sweep is masked to the template's shapes: the control walks the arranged template, builds a rounded-rect silhouette per leaf shape (honoring `BoxView.CornerRadius` and `Border.StrokeShape`, so a `CornerRadius="28"` avatar masks as a circle) and clips the band to it. The empty box around the shapes never shimmers. Set `BaseColor` and give the template's shapes that same fill — the default sheen is derived from `BaseColor`, so hardcoding a light grey into the template while the theme (and therefore the sheen) is dark makes the sweep *darken* the shapes instead of highlighting them. Prefer an `AppThemeBinding` (or the `SurfaceContainerHigh` token) over a fixed hex.
 
 ### SkeletonView Properties (MAUI)
 
@@ -58,8 +59,8 @@ The sweeping shimmer is drawn over the whole placeholder area. Use `BaseColor` f
 | IsBusy | bool | false | When true, hides content and shows animated placeholders |
 | SkeletonTemplate | DataTemplate? | null | Custom placeholder layout; when null, built-in lines are used |
 | ItemCount | int | 3 | Number of built-in placeholder lines (last line is shortened) |
-| BaseColor | Color | #E1E1E6 | Fill color of built-in placeholder shapes |
-| ShimmerColor | Color | rgba(255,255,255,0.6) | Color of the sweeping highlight |
+| BaseColor | Color? | null (theme `SurfaceContainerHigh`) | Fill color of built-in placeholder shapes |
+| ShimmerColor | Color? | null (derived from `BaseColor`) | Color of the sweeping highlight |
 | ShimmerEnabled | bool | true | When false, placeholders are static (no sweep) |
 | AnimationDuration | uint | 1200 | Duration (ms) of a single shimmer sweep |
 | CornerRadius | double | 6 | Corner radius of built-in placeholder lines |
@@ -122,6 +123,10 @@ Add the `shiny-skeleton__shape` class to any element in `SkeletonContent` to giv
 ## Notes
 
 - `SkeletonView` swaps between content and placeholders by visibility, so the control's height follows whichever is shown — size your placeholder to roughly match the loaded content to avoid layout jumps.
-- On MAUI the shimmer is a translating `LinearGradientBrush` band (same technique as the `ProgressBar` pulse); on Blazor it is an animated `background-position` gradient.
+- On MAUI the shimmer is a translating `LinearGradientBrush` band (same technique as the `ProgressBar` pulse); on Blazor it is an animated `background-position` gradient. The MAUI band is a plain layout, not a `BoxView` — a `BoxView` with no `Color` of its own inherits the host app's implicit `Style TargetType="BoxView"`, which in the .NET MAUI template sets `BackgroundColor` to near-black and turned the shimmer into a black bar sweeping over the placeholders.
+- Colors for a code-built `Brush` must be **resolved to concrete values**, never applied with `SetDynamicResource`. A `GradientStop` in a brush that is assigned straight to `Background` has no element to resolve a theme resource against, so the stop silently keeps its uncoloured default — which is what originally made the middle of this shimmer black.
+- `ShimmerColor` defaults to the base fill lightened by ~10% luminosity, **not** to a theme surface token. The surface tokens are ordered by elevation, not luminance — `SurfaceContainerHighest` is *darker* than `SurfaceContainerHigh` in every light theme — so a sheen taken straight from a token sweeps a dark band across the placeholders.
+- A `Clip` travels with the element it is set on, so the mask that keeps a sweeping band inside the placeholder shapes has to live on a **fixed** parent, not on the band itself.
+- Gradient stops in a MAUI shimmer must fade to `highlight.WithAlpha(0)`, never to `Colors.Transparent`. iOS interpolates gradient stops per channel without premultiplying alpha, so fading out to `#00000000` drags the sweep through black and the band renders as a dark box crossing the control.
 - For a full-screen "loading the whole page" experience use `LoadingOverlay` instead — `SkeletonView` is for inline content regions.
 - Both hosts mirror the same API: `IsBusy`, custom placeholder slot, item count/height/spacing, base/highlight colors, animation duration, and a shimmer on/off toggle.
