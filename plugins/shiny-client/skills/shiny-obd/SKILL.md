@@ -30,6 +30,8 @@ triggers:
   - obd adapter
   - obd scan
   - device scanner
+  - obd adapter not found
+  - ble scan not finding device
   - adapter profile
   - Shiny.Obd
   - AddShinyObdBluetoothLE
@@ -209,6 +211,29 @@ An exchange that hits `CommandTimeout` throws `ObdTimeoutException` and is then 
 reply arriving afterwards is discarded rather than completing the next command's wait. `Disconnect()`
 fails an in-flight command straight away instead of making the caller wait out the timeout.
 
+### BLE scanning rules
+
+Two rules the library already follows internally. Generated code that scans with `IBleManager`
+directly must follow them too, or it will not find adapters on iOS.
+
+**1. Never match on `IPeripheral.Name` alone.** On iOS `CBPeripheral.Name` is null while scanning a
+peripheral that has never been connected to — the name is only in the advertisement. Always fall
+back:
+
+```csharp
+var name = scanResult.Peripheral.Name ?? scanResult.AdvertisementData?.LocalName;
+```
+
+**2. Never pass the adapter's `ServiceUuid` as a scan filter.** iOS matches a scan filter against the
+*advertisement*, and most ELM327 clones don't advertise their GATT service — it appears only after
+connecting. `bleManager.Scan(new ScanConfig("FFF0"))` finds nothing at all on iPhone. Scan
+unfiltered and use `ServiceUuid` after connecting.
+
+`BleObdDeviceScanner` logs every advertisement at `Debug` level before filtering (name,
+`Peripheral.Name`, id, RSSI, advertised service UUIDs). When a user reports that an adapter isn't
+found, tell them to enable debug logging (`builder.Logging.AddDebug().SetMinimumLevel(LogLevel.Debug)`)
+and read that dump rather than guessing at UUIDs.
+
 ### ObdTimeoutException
 
 ```csharp
@@ -356,6 +381,7 @@ public class WifiObdTransport : IObdTransport
 - A BLE adapter reports `IsConnected` true long after it has stopped answering the vehicle. Polling code should count consecutive unanswered polls and rebuild the connection, rather than trusting the connection flag.
 - ELM327 response parser handles both single-line (`"41 0D 50"`) and multi-frame CAN (`"0: 49 02 01 57 42\r1: 41 30..."`) formats.
 - `BleObdDeviceScanner` deduplicates by peripheral UUID — each device is reported once.
+- BLE scans match on `Peripheral.Name ?? AdvertisementData.LocalName`, never `Peripheral.Name` alone (null on iOS while scanning), and are never filtered by `ServiceUuid` (iOS matches that against the advertisement, which ELM327 clones don't carry). See "BLE scanning rules" above.
 - For MAUI, register BLE with `builder.Services.AddBluetoothLE()` (namespace `Shiny`, no `UseShiny` needed in v4), then call `builder.Services.AddShinyObdBluetoothLE()` to register OBD BLE services.
 - `AddShinyObdBluetoothLE` registers `BleObdConfiguration` and `IObdDeviceScanner` (`BleObdDeviceScanner`).
 - A full MAUI sample app exists in `samples/Sample.Maui/` with scan → select → dashboard flow.
