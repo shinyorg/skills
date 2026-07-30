@@ -222,6 +222,40 @@ barcode.ScanWindow = null;                                 // back to the whole 
 The reticle/scrim colors are tunable on `CameraOverlayView` (`ScanWindowColor`, `ScanWindowScrimColor`; set a
 color to `null` to drop that part). `CameraView.ScanWindow` (read-only) mirrors the active analyzer's window.
 
+**OCR honors it natively too, and for OCR it is not optional.** `OcrAnalyzer` crops to the scan window before
+recognizing rather than post-filtering what came back, because the platform engines **discard text below a
+minimum height** (Apple Vision's default is 1/32 of the image height — ~34px in a 1080p frame) and **downscale
+before recognizing**. Small, distant text — a license plate, a road sign, a shelf label — therefore never
+survives whole-frame OCR no matter how the results are filtered. Two knobs go with it:
+
+| Property | Meaning |
+|---|---|
+| `OcrAnalyzer.MinimumTextHeight` | Smallest text to look for, as a fraction of the recognized image's height. `0` = platform default. Apple only (MLKit/Windows expose no equivalent). |
+| `OcrAnalyzer.MinimumInputHeight` | Upscale the scan-window crop to at least this many pixels tall before recognizing. `0` = off. Only applies when a scan window is set. This is what buys small text back on Android. |
+
+```csharp
+// read small text inside a narrow band — crop to it, then upscale the crop before recognizing
+var ocr = new OcrAnalyzer
+{
+    ScanWindow        = new RectF(0.2f, 0.55f, 0.6f, 0.25f),
+    MinimumTextHeight = 0.012f,   // Vision's 1/32 default would drop this text outright
+    MinimumInputHeight = 720      // the crop is ~270px tall off 1080p; take it to 720
+};
+```
+
+For a custom analyzer, call the recognizer directly — the same crop/upscale path, and results always come back
+in **full-frame** coordinates, never crop space:
+
+```csharp
+var text = await this.recognizer.RecognizeAsync(
+    frame,
+    new TextRecognitionOptions(RegionOfInterest: region, MinimumTextHeight: 0.012f, MinimumInputHeight: 720),
+    ct);
+```
+
+`TextRecognitionOptions` is the per-frame cache key, so two analyzers asking for the **same** region on one frame
+still cost a single OCR pass, while one watching a different region gets its own.
+
 ### Declaring the analyzer in XAML + Commands (MVVM)
 
 Analyzers are `BindableObject`s, so you can declare the one inside `<cam:CameraView>` (its content property is
@@ -562,7 +596,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - Subscribe to the analyzer's **typed event** for results (`BarcodeAnalyzer.BarcodesDetected`, `FaceAnalyzer.FacesDetected`, `MotionAnalyzer.MotionChanged`, `OcrAnalyzer.TextRecognized`, `*Analyzer.DocumentDetected`) — detection events carry an **array** (a frame can hold several). Don't read semantic data off `OverlaysChanged` — that channel is presentation only.
 - `OverlayBox.Rect` is normalized (0..1), upright, mirror-corrected. The overlay converts via `CoordinateTransform.MapToView(...)` — never assume raw pixel coordinates.
 - `BarcodeAnalyzer` and `DriversLicenseAnalyzer` (PDF417/AAMVA) read with the **native scanner** — Apple Vision on iOS/macOS and Android MLKit — so they only produce results there; both are a **no-op on Windows and bare `net10.0`** (no native barcode scanner). `FaceAnalyzer`, `OcrAnalyzer`, and the OCR-backed document analyzers (`InvoiceAnalyzer`, `ReceiptAnalyzer`, `BusinessCardAnalyzer`, `HealthCardAnalyzer`, `CreditCardAnalyzer`) need native OCR/ML and only produce results on iOS/Android/Windows/macOS (not bare `net10.0`). `MotionAnalyzer` is managed and works everywhere.
-- **OCR runs once per frame, shared.** Every OCR-backed analyzer (`OcrAnalyzer` + all the document analyzers) uses the same `TextRecognizer`, which caches its result on the frame instance — so enabling Invoice + Receipt + HealthCard + CreditCard + Passport together still does **one** OCR pass per frame, not five. The shared pass runs with Vision **language correction off** (it corrupts structured fields like license/MRZ/card numbers, totals, and dates by snapping codes to dictionary words); parsers fuzzy-match the raw text.
+- **OCR runs once per frame, shared.** Every OCR-backed analyzer (`OcrAnalyzer` + all the document analyzers) uses the same `TextRecognizer`, which caches its result on the frame instance keyed by `TextRecognitionOptions` — so enabling Invoice + Receipt + HealthCard + CreditCard + Passport together still does **one** OCR pass per frame, not five. Analyzers asking for *different* regions of interest each get their own pass, which is the intended cost: a region is a fraction of the pixels, so it is usually still cheaper than one whole-frame pass. The shared pass runs with Vision **language correction off** (it corrupts structured fields like license/MRZ/card numbers, totals, and dates by snapping codes to dictionary words); parsers fuzzy-match the raw text.
 - **Document analyzers deskew before OCR.** The document analyzers (not `OcrAnalyzer`) call `RecognizeDocumentAsync`, which detects the document, perspective-corrects (deskews) it, then OCRs the flat crop — a big accuracy win for angled cards/IDs, since flat text reads far more reliably. Per platform: **iOS/macOS** = Vision (`VNDetectDocumentSegmentationRequest`) + Core Image; **Windows** = OpenCvSharp (Canny → largest convex quad → `WarpPerspective`); **Android** = a dependency-free managed detector (Otsu + largest bright region + extreme corners) + native `Matrix.SetPolyToPoly` warp (no OpenCV, so the package stays trim/AOT-clean); **bare net10.0** = no-op. When no document is found it falls back to whole-frame OCR. The overlay becomes the detected document outline (`DocumentAnalyzer.BoxColor`). Everything keeps the live `CameraView` preview — this is a frame analyzer, not a modal scanner.
 - Custom analyzers should derive from `FrameAnalyzer` (not implement `IFrameAnalyzer` directly) so delivery marshals to the UI thread, they get `IsEnabled` + `ShowBoundingBox` + arming, and their `Command`/`OnDetected` bind in XAML. Deliver a confirmed result with `Deliver(args, raiseEvent, command, onDetected)` — it's gated by arming (does nothing while disarmed), consumes the arm so a lingering detection won't re-fire, and re-arms when `onDetected` returns `true`. Expose your own typed `OnDetected` (`Func<TArgs, Task<bool>>`) bindable property and pass it through. Return boxes via `ResolveOverlay(args, OverlayProvider, () => defaultBoxes)` (independent of arming — boxes always draw; suppressed only when `ShowBoundingBox` is `false`).
 - All analyzers live under the single `xmlns:cam="http://shiny.net/maui/camera"` prefix; declare the **one** active analyzer inside `<cam:CameraView>` (content property = `Analyzer`). Bind results with `…Command="{Binding …}"`; the analyzer inherits the camera's `BindingContext`. To offer several detectors, build them once and assign the chosen one to `Camera.Analyzer` (see the sample).
@@ -572,7 +606,8 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 
 ## Common Pitfalls
 
-- **Android: video + analyzer together** — CameraX caps concurrent use-cases, so the camera binds either `ImageAnalysis` (while an analyzer is **enabled**) or `VideoCapture`, not both. To record, disable the analyzer (`IsEnabled = false`) or set `Camera.Analyzer = null` — the camera rebinds automatically; `StartVideoRecordingAsync` throws a clear error while an enabled analyzer is attached.
+- **Analyzer geometry maps cleanly into the recorded frame.** `OverlayBox` / `RecognizedText.BoundingBox` are normalized upright coordinates and `IVideoOverlayRenderer` draws in encoded-frame pixel space, so drawing a detection into the recording is `box.X * context.Width`, `box.Y * context.Height`. That is only correct because the analyzed frame and the encoded frame share a field of view: on iOS/macOS they are literally the same sample buffer, and on Android the handler binds a shared **`ViewPort`** whenever `ImageAnalysis` and `VideoCapture` are bound together (without it CameraX sizes analysis 4:3 and the recorder 16:9, and a box would sit visibly off the thing it is boxing). The ViewPort is applied *only* in that combined case, so no existing single-use-case setup has its recorded field of view moved.
+- **Android: video + analyzer together works, but costs `ImageCapture`** — `Preview + VideoCapture + ImageAnalysis` is a guaranteed CameraX combination at LIMITED hardware level, so recording while an analyzer runs is supported (a dash cam reading signs or plates off its own feed). A *fourth* use case needs LEVEL_3, which most phones are not, so `ImageCapture` is dropped for the duration of a recording that has an enabled analyzer attached — `CapturePhotoAsync` throws a message saying exactly that, and photo capture returns automatically when the recording stops. Outside a recording, nothing changes: analyzer + `ImageCapture` bind together as before.
 - **Burn-in video overlay ≠ live overlay** — the `CameraOverlayView` / `CameraOverlayDrawable` only paint the on-screen preview; nothing they draw reaches the saved file. To composite into the *recording*, set `VideoRecordingOptions.Overlay` (`IVideoOverlayRenderer` / `DelegateVideoOverlay` / `DrawableVideoOverlay`). `DrawOverlay` runs **off the UI thread** once per encoded frame — read UI state via a volatile/immutable snapshot, never touch UI objects — and draws in **frame pixel space** (`ctx.Width`/`Height`), origin top-left, front camera already un-mirrored. Supported on iOS / Mac Catalyst / macOS / Android; **Windows throws `PlatformNotSupportedException`** for now (record without the overlay, or use the on-preview overlay). Omitting `Overlay` keeps the fast native recorder.
 - **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there). On **Android the live-preview filter needs API 31+** (it uses `RenderEffect`); on older Android the preview is unfiltered but captured photos are still filtered. The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
 - **"Camera permission denied" but the preview works** — you're gating on `RequestPermissionAsync()` in `OnAppearing` before the handler is connected (it returns `false` → looks denied, and the early-return also leaves the lens list empty). Don't gate on it; rely on auto-start + `CameraError`, and load cameras once the view is loaded.

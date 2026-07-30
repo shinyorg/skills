@@ -145,6 +145,7 @@ Use this to drive a sticky title that fades in once the hero is mostly hidden, d
 - **Blazor: parent has no height** — the list won't scroll. Wrap it in a div with `style="height:600px"` (or `100vh`, etc.).
 - **MAUI: nesting inside another `ScrollView`** — `CollectionView` does its own scrolling. Don't put `ParallaxCollectionView` inside a `ScrollView`; place it directly in a `Grid` row or as the page `Content`.
 - **Setting both `ParallaxFactor=1` and `CollapseToSticky=True`** — produces a no-op (header scrolls 1:1 with content so it never reaches its collapsed state from the parallax math). Lower `ParallaxFactor` to let the collapse engage.
+- **MAUI: an app-wide implicit `Style TargetType="BoxView"` used to black out the hero** — the control's internal spacer is now a layout rather than a `BoxView`, so this no longer happens. Worth knowing for your own markup though: the .NET MAUI project template ships a `BoxView` style that sets **`BackgroundColor`** (an opaque rectangle *behind* the fill), not the `BoxView`'s own `Color`. Any `<BoxView Color="Transparent" />` you use as a spacer will therefore render as a solid dark bar. Use an empty `<Grid HeightRequest="..." />` for spacers, or drop the template's `BoxView` style.
 
 ## When to Use What
 

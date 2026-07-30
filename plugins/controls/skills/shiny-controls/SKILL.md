@@ -939,7 +939,36 @@ When generating code with Shiny.Maui.Controls:
   </Style>
   ```
 - Leave colour properties unset to inherit the active Shiny theme; set one explicitly only to
-  override that theme default.
+  override that theme default. **A colour you set wins over the theme permanently** — e.g. a
+  `ChatView` with `MyBubbleColor="#DCF8C6"` keeps that green through every
+  `ShinyThemeManager.SetTheme` call, which looks like theme switching is broken. Omit the property
+  unless you actually want to pin it.
+- When authoring a **new** control in this repo, never assign a colour literal for chrome
+  (`Colors.DodgerBlue`, `Color.FromArgb("#007AFF")`). Use
+  `SetDynamicResource(prop, ShinyThemeKeys.Color.X)` so the control repaints live when the theme
+  pack changes. `ThemeTokenCoverageTests` fails the build for any file that mentions a colour and
+  never references `ShinyThemeKeys`; colours that are genuinely *content* (the ink in SignaturePad,
+  the HSV ramp in ColorPicker) are listed there with a reason instead.
+  - For a consumer-overridable colour, default the `BindableProperty` to `null` and pick between the
+    explicit value and the token at apply time — the pattern used throughout the library:
+    ```csharp
+    static void Tint(Element target, BindableProperty property, Color? explicitColor, string themeKey)
+    {
+        if (explicitColor is null)
+            target.SetDynamicResource(property, themeKey);
+        else
+        {
+            target.RemoveDynamicResource(property);
+            target.SetValue(property, explicitColor);
+        }
+    }
+    ```
+- **What visibly changes between theme packs.** Only the accent roles differ enough to notice:
+  `Primary`/`Secondary`/`Tertiary`/`Info` and their containers separate by ΔE 17–68 across the
+  built-in packs. The neutral ramp cannot — `Surface` is ΔE ~1 between packs because a tone-98
+  near-white has no room to carry a hue. So a control whose only themed parts are `Surface` /
+  `OnSurface` / `Outline` will look almost identical in every pack, and that is expected. Put the
+  accent token on whatever element carries the control's identity.
 - When authoring a **new** control in this repo, route any `propertyChanged` callback that
   touches a child field through `StyleGuard.WhenReady`, and call
   `StyleGuard.MarkReady(this, typeof(TheControl))` as the last line of the constructor. MAUI

@@ -129,3 +129,9 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 - Blazor paging needs `<PagerContent><DataGridPager TItem="..."/></PagerContent>`; MAUI paging is just
   `PageSize`.
 - Leave colors unset to inherit the theme; the grid is light/dark aware.
+- **Budget columns to the width you actually have.** Header titles ellipsize and clip to their column
+  (they no longer spill into the next one), but a phone-width grid only has room for roughly **3–4
+  columns**, fewer once `AllowColumnResize`/`AllowColumnReorder`/`Groupable`/`FilterMode="Menu"` add
+  their glyphs to each header. On narrow layouts prefer a handful of columns — or fold the extras into a
+  single `DataGridTemplateColumn` — instead of declaring six and letting every cell render as `…`.
+  A `DataGridColumn` with no `Width` is `*`, so stars split whatever the `Auto` columns leave behind.
