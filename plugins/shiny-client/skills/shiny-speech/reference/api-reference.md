@@ -8,6 +8,8 @@ dotnet add package Shiny.Audio                   # Referenced transitively by Sh
 dotnet add package Shiny.Speech.Azure            # Optional: Azure AI Speech
 dotnet add package Shiny.Speech.ElevenLabs       # Optional: ElevenLabs STT (Scribe) + TTS
 dotnet add package Shiny.Speech.Typecast         # Optional: Typecast TTS (TTS only)
+dotnet add package Shiny.Audio.Linux             # Required on Linux: audio capture/playback
+dotnet add package Shiny.Speech.Linux.Whisper    # Optional: offline on-device STT on Linux (STT only)
 ```
 
 ## Namespaces
@@ -735,6 +737,76 @@ public record ElevenLabsConfig
 ```
 
 > **ElevenLabs Scribe is request/response, not streaming.** `CloudSpeechToText` buffers the captured PCM until `Stop()` is called, wraps it in a WAV container, and posts a single multipart request to `/v1/speech-to-text`. One final `SpeechRecognitionResult` is yielded. For continuous partial results across long sessions, use Azure.
+
+### Whisper on-device, Linux (Shiny.Speech.Linux.Whisper)
+
+```csharp
+using Shiny.Speech.Linux;   // WhisperConfig, WhisperSpeechToTextProvider, WhisperModelResolver
+using Whisper.net.Ggml;     // GgmlType, QuantizationType
+
+public static class WhisperServiceCollectionExtensions
+{
+    // No-op off Linux. Call AddLinuxAudio() FIRST — this consumes IAudioSource.
+    IServiceCollection AddLinuxWhisperSpeechToText(
+        this IServiceCollection services,
+        WhisperConfig? config = null);
+
+    IServiceCollection AddLinuxWhisperSpeechToText(
+        this IServiceCollection services,
+        GgmlType modelType,
+        QuantizationType quantization = QuantizationType.NoQuantization);
+}
+```
+
+### WhisperConfig
+
+```csharp
+public record WhisperConfig
+{
+    // Model
+    GgmlType ModelType { get; set; } = GgmlType.Base;   // Tiny/Base for a Pi; *En variants for English-only
+    QuantizationType Quantization { get; set; } = QuantizationType.NoQuantization;
+    string? ModelPath { get; set; }                     // explicit .bin; else cached under ModelDirectory
+    string? ModelDirectory { get; set; }                // default ~/.local/share/shiny.speech/whisper
+    bool AutoDownloadModel { get; set; } = true;        // pulls from Hugging Face on first use
+
+    // Inference
+    int? Threads { get; set; }                          // default min(ProcessorCount - 1, 4)
+    bool UseGpu { get; set; }                           // needs Whisper.net.Runtime.Cuda/.Vulkan
+    string Language { get; set; } = "auto";             // overridden by SpeechRecognitionOptions.Culture
+    bool Translate { get; set; }                        // translate to English instead of transcribing
+    string? InitialPrompt { get; set; }                 // bias the decoder toward domain vocabulary
+    bool CarryContextBetweenUtterances { get; set; }    // off — stops one bad result poisoning the next
+    float NoSpeechThreshold { get; set; } = 0.6f;
+    bool FilterNonSpeechAnnotations { get; set; } = true;  // strips [BLANK_AUDIO], (wind blowing), ♪
+
+    // Voice activity detection (how the mic stream is chunked into utterances)
+    int SilenceRmsThreshold { get; set; } = 500;        // 0–32767
+    int MinUtteranceDurationMs { get; set; } = 300;
+    int MaxUtteranceDurationMs { get; set; } = 30_000;
+    TimeSpan TranscriptionTimeout { get; set; } = TimeSpan.FromMinutes(5);
+}
+```
+
+```csharp
+public class WhisperSpeechToTextProvider : ISpeechToTextProvider, IDisposable
+{
+    // Download + load the model up front instead of on the first utterance.
+    Task PrepareAsync(CancellationToken cancellationToken = default);
+}
+
+public static class WhisperModelResolver
+{
+    static string DefaultModelDirectory { get; }
+    static string GetModelFileName(GgmlType type, QuantizationType quantization);
+    static Task<string> ResolveAsync(WhisperConfig config, ILogger logger, CancellationToken ct = default);
+}
+```
+
+> **Whisper is STT only and batch, not streaming.** There is no Whisper TTS. Every
+> `SpeechRecognitionResult` has `IsFinal = true` — the provider runs client-side VAD over the PCM mic
+> stream and turns each speech→silence segment into one local inference pass. Requires `libstdc++6` +
+> glibc 2.31; on x86/x64 the CPU must support AVX/AVX2/FMA/F16C (else add `Whisper.net.Runtime.NoAvx`).
 
 ## Troubleshooting
 

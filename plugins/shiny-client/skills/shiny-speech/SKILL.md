@@ -164,6 +164,23 @@ triggers:
   - LinuxAudioMonitor
   - IsLinuxAudioAvailable
   - OperatingSystem.IsLinux
+  - whisper
+  - whisper.cpp
+  - Whisper.net
+  - offline speech recognition
+  - offline stt
+  - on-device speech recognition
+  - local speech to text
+  - no cloud speech
+  - air-gapped
+  - Shiny.Speech.Linux.Whisper
+  - AddLinuxWhisperSpeechToText
+  - WhisperConfig
+  - WhisperSpeechToTextProvider
+  - WhisperModelResolver
+  - GgmlType
+  - QuantizationType
+  - ggml model
 ---
 
 # Shiny Speech Skill
@@ -200,6 +217,7 @@ Invoke this skill when the user wants to:
 - `Shiny.Speech.ElevenLabs` — ElevenLabs TTS provider
 - `Shiny.Speech.Typecast` — Typecast TTS provider (TTS only, via the `typecast-csharp` SDK)
 - `Shiny.Audio.Linux` — Linux audio backend (PulseAudio/PipeWire with ALSA fallback). Required on Linux; nothing else registers audio services there
+- `Shiny.Speech.Linux.Whisper` — On-device, offline STT on Linux via Whisper/whisper.cpp. STT only (there is no Whisper TTS)
 
 **Namespace**: `Shiny.Speech`
 
@@ -213,7 +231,8 @@ Shiny Speech provides:
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
 - Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android + Linux only
 - Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android + Linux only (`Changed` needs PulseAudio/PipeWire; `ShowOutputPicker()` is a no-op on Linux)
-- Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider
+- Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider, or `Shiny.Speech.Linux.Whisper` for offline STT
+- On-device offline STT on Linux via the separate `Shiny.Speech.Linux.Whisper` package — Whisper through whisper.cpp, no cloud account or network. STT only
 - Route classification via `AudioDeviceExtensions` — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` on both `AudioDevice` and `AudioDeviceType`; detects wired/jack/USB-C headphones and headsets alongside Bluetooth
 - One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
@@ -248,10 +267,12 @@ dotnet add package Shiny.Speech.ElevenLabs
 ```
 
 For Linux (console app, daemon, container, Raspberry Pi) — add the Linux audio backend alongside a
-cloud provider, because Linux has no native speech engine:
+recognizer, because Linux has no native speech engine:
 ```bash
 dotnet add package Shiny.Audio.Linux
-dotnet add package Shiny.Speech.Azure   # or .OpenAI / .ElevenLabs / .Typecast
+dotnet add package Shiny.Speech.Azure          # or .OpenAI / .ElevenLabs / .Typecast
+# ...or run recognition offline on the device itself (STT only):
+dotnet add package Shiny.Speech.Linux.Whisper
 ```
 
 ### 2. Configure in MauiProgram.cs (or Blazor Program.cs)
@@ -398,9 +419,63 @@ builder.Services.AddCloudSpeechToText<AzureSpeechToTextProvider>();
 builder.Services.AddCloudTextToSpeech<AzureTextToSpeechProvider>();
 ```
 
+**Linux offline STT (Whisper)** — when the user wants recognition without a cloud account, an API key,
+or a network connection (air-gapped boxes, kiosks, Raspberry Pi appliances, privacy requirements),
+use `Shiny.Speech.Linux.Whisper` instead of a cloud provider:
+
+```csharp
+using Shiny;
+using Shiny.Speech.Linux;
+using Whisper.net.Ggml;
+
+builder.Services.AddLinuxAudio();   // MUST come first — supplies IAudioSource
+
+// Simple: pick a model size.
+builder.Services.AddLinuxWhisperSpeechToText(GgmlType.BaseEn, QuantizationType.Q5_1);
+
+// Or configure fully:
+builder.Services.AddLinuxWhisperSpeechToText(new WhisperConfig
+{
+    ModelType = GgmlType.BaseEn,
+    Quantization = QuantizationType.Q5_1,
+    InitialPrompt = "Shiny, MAUI, Blazor",   // bias the decoder toward domain vocabulary
+    SilenceRmsThreshold = 500                // VAD sensitivity (0–32767)
+});
+```
+
+It registers a normal `ISpeechToTextService`, so `ListenUntilSilence()`, `StatementAfterKeyword()`,
+`WaitListenForKeywords()` and the `KeywordHeard` event all work unchanged.
+
+When generating Whisper code:
+- **STT only.** Whisper is a recognition model — there is no Whisper TTS. If the user also wants
+  speech output, pair it with a cloud TTS provider (`AddCloudTextToSpeech<T>()`). Never generate an
+  `AddLinuxWhisperTextToSpeech` — it does not exist.
+- **Never generate partial-result handling.** Whisper is a batch model; every
+  `SpeechRecognitionResult` has `IsFinal = true`. The provider runs client-side VAD and turns each
+  speech→silence segment into one inference.
+- **Recommend `PrepareAsync()` at startup.** The model downloads from Hugging Face on first use
+  (cached in `~/.local/share/shiny.speech/whisper`) and takes seconds to load; without it the user's
+  first utterance pays that cost.
+  ```csharp
+  var provider = (WhisperSpeechToTextProvider)host.Services.GetRequiredService<ISpeechToTextProvider>();
+  await provider.PrepareAsync();
+  ```
+- **Model sizing:** `Tiny`/`Base` on a Raspberry Pi 4/5 (roughly realtime at `Base`; `Small` and up
+  are slower than realtime). `Small`+ is fine on x64 desktops/servers. Prefer the `*En` variants for
+  English-only apps — more accurate at the same size. Suggest quantization (`Q5_1`) on ARM.
+- **Suits push-to-talk / wake-word-then-command, not continuous dictation** on constrained hardware.
+- **Requirements:** `libstdc++6` and glibc 2.31+ (Debian 11+ / Ubuntu 20.04+ / Pi OS Bullseye+).
+  `linux-x64`, `linux-arm64` and `linux-arm` are all supported. On **x86/x64 the CPU needs AVX, AVX2,
+  FMA and F16C** — otherwise add `Whisper.net.Runtime.NoAvx`. ARM has no such requirement.
+- Publishing with an explicit RID (`dotnet publish -r linux-arm64`) avoids copying every platform's
+  native binaries.
+- GPU is opt-in: add `Whisper.net.Runtime.Cuda` (or `.Vulkan`) and set `UseGpu = true`.
+- Registration is a no-op off Linux, so it is safe in shared startup code.
+
 When generating Linux code:
 - **Never generate `AddSpeechToText()` / `AddTextToSpeech()` for Linux** — there is no OS speech
-  engine there, so they register nothing. Always pair `AddLinuxAudio()` with a cloud provider.
+  engine there, so they register nothing. Always pair `AddLinuxAudio()` with a cloud provider or
+  `AddLinuxWhisperSpeechToText()`.
 - Guard optional startup on `LinuxAudioServiceCollectionExtensions.IsLinuxAudioAvailable` when the
   app must degrade gracefully (a container with no sound devices mapped in returns `false`).
 - Runtime dependency is `libpulse-simple.so.0` (PulseAudio/PipeWire) or `libasound.so.2` (ALSA).
