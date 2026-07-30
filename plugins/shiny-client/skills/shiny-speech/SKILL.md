@@ -147,6 +147,23 @@ triggers:
   - BrowserAudioPlayer
   - BrowserAudioSource
   - OperatingSystem.IsBrowser
+  - linux
+  - linux audio
+  - linux speech
+  - linux microphone
+  - alsa
+  - pulseaudio
+  - pipewire
+  - raspberry pi
+  - headless audio
+  - Shiny.Audio.Linux
+  - AddLinuxAudio
+  - LinuxAudioSource
+  - LinuxAudioPlayer
+  - LinuxAudioDevices
+  - LinuxAudioMonitor
+  - IsLinuxAudioAvailable
+  - OperatingSystem.IsLinux
 ---
 
 # Shiny Speech Skill
@@ -182,6 +199,7 @@ Invoke this skill when the user wants to:
 - `Shiny.Speech.Azure` — Azure AI Speech provider
 - `Shiny.Speech.ElevenLabs` — ElevenLabs TTS provider
 - `Shiny.Speech.Typecast` — Typecast TTS provider (TTS only, via the `typecast-csharp` SDK)
+- `Shiny.Audio.Linux` — Linux audio backend (PulseAudio/PipeWire with ALSA fallback). Required on Linux; nothing else registers audio services there
 
 **Namespace**: `Shiny.Speech`
 
@@ -193,8 +211,9 @@ Shiny Speech provides:
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
 - Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser) with an `InputLevelChanged` VU signal on every platform
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
-- Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android only
-- Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android only
+- Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android + Linux only
+- Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android + Linux only (`Changed` needs PulseAudio/PipeWire; `ShowOutputPicker()` is a no-op on Linux)
+- Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider
 - Route classification via `AudioDeviceExtensions` — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` on both `AudioDevice` and `AudioDeviceType`; detects wired/jack/USB-C headphones and headsets alongside Bluetooth
 - One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
@@ -226,6 +245,13 @@ For ElevenLabs (cloud TTS):
 ```bash
 dotnet add package Shiny.Speech
 dotnet add package Shiny.Speech.ElevenLabs
+```
+
+For Linux (console app, daemon, container, Raspberry Pi) — add the Linux audio backend alongside a
+cloud provider, because Linux has no native speech engine:
+```bash
+dotnet add package Shiny.Audio.Linux
+dotnet add package Shiny.Speech.Azure   # or .OpenAI / .ElevenLabs / .Typecast
 ```
 
 ### 2. Configure in MauiProgram.cs (or Blazor Program.cs)
@@ -355,6 +381,34 @@ Providers that cache an SDK/HTTP client (ElevenLabs, Typecast) rebuild it automa
 **Browser (Blazor WebAssembly)** — No manifest changes and **no `<script>` tag** needed. The browser prompts for microphone access automatically, and the JS interop module ships **inside the `Shiny.Audio` package** as a static web asset (`_content/Shiny.Audio/shiny-audio.js`), loaded on demand via `JSHost.ImportAsync`. Do **not** copy the JS into `wwwroot` or add a `<script>` reference — just reference the NuGet package.
 
 > **Note:** `IAudioSource` captures raw PCM audio in the browser using the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono — the same format as other platforms.
+
+**Linux** — No manifest or runtime permission prompt; microphone access is a filesystem/group concern
+the distro handles. Audio services come from the separate `Shiny.Audio.Linux` package and must be
+registered explicitly:
+
+```csharp
+using Shiny;
+
+// MUST come before AddSpeechServices() / AddCloudSpeechToText<T>() / AddCloudTextToSpeech<T>().
+// Those use TryAdd, so the first registration wins — and on Linux they register nothing at all.
+// AddLinuxAudio() is a no-op off Linux, so it is safe in shared startup code.
+builder.Services.AddLinuxAudio();
+
+builder.Services.AddCloudSpeechToText<AzureSpeechToTextProvider>();
+builder.Services.AddCloudTextToSpeech<AzureTextToSpeechProvider>();
+```
+
+When generating Linux code:
+- **Never generate `AddSpeechToText()` / `AddTextToSpeech()` for Linux** — there is no OS speech
+  engine there, so they register nothing. Always pair `AddLinuxAudio()` with a cloud provider.
+- Guard optional startup on `LinuxAudioServiceCollectionExtensions.IsLinuxAudioAvailable` when the
+  app must degrade gracefully (a container with no sound devices mapped in returns `false`).
+- Runtime dependency is `libpulse-simple.so.0` (PulseAudio/PipeWire) or `libasound.so.2` (ALSA).
+  In a Dockerfile, install `libpulse0` or `libasound2`.
+- `IAudioPlayer` decodes **MP3 and WAV only** on Linux (managed decode via `NLayer`; there is no
+  system decoder). Other containers throw `NotSupportedException`.
+- `IAudioPlayer.IsVolumeControlSupported` is `true` only on PulseAudio/PipeWire — check it before
+  setting `Volume`, exactly as on iOS.
 
 ## Code Generation Instructions
 
