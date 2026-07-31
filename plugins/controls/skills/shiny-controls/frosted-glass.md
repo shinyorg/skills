@@ -45,15 +45,16 @@ A view that applies a frosted glass (blur) effect behind its content. Uses nativ
 | `BlurRadius` | `double` | `20` | Blur strength in pixels |
 | `TintColor` | `string` | `rgba(255,255,255,0.6)` | CSS color for glass tint |
 | `CornerRadius` | `double` | `0` | Border radius in pixels |
+| `CssClass` | `string?` | `null` | Additional CSS classes on the root element |
 | `Style` | `string?` | `null` | Additional inline CSS |
 
 ## Platform Behavior
 
 | Platform | Implementation |
 |---|---|
-| iOS / macCatalyst | `UIVisualEffectView` with `UIBlurEffect.SystemMaterial` |
-| Android 12+ | `RenderEffect.CreateBlurEffect` shader |
-| Older Android | Semi-transparent tint overlay (visual fallback) |
+| iOS / macCatalyst | `UIVisualEffectView` using the system **ultra-thin** material (`SystemUltraThinMaterialLight` / `SystemUltraThinMaterialDark`, picked from the current theme). The material carries its own tint, so the control reduces its own tint overlay to avoid double-tinting |
+| Android 12+ (API 31) | Background captured on each pre-draw pass and blurred with `RenderEffect` |
+| Android 11 and older | No blur — `RenderEffect` is unavailable, so only the semi-transparent tint is drawn |
 | Blazor | CSS `backdrop-filter: blur()` with `-webkit-` prefix |
 
 ## Tips
