@@ -63,6 +63,27 @@ triggers:
   - voice sampling
   - tts voice
   - switch voice
+  - aichatview
+  - ai chat view
+  - ai chat ui
+  - maui chat control
+  - chat control
+  - chat screen
+  - chat page
+  - chat bubbles
+  - shiny.aiconversation.maui
+  - aichatsettings
+  - aichatsessionprovider
+  - addchatsessionprovider
+  - chat session provider
+  - ichatsessionprovider
+  - bot name
+  - bot avatar
+  - chatbot avatar
+  - greeting message
+  - show token usage
+  - microphone action
+  - push to talk button
 references:
   - ai-service.md
   - registration.md
@@ -96,6 +117,7 @@ The library provides:
 
 **Built-in Provider Packages**:
 - **Shiny.AiConversation.OpenAi** (`OpenAiStaticChatProvider`): Static OpenAI-compatible provider. Accepts API key, endpoint URI, and model name. Works with OpenAI, Azure OpenAI, Ollama, or any OpenAI-compatible API. Register with `opts.AddStaticOpenAIChatClient(apiToken, endpointUri, modelName)`.
+- **Shiny.AiConversation.Maui** (`AiChatView`): Drop-in .NET MAUI chat UI. `AiChatView` derives from the Shiny.Maui.Controls `ChatView` (so every base style/template property still applies) and wires the provider, session, message-store history paging, typing indicator, voice turns and errors to `IAiConversationService`. Also ships `AiChatSettings`, `AiChatSessionProvider` (an `IChatSessionProvider` usable with a plain `ChatView` via `opts.AddChatSessionProvider()`), and `AiMicrophoneInputAction`. XAML namespace: `http://shiny.net/maui/aiconversation`.
 - **Shiny.AiConversation.Maui.GithubCopilot** (`GitHubCopilotChatClientProvider`): MAUI-specific provider using GitHub device code OAuth flow and the Copilot API. Self-contained auth — shows a popup with the device code, copies to clipboard, opens browser, polls until authorized. Tokens stored in SecureStorage. Register with `opts.AddGithubCopilotChatClient()`. Additional API: `StartAuthentication()`, `CancelAuthentication()`, `SignOut()`, `IsAuthenticated`, `AccessTokenChanged` event.
 
 ## Dependencies
@@ -117,7 +139,9 @@ Invoke this skill when the user wants to:
 - Set up speech-to-text and text-to-speech options (culture, voice, speech rate, etc.)
 - Add the optional ChatLookupAITool for AI-driven history search
 - Enable voice selection tools so the AI can list voices, play samples, and switch its own voice
-- Build a chat UI that integrates with IAiConversationService
+- Build a chat UI that integrates with IAiConversationService (use `AiChatView` — do not hand-roll one)
+- Style the chat screen, or set the chatbot's name/avatar/bubble colors
+- Show chat history from the message store in the UI
 - Handle AI state changes (Idle, Listening, Thinking, Responding)
 - Use TalkTo or ListenAndTalk for AI interactions
 - Check speech/microphone access before starting voice features
@@ -279,6 +303,75 @@ aiService.AiResponded += (response) =>
 | `Thinking` | Waiting for AI to process |
 | `Responding` | AI is streaming its response |
 
+### 8. MAUI Chat UI (`Shiny.AiConversation.Maui`)
+
+For any chat screen, use `AiChatView` — never hand-roll a message collection, send command, or
+`IChatSessionProvider` over `IAiConversationService`. It resolves `IAiConversationService` from the
+app's service provider, so there is nothing to bind:
+
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:ai="http://shiny.net/maui/aiconversation"
+             x:Class="MyApp.ChatPage"
+             Title="Chat">
+
+    <ai:AiChatView BotName="Aura"
+                   BotAvatar="bot.png"
+                   GreetingMessage="Hi! What can I help you with?"
+                   ShowMicrophoneAction="True"
+                   ShowTokenUsage="True"
+                   MyBubbleColor="{StaticResource Primary}"
+                   MyTextColor="White"
+                   OtherBubbleColor="#F0EEFF"
+                   BubbleCornerRadius="16"
+                   PlaceholderText="Ask me something..." />
+</ContentPage>
+```
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `AiService` | resolved from DI | The `IAiConversationService` to drive |
+| `BotName` | `Assistant` | AI display name (also the session name) |
+| `BotAvatar` | `null` | `ImageSource` for the AI |
+| `BotBubbleColor` | `null` | AI bubble color; falls back to `OtherBubbleColor` |
+| `UserName` / `UserAvatar` / `UserBubbleColor` | `Me` / `null` / `null` | Device user identity; color falls back to `MyBubbleColor` |
+| `LoadHistory` | `true` | Backfill + page history from the registered `IMessageStore` |
+| `GreetingMessage` | `null` | AI message shown when there is no history |
+| `ShowTokenUsage` | `false` | Appends a token usage footer to AI messages |
+| `ShowMicrophoneAction` | `false` | Push-to-talk action in the input bar (calls `ListenAndTalk`) |
+| `MicrophoneActionText` | `🎤 Voice Input` | Label of that action |
+| `Refresh()` | — | Method — reloads the conversation (call after `ClearChatHistory`) |
+
+All `ChatView` properties are inherited and are the way to style the chat: `MyBubbleColor`,
+`MyTextColor`, `OtherBubbleColor`, `OtherTextColor`, `ChatBackgroundColor`, `BubbleFontSize`,
+`BubbleFontFamily`, `BubbleCornerRadius`, `TimestampFontSize`, `PlaceholderText`, `SendButtonText`,
+`SendButtonBackgroundColor`, `SendButtonTextColor`, `InputBarBackgroundColor`, `InputBarBorderColor`,
+`IsInputBarVisible`, `ShowTypingIndicator`, `MessageTemplate`, `MessageTemplateSelector`,
+`InputActions`, `CustomBubbleActions`, `PageSize`, `UseFeedback`, `AdjustForKeyboard`
+(set `False` inside a `FloatingPanel`).
+
+Behavior that is already wired — do not re-implement it:
+- Typed sends → `TalkTo`; replies (`AiResponded`) render as AI bubbles
+- Voice turns from wake word or push-to-talk render as user bubbles (`SpeechOccurred` / `Heard`)
+- History comes from the registered `IMessageStore`; with no store the chat starts empty (no exception)
+- Typing indicator follows `AiState` (Thinking / Responding)
+- `TalkTo` failures and `ErrorOccurred` render as AI bubbles with `Identifier = "error"`
+
+To drive a plain `ChatView` instead, register the provider and bind `Provider` + `SessionId`:
+
+```csharp
+builder.Services.AddShinyAiConversation(opts =>
+{
+    opts.AddGithubCopilotChatClient();
+    opts.AddChatSessionProvider(cfg =>
+    {
+        cfg.BotName = "Aura";
+        cfg.ShowTokenUsage = true;
+    });
+});
+```
+
 ## Best Practices
 
 1. **Use IContextProvider for configuration** — System prompts, tools, quiet words, and speech options are all configured via `IContextProvider.Apply(AiContext)` — not set directly on the service
@@ -289,3 +382,4 @@ aiService.AiResponded += (response) =>
 6. **MessageStore is optional** — The service works without it but GetChatHistory/ClearChatHistory will throw
 7. **ChatLookupAITool is opt-in** — Pass `addAiLookupTool: true` to SetMessageStore to allow the AI to search past conversations
 8. **No reflection** — All registrations must be explicit; do not use ActivatorUtilities.CreateInstance or reflection-based patterns
+9. **Use AiChatView for chat UI** — do not build a message collection + send command by hand, and do not implement `IChatSessionProvider` over `IAiConversationService`; that bridge already ships in `Shiny.AiConversation.Maui`
