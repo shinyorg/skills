@@ -7,7 +7,7 @@
 ```csharp
 public interface IMessageStore
 {
-    Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken);
+    Task Store(string? userTriggeringMessage, string? assistantMessage, ChatResponse response, CancellationToken cancellationToken);
     Task Clear(DateTimeOffset? beforeDate = null);
     Task<IReadOnlyList<AiChatMessage>> Query(
         string? messageContains = null,
@@ -22,7 +22,12 @@ public interface IMessageStore
 ## Methods
 
 ### Store
-Persists the complete AI response including the user's triggering message and the `ChatResponse`. Called once after the AI finishes responding.
+Persists the exchange. Called once after the AI finishes responding.
+
+**Always store `assistantMessage`, never `response.Text`.** When structured output is enabled (the
+default), `response.Text` is the raw JSON turn envelope; persisting it would push JSON into chat history
+and into future prompts via `ChatLookupAITool`. `assistantMessage` is the parsed reply — or the raw text
+when the turn was unstructured. `response` is still passed for metadata such as token usage.
 
 ### Clear
 Removes messages from the store:
@@ -46,9 +51,9 @@ using Shiny.AiConversation;
 
 public class DocumentDbMessageStore(IDocumentStore store) : IMessageStore
 {
-    public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken)
+    public Task Store(string? userTriggeringMessage, string? assistantMessage, ChatResponse response, CancellationToken cancellationToken)
     {
-        if (response.Text is not { } text)
+        if (assistantMessage is not { } text)   // NOT response.Text - that is the JSON envelope
             return Task.CompletedTask;
 
         return store.Insert(
