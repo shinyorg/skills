@@ -108,6 +108,12 @@ await this.Camera.StartVideoRecordingAsync(new VideoRecordingOptions
 });
 CameraVideo overlaid = await this.Camera.StopVideoRecordingAsync();
 
+// Recording quality is a SESSION setting, not a per-recording one — set it before/independently of a
+// recording, not inside VideoRecordingOptions. Default is High (1080p) on every platform.
+this.Camera.VideoQuality = VideoQuality.Medium;   // 720p
+this.Camera.VideoFrameRate = 24;                  // null = platform default; the cheapest lever on heat/size
+this.Camera.VideoBitrate = 8_000_000;             // null = platform default for the resolution
+
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
@@ -579,6 +585,9 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 | `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` — applied to preview + captured photos (live preview needs Android API 31+; not recorded video; no-op on Windows) |
 | `ShowDetectionOverlay` | `bool` | `true` | Surface overlay boxes for the overlay |
 | `Analyzer` | `IFrameAnalyzer?` | `null` | The single frame analyzer (content property) — assign/swap live; toggle via its `IsEnabled` |
+| `VideoQuality` | `VideoQuality` | `High` | Target capture resolution: `Lowest`/`Low` (480p)/`Medium` (720p)/`High` (1080p)/`UltraHigh` (4K)/`Highest`. Session-level — changing it reconfigures the camera; unsupported rungs fall back to the nearest supported one |
+| `VideoBitrate` | `int?` | `null` | Target encoding bitrate in bits/sec; `null` = platform default for the resolution |
+| `VideoFrameRate` | `int?` | `null` | Target capture frame rate; `null` = platform default. Clamped to what the device's active format supports |
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest overlay boxes (read-only) |
 | `ScanWindow` | `RectF?` (get) | `null` | The active analyzer's scan window (read-only mirror) |
@@ -616,6 +625,9 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Blazor barcode on Firefox/Safari** — `BarcodeDetector` is Chromium-only; feature-detect and provide a fallback if you need universal coverage. Filters (CSS) and capture/record work everywhere.
 - **Overlay misaligned** — prefer `CameraOverlayView` (it tracks `ScaleMode`/aspect for you). If you hand-roll a `CameraOverlayDrawable`, set `ScaleMode` to match `CameraView.ScaleMode` and `ImageAspect` from `CameraOverlaysChangedEventArgs.ImageWidth/Height`.
 - **Box flicker / not persisting** — an analyzer's boxes stay drawn until it returns a *different* set or `null`; return the same set (or nothing while busy) to keep them. Returning `null`/empty every frame clears them.
+
+- **Video quality lives on `CameraView`, not `VideoRecordingOptions`** — a common wrong guess. Both AVFoundation (session preset) and CameraX (`QualitySelector` on the `Recorder`) fix the capture resolution when the session is configured, so it cannot be a per-recording argument without reconfiguring the camera every time recording starts. Set `VideoQuality` / `VideoBitrate` / `VideoFrameRate` once, or bind them to a setting; a change while running reconfigures the session and is **ignored mid-recording** (it would truncate the file being written) — it lands on the next recording instead. On Apple the preset sizes the *whole* session, so dropping it also shrinks what the preview and any frame analyzer see.
+- **`Highest` is not free** — it resolves to 4K on modern hardware, which for a continuously-recording app means storage filling fast and a hot device. If size or thermals matter, drop `VideoFrameRate` before you drop resolution: halving the frame rate roughly halves encode work and costs far less perceptually on a mostly-static scene.
 
 ## When to Use What
 
