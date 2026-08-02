@@ -1,6 +1,6 @@
 ---
 name: shiny-aiconversation
-description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), persistent message store, optional AI chat history lookup tool, and configurable sound effects
+description: Generate code for Shiny.AiConversation - a centralized AI service library for .NET MAUI apps with chat client abstraction, wake word detection, speech-to-text/text-to-speech, acknowledgement modes (None/AudioBlip/LessWordy/Full), structured AI turns with typed questions and multiple-choice answers, persistent message store, optional AI chat history lookup tool, and configurable sound effects
 auto_invoke: true
 triggers:
   - shiny ai
@@ -42,6 +42,26 @@ triggers:
   - speech interruption
   - expects response
   - conversation continuation
+  - structured output
+  - structured turn
+  - aiturn
+  - ai turn
+  - aiquestion
+  - ai question
+  - aichoice
+  - ai choice
+  - multiple choice
+  - choice buttons
+  - showchoicebuttons
+  - pending questions
+  - pendingquestions
+  - follow up timeout
+  - followuptimeout
+  - aistructuredoutputmode
+  - structured output mode
+  - json schema response
+  - aiturnserializer
+  - aichoicetemplateselector
   - speech to text options
   - text to speech options
   - github copilot
@@ -91,6 +111,7 @@ references:
   - chat-client-provider.md
   - chat-lookup-tool.md
   - voice-selection-tools.md
+  - structured-turns.md
 ---
 
 # Shiny.AiConversation Skill
@@ -105,7 +126,8 @@ You are an expert in the Shiny.AiConversation library, a centralized AI service 
 **Infrastructure Namespace**: `Shiny.AiConversation.Infrastructure` (internal implementations)
 
 The library provides:
-- **IAiConversationService**: Central orchestrator for AI interactions — manages access checking, state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (auto-listens when AI asks a question), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
+- **IAiConversationService**: Central orchestrator for AI interactions — manages access checking, state (Idle/Listening/Thinking/Responding), wake word detection, speech-to-text capture, chat client communication, text-to-speech response, acknowledgement modes, sound effects, persistent chat history, conversation continuation (keeps listening while a turn carries questions, bounded by `FollowUpTimeout`), and voice interruption (quiet words to stop TTS, or speak over the AI to redirect the conversation)
+- **AiTurn / AiQuestion / AiChoice**: The structured reply shape. The model answers with `Reply` (what the user sees and hears) plus `Questions` (what it needs back, optionally with fixed `Choices`), so "keep listening" is a typed signal rather than a guess at the wording. Degrades to plain text automatically. See `structured-turns.md`
 - **IChatClientProvider**: Abstraction for obtaining an `IChatClient` (from Microsoft.Extensions.AI) — a default implementation (`InjectedChatClientProvider`) resolves `IChatClient` from DI; custom implementations handle authentication, token management, and client construction
 - **IMessageStore**: Abstraction for persisting and querying chat message history — implementations provide storage (SQLite, file system, cloud, etc.)
 - **ChatLookupAITool**: AI tool that allows the AI to search past conversations via IMessageStore — automatically added by `ContextProvider` when an `IMessageStore` is registered
@@ -234,7 +256,8 @@ builder.Services.AddShinyAiConversation(opts =>
 ```csharp
 public class MyMessageStore : IMessageStore
 {
-    public Task Store(string? userTriggeringMessage, ChatResponse response, CancellationToken cancellationToken) { ... }
+    // store assistantMessage, NOT response.Text - the latter is the raw structured JSON envelope
+    public Task Store(string? userTriggeringMessage, string? assistantMessage, ChatResponse response, CancellationToken cancellationToken) { ... }
     public Task Clear(DateTimeOffset? beforeDate = null) { ... }
     public Task<IReadOnlyList<AiChatMessage>> Query(
         string? messageContains = null,
@@ -278,14 +301,39 @@ await aiService.ClearChatHistory(beforeDate: oneWeekAgo);
 aiService.StatusChanged += (state) => { /* update UI with new AiState */ };
 aiService.AiResponded += (response) =>
 {
-    // response.Response — the complete ChatResponse
-    // response.Response.Text — the text content of the response
+    // response.Text — the display reply. ALWAYS use this, never response.Response.Text
+    //                 (that is the raw JSON envelope when structured output is on)
+    // response.Turn — the parsed AiTurn, or null when the reply was plain text
+    // response.Questions — questions carried by this turn (may have Choices)
     // response.WasReadAloud — whether TTS was used
-    // response.ExpectsResponse — true if AI asked a question (will auto-listen for reply)
+    // response.ExpectsResponse — true when the AI is waiting on the user (listener stays open)
 };
+
+// The live question queue — replaced on every turn, never merged
+foreach (var question in aiService.PendingQuestions)
+    Console.WriteLine(question.Text);
 ```
 
-### 6. Acknowledgement Modes
+### 6. Structured Turns & Multiple Choice
+
+The AI answers with a typed `AiTurn` by default — see `structured-turns.md` for the full contract.
+Key rules when generating code:
+
+- Render and speak `AiResponse.Text`, **never** `AiResponse.Response.Text`
+- Read "is the AI waiting on me" off `AiResponse.ExpectsResponse` / `PendingQuestions` — do not inspect
+  the reply text for a question mark
+- `PendingQuestions` is **replaced** each turn; never maintain a parallel queue
+- Send an answer as plain text via `TalkTo`; do not fuzzy-match spoken answers to choices locally
+- Always null-check `AiResponse.Turn` — any parse or provider failure degrades to plain text
+- Set `IChatClientProvider.StructuredOutputMode` when writing a provider for an endpoint that rejects
+  schema-constrained responses (`Json`, `Prompt`, or `None`)
+
+```csharp
+aiService.FollowUpTimeout = TimeSpan.FromSeconds(30);       // null waits indefinitely
+aiService.StructuredOutputMode = AiStructuredOutputMode.None; // opt out entirely
+```
+
+### 7. Acknowledgement Modes
 
 | Mode | Behavior |
 |------|----------|
@@ -294,7 +342,7 @@ aiService.AiResponded += (response) =>
 | `LessWordy` | TTS with "be concise" system prompt injected |
 | `Full` | TTS with full unmodified responses |
 
-### 7. AI States
+### 8. AI States
 
 | State | Description |
 |-------|-------------|
@@ -303,7 +351,7 @@ aiService.AiResponded += (response) =>
 | `Thinking` | Waiting for AI to process |
 | `Responding` | AI is streaming its response |
 
-### 8. MAUI Chat UI (`Shiny.AiConversation.Maui`)
+### 9. MAUI Chat UI (`Shiny.AiConversation.Maui`)
 
 For any chat screen, use `AiChatView` — never hand-roll a message collection, send command, or
 `IChatSessionProvider` over `IAiConversationService`. It resolves `IAiConversationService` from the
@@ -341,6 +389,8 @@ app's service provider, so there is nothing to bind:
 | `ShowTokenUsage` | `false` | Appends a token usage footer to AI messages |
 | `ShowMicrophoneAction` | `false` | Push-to-talk action in the input bar (calls `ListenAndTalk`) |
 | `MicrophoneActionText` | `🎤 Voice Input` | Label of that action |
+| `ShowChoiceButtons` | `true` | Renders a button per `AiChoice` under AI bubbles that ask a multiple-choice question |
+| `ChoiceSendText` | `Send` | Commit button label for questions allowing more than one choice |
 | `Refresh()` | — | Method — reloads the conversation (call after `ClearChatHistory`) |
 
 All `ChatView` properties are inherited and are the way to style the chat: `MyBubbleColor`,
@@ -357,6 +407,7 @@ Behavior that is already wired — do not re-implement it:
 - History comes from the registered `IMessageStore`; with no store the chat starts empty (no exception)
 - Typing indicator follows `AiState` (Thinking / Responding)
 - `TalkTo` failures and `ErrorOccurred` render as AI bubbles with `Identifier = "error"`
+- Multiple-choice turns render tappable chips under the bubble; the tapped label is sent as the answer. Setting `MessageTemplate` / `MessageTemplateSelector` takes precedence — then read choices with `AiChoiceTemplateSelector.ReadQuestions(chatMessage)`
 
 To drive a plain `ChatView` instead, register the provider and bind `Provider` + `SessionId`:
 
@@ -382,4 +433,6 @@ builder.Services.AddShinyAiConversation(opts =>
 6. **MessageStore is optional** — The service works without it but GetChatHistory/ClearChatHistory will throw
 7. **ChatLookupAITool is opt-in** — Pass `addAiLookupTool: true` to SetMessageStore to allow the AI to search past conversations
 8. **No reflection** — All registrations must be explicit; do not use ActivatorUtilities.CreateInstance or reflection-based patterns
-9. **Use AiChatView for chat UI** — do not build a message collection + send command by hand, and do not implement `IChatSessionProvider` over `IAiConversationService`; that bridge already ships in `Shiny.AiConversation.Maui`
+9. **Never render `Response.Text`** — use `AiResponse.Text`; with structured output the former is the raw JSON envelope
+10. **Never re-derive "was that a question"** — `ExpectsResponse` and `PendingQuestions` are the typed signal
+11. **Use AiChatView for chat UI** — do not build a message collection + send command by hand, and do not implement `IChatSessionProvider` over `IAiConversationService`; that bridge already ships in `Shiny.AiConversation.Maui`

@@ -8,12 +8,29 @@
 public interface IChatClientProvider
 {
     Task<IChatClient> GetChatClient(CancellationToken cancelToken = default);
+
+    // default interface member - override only when the endpoint rejects schema-constrained responses
+    AiStructuredOutputMode StructuredOutputMode => AiStructuredOutputMode.JsonSchema;
 }
 ```
 
 ## Purpose
 
-Provides an `IChatClient` (from Microsoft.Extensions.AI) to the AI service.
+Provides an `IChatClient` (from Microsoft.Extensions.AI) to the AI service, and declares how that
+endpoint can be asked for a structured turn.
+
+## StructuredOutputMode
+
+| Mode | Request shape | Use for |
+|------|---------------|---------|
+| `JsonSchema` *(default)* | Native schema-constrained response format | OpenAI and compatible endpoints |
+| `Json` | JSON response format + shape described in the prompt | GitHub Copilot, models without schema support |
+| `Prompt` | Shape in the prompt only, no format constraint | Endpoints that reject both of the above |
+| `None` | Plain text - opts out of structured turns entirely | Providers that can't do any of it |
+
+Both GitHub Copilot providers default to `Json` (the proxy passes `json_schema` support through
+per-model) and expose it as a settable property. A wrong value degrades rather than breaks - the
+conversation service retries unstructured and falls back to plain text. See `structured-turns.md`.
 
 ## Default Behavior
 

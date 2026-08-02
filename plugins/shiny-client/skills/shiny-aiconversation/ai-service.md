@@ -19,9 +19,12 @@ Raised when the service state changes, passing the new `AiState`. Use `MainThrea
 event Action<AiResponse>? AiResponded;
 ```
 Raised when the AI produces a complete response. The `AiResponse` record contains:
-- `Response` (ChatResponse) — the complete chat response including text, tool calls, and usage details
+- `Response` (ChatResponse) — the complete chat response including tool calls and usage details. **With structured output enabled (the default), `Response.Text` is the raw JSON envelope — do not render or speak it**
+- `Text` (string?) — the display reply. Always use this over `Response.Text`
+- `Turn` (AiTurn?) — the parsed structured turn, or null when the reply was plain text
+- `Questions` (IReadOnlyList<AiQuestion>) — the questions carried by this turn, empty when there are none
 - `WasReadAloud` (bool) — whether text-to-speech was used based on the current Acknowledgement mode
-- `ExpectsResponse` (bool) — true when the AI response ends with a question, indicating the service will keep listening for a reply
+- `ExpectsResponse` (bool) — true when the AI is waiting on the user, so the listener stays open. Typed off `Turn.Questions`; falls back to "does the reply end in a question" only when the turn could not be parsed
 
 ## Properties
 
@@ -31,6 +34,9 @@ Raised when the AI produces a complete response. The `AiResponse` record contain
 | `Status` | `AiState` | Current processing state (Idle/Listening/Thinking/Responding) |
 | `Acknowledgement` | `AiAcknowledgement` | Controls response delivery mode (get/set) |
 | `CurrentChatMessages` | `IReadOnlyList<ChatMessage>` | In-memory chat messages for current session |
+| `PendingQuestions` | `IReadOnlyList<AiQuestion>` | Questions the AI is waiting on, from the most recent turn. **Each turn replaces the queue** |
+| `FollowUpTimeout` | `TimeSpan?` | How long to keep listening for an answer before clearing the queue and returning to the wake word. Default 20s; null waits indefinitely |
+| `StructuredOutputMode` | `AiStructuredOutputMode?` | Overrides `IChatClientProvider.StructuredOutputMode`; null uses the provider's own |
 | `SoundResolver` | `Func<string, Task<Stream>>?` | Callback that resolves a sound file name to a playable stream |
 | `OkSound` | `string?` | Sound file name played on successful interaction (AudioBlip mode) |
 | `CancelSound` | `string?` | Sound file name played on cancellation (AudioBlip mode) |
@@ -53,7 +59,7 @@ Sends a text message to the AI. Manages the full lifecycle: Thinking → Respond
 ```csharp
 Task ListenAndTalk(CancellationToken cancellationToken);
 ```
-Activates speech-to-text for a single utterance, then sends it via TalkTo. If the AI response ends with a question, automatically keeps listening for a reply. Throws if wake word is active.
+Activates speech-to-text for a single utterance, then sends it via TalkTo. When the turn carries questions, keeps listening for the answer — that follow-up listen is bounded by `FollowUpTimeout` (the first listen is not, since the user initiated it). Throws if wake word is active.
 
 ### StartWakeWord
 ```csharp
@@ -118,8 +124,20 @@ Clears in-memory chat messages only. Does not affect persisted history.
 
 ### AiResponse
 ```csharp
-public record AiResponse(ChatResponse Response, bool WasReadAloud, bool ExpectsResponse);
+public record AiResponse(ChatResponse Response, bool WasReadAloud, bool ExpectsResponse, AiTurn? Turn = null)
+{
+    public string? Text { get; }                          // parsed reply - use this, not Response.Text
+    public IReadOnlyList<AiQuestion> Questions { get; }
+}
 ```
+
+### AiTurn / AiQuestion / AiChoice
+```csharp
+public record AiTurn(string Reply, AiQuestion[]? Questions = null);
+public record AiQuestion(string Id, string Text, AiChoice[]? Choices = null, bool AllowMultiple = false);
+public record AiChoice(string Id, string Label);
+```
+See `structured-turns.md`.
 
 ### AiChatMessage
 ```csharp
