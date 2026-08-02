@@ -23,6 +23,34 @@ triggers:
   - IAudio
   - IAudioMonitor
   - IAudioDevices
+  - IAudioRecorder
+  - AudioEffectChain
+  - IAudioEffect
+  - AudioCaptureOptions
+  - AudioRecordingOptions
+  - AudioRecordMode
+  - AudioEffectPresets
+  - PitchShiftEffect
+  - EchoEffect
+  - ReverbEffect
+  - ChorusEffect
+  - DistortionEffect
+  - RingModEffect
+  - BiquadFilterEffect
+  - NoiseGateEffect
+  - GainEffect
+  - AudioEffectProcessor
+  - WavWriter
+  - WavReader
+  - audio effects
+  - voice changer
+  - pitch shift
+  - echo
+  - reverb
+  - robot voice
+  - record audio
+  - record to wav
+  - save recording
   - AudioDevice
   - AudioMonitorOptions
   - microphone monitor
@@ -632,8 +660,9 @@ public class MyViewModel(IAudioSource audioSource)
     async Task CaptureAudio(CancellationToken ct)
     {
         // Returns raw PCM stream (16kHz, 16-bit, mono).
-        // NOTE: StartCaptureAsync(AudioProcessingOptions?, CancellationToken) — the first
-        // parameter is the processing options, so pass the token by name (or null first).
+        // NOTE: there are two overloads — StartCaptureAsync(AudioProcessingOptions?, CancellationToken)
+        // and StartCaptureAsync(AudioCaptureOptions, CancellationToken). Neither takes the token
+        // first, so pass it by name when you have nothing else to supply.
         await using var stream = await audioSource.StartCaptureAsync(cancellationToken: ct);
 
         // Read audio data from stream...
@@ -642,6 +671,131 @@ public class MyViewModel(IAudioSource audioSource)
         await audioSource.StopCaptureAsync();
     }
 }
+```
+
+#### Capture Effects (pitch, echo, reverb) — `AudioEffectChain`
+
+Real-time DSP applied to the mic. Pure managed code over the normalized 16 kHz mono PCM, so it is
+identical on every platform — including pitch shift, which no platform supports natively on capture.
+
+**The pattern to generate: build the chain, keep the references, mutate them live.** Do not rebuild
+the chain or restart capture to change a setting.
+
+```csharp
+using Shiny.Audio;
+
+var chain = new AudioEffectChain();
+var pitch = chain.Add(new PitchShiftEffect { Semitones = 0 });     // Add returns the instance
+var echo  = chain.Add(new EchoEffect { DelayMs = 250, Mix = 0.35f, Enabled = false });
+
+var stream = await audioSource.StartCaptureAsync(
+    new AudioCaptureOptions { Effects = chain },
+    ct
+);
+
+// Live — applies on the next audio buffer, safe from the UI thread, no restart:
+pitch.Semitones = 5;
+echo.Enabled = true;
+chain.Enabled = false;    // master bypass
+```
+
+Three levels of on/off: `chain.Enabled` (master), `effect.Enabled` (per effect), `effect.Mix` (wet/dry,
+where present). Parameters are ramped and bypass is crossfaded, so live changes never click.
+
+| Effect | Parameters |
+| --- | --- |
+| `GainEffect` | `Gain` (0–32), `GainDb` |
+| `NoiseGateEffect` | `ThresholdDb` (−90–0), `AttackMs`, `ReleaseMs` |
+| `BiquadFilterEffect` | `Type` = `BiquadFilterType.LowPass`/`HighPass`/`BandPass`/`Notch`, `Frequency`, `Q`; `BiquadFilterEffect.Telephone()` |
+| `DistortionEffect` | `Drive` (1–50), `Mix` |
+| `RingModEffect` | `Frequency` (1–4000; 20–80 = robot), `Mix` |
+| `EchoEffect` | `DelayMs` (1–2000), `Feedback` (0–0.95), `Mix` |
+| `ChorusEffect` | `RateHz`, `DepthMs`, `Mix`, `Feedback` |
+| `ReverbEffect` | `RoomSize` (0–1), `Damping` (0–1), `Mix` |
+| `PitchShiftEffect` | `Semitones` (±24), read-only `Ratio` |
+
+All effect parameters are `float`. Presets build ordinary, still-adjustable chains:
+
+```csharp
+var chain = AudioEffectPresets.Create(AudioEffectPreset.Robot);
+// Robot | Chipmunk | DeepVoice | Cathedral | Telephone | Megaphone | Ensemble
+```
+
+**Never attach effects to audio that feeds speech recognition or wake-word detection** — they destroy
+accuracy. Do not set `AudioCaptureOptions.Effects` on the capture backing a `ISpeechToTextService`,
+and never wire them into an `IAiConversationService` voice loop.
+
+`PitchShiftEffect` adds up to ~50 ms of latency (the crossfade window); every other effect is
+latency-free and cheap enough to ignore at 16 kHz mono.
+
+#### Recording to WAV — `IAudioRecorder`
+
+Records the mic to a WAV file and owns the capture session, so no manual drain loop is needed.
+
+```csharp
+using Shiny.Audio;
+using Shiny;   // AccessState
+
+public class Recorder(IAudio audio)
+{
+    IAudioRecorder? recorder;
+    AudioRecording? last;
+
+    public async Task Start(AudioEffectChain chain)
+    {
+        recorder = audio.Recorder;   // transient — one per recording
+
+        if (await recorder.RequestAccess() != AccessState.Available)
+            return;
+
+        recorder.InputLevelChanged += (_, level) => { /* VU of the recorded signal */ };
+
+        await recorder.StartAsync(new AudioRecordingOptions
+        {
+            Path = null,                    // null → timestamped file under the local app data dir
+            Mode = AudioRecordMode.Both,    // Wet (default) | Dry | Both
+            Effects = chain,
+            Processing = AudioProcessingOptions.None,
+            MaxDuration = TimeSpan.FromMinutes(5)
+        });
+    }
+
+    public async Task Stop()
+    {
+        last = await recorder!.StopAsync();   // null when nothing was captured
+        await recorder.DisposeAsync();
+        recorder = null;
+
+        if (last != null)
+            await audio.Player.PlayAsync(last.Path);   // AudioRecording: Path, DryPath, Duration, SampleRate, Channels, SizeInBytes
+    }
+}
+```
+
+- `AudioRecordMode.Wet` — the processed take (default).
+- `AudioRecordMode.Dry` — the raw microphone; the effect chain is ignored.
+- `AudioRecordMode.Both` — two files; `AudioRecording.DryPath` holds the clean one.
+
+`StopAsync()` returns `null` for an empty take (and leaves no unplayable header-only file), so always
+null-check it. Output is WAV/PCM16 only — there is no AAC/MP3 encoder.
+
+Re-render a dry take with different settings instead of re-recording:
+
+```csharp
+AudioEffectProcessor.ProcessFile(recording.DryPath!, "cathedral.wav",
+    AudioEffectPresets.Create(AudioEffectPreset.Cathedral));
+
+// Or in memory:
+AudioEffectProcessor.Process(pcm16Samples, chain, sampleRate: 16000);
+```
+
+`WavWriter` (streaming, patches sizes on close) and `WavReader` are public for direct PCM ↔ WAV work:
+
+```csharp
+await using var writer = new WavWriter(File.Create(path), sampleRate: 16000, channels: 1);
+writer.Write(pcmSamples);          // ReadOnlySpan<short> or ReadOnlySpan<byte>
+
+var bytes = WavWriter.CreateFile(pcmBytes);   // whole file in memory, for short clips
 ```
 
 #### Voice Processing (noise suppression & echo cancellation)
