@@ -148,6 +148,8 @@ Properties:
 
 Handles:
 - ELM327 hex response parsing (single-line and multi-frame CAN)
+- Multi-frame framing: discards the leading byte-count line and the `N:` frame index, then concatenates frames in order
+- Spaced and unspaced hex alike (`0: 49 02 01` and `0:490201`)
 - Error detection: "NO DATA", "UNABLE TO CONNECT", "BUS INIT: ...ERROR", "?"
 - Strips "SEARCHING..." and "BUS INIT" prefixes
 
@@ -379,7 +381,7 @@ public class WifiObdTransport : IObdTransport
 - BLE transport uses `SemaphoreSlim` to serialize commands (one at a time). It is deliberately never disposed — a pending `Send` would otherwise get an `ObjectDisposedException` when the transport is torn down.
 - A timeout is an `ObdTimeoutException`, never an `OperationCanceledException`. Never write `catch (OperationCanceledException) { throw; }` around `Execute` without a `when (ct.IsCancellationRequested)` filter — historically that turned one slow adapter reply into a dead polling loop.
 - A BLE adapter reports `IsConnected` true long after it has stopped answering the vehicle. Polling code should count consecutive unanswered polls and rebuild the connection, rather than trusting the connection flag.
-- ELM327 response parser handles both single-line (`"41 0D 50"`) and multi-frame CAN (`"0: 49 02 01 57 42\r1: 41 30..."`) formats.
+- ELM327 response parser handles both single-line (`"41 0D 50"`) and multi-frame CAN formats. A real multi-frame reply is preceded by a bare byte-count line — `"014\r0: 49 02 01 57 42 41\r1: 31 32..."` — where `014` is the total data byte count, not data. It is discarded, along with each frame's `N:` index. When writing a custom `IObdConnection` or a test fixture, include that count line: it parses cleanly as `0x14`, so omitting it in a fixture hides a real bug, and keeping it in the payload shifts every byte along by one and fails the mode-echo check. Only multi-frame commands are exposed to this — the VIN (mode 09 PID 02) and mode 03 with three or more codes.
 - `BleObdDeviceScanner` deduplicates by peripheral UUID — each device is reported once.
 - BLE scans match on `Peripheral.Name ?? AdvertisementData.LocalName`, never `Peripheral.Name` alone (null on iOS while scanning), and are never filtered by `ServiceUuid` (iOS matches that against the advertisement, which ELM327 clones don't carry). See "BLE scanning rules" above.
 - For MAUI, register BLE with `builder.Services.AddBluetoothLE()` (namespace `Shiny`, no `UseShiny` needed in v4), then call `builder.Services.AddShinyObdBluetoothLE()` to register OBD BLE services.
