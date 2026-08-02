@@ -17,7 +17,8 @@ dotnet add package Shiny.Speech.Linux.Whisper    # Optional: offline on-device S
 ```csharp
 using Shiny;        // AccessState (from Shiny.Core), AddSpeechServices/AddAudio* DI extensions, UseShiny
 using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
-using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, AudioDevice, AudioLevel, PipeStream
+using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, IAudioRecorder,
+                    // AudioDevice, AudioLevel, PipeStream, AudioEffectChain + effects, WavWriter/WavReader
 ```
 
 The audio interfaces live in the standalone `Shiny.Audio` package/namespace. `AccessState` comes from
@@ -253,8 +254,17 @@ public interface IAudioSource : IAsyncDisposable
 
     // Start capturing raw PCM audio (16kHz, 16-bit, mono). The optional processing argument
     // requests best-effort voice-processing effects (AEC / noise suppression / AGC).
+    // Default interface method — forwards to the AudioCaptureOptions overload.
     Task<Stream> StartCaptureAsync(
         AudioProcessingOptions? processing = null,
+        CancellationToken cancellationToken = default
+    );
+
+    // Same, plus an optional live DSP effect chain. NOTE: the first parameter has no default —
+    // an overload callable with no arguments would make StartCaptureAsync(cancellationToken: t)
+    // ambiguous. This is the overload platform backends implement.
+    Task<Stream> StartCaptureAsync(
+        AudioCaptureOptions options,
         CancellationToken cancellationToken = default
     );
 
@@ -315,6 +325,195 @@ Platform mapping: **Apple** → single Voice-Processing I/O unit (any flag enabl
 source when AEC requested); **Windows** → `Communications` capture category (no per-effect control);
 **Browser** → `getUserMedia` constraints (WebRTC AEC3). Native on-device `ISpeechToTextService`
 manages its own mic and ignores this.
+
+## AudioCaptureOptions Record
+
+Passed to the `StartCaptureAsync(AudioCaptureOptions, …)` overload (`Shiny.Audio` namespace).
+
+```csharp
+public record AudioCaptureOptions
+{
+    AudioProcessingOptions? Processing { get; init; }   // platform AEC/NS/AGC + route preferences
+    AudioEffectChain?       Effects    { get; init; }   // live DSP applied before the stream + meter
+
+    static AudioCaptureOptions None { get; }            // no processing, no effects
+}
+```
+
+Effects run **before** metering, so `InputLevelChanged` reflects the processed signal.
+
+## IAudioEffect / AudioEffect / AudioEffectChain
+
+Real-time DSP on captured audio. Pure managed, identical on every platform. Effects are
+caller-owned mutable objects — assign parameters and toggle `Enabled` from any thread while audio is
+flowing; changes apply on the next buffer. Parameters are ramped and bypass is crossfaded, so live
+changes are click-free. All parameters are `float`.
+
+```csharp
+public interface IAudioEffect
+{
+    bool Enabled { get; set; }
+    void Process(Span<short> samples, int sampleRate);   // in place; sample count never changes
+    void Reset();                                        // drop delay lines / filter state
+}
+
+public abstract class AudioEffect : IAudioEffect        // base: atomic Enabled + bypass crossfade
+{
+    protected abstract void ProcessCore(Span<short> samples, int sampleRate);
+    protected static short Clip(float sample);
+}
+
+public sealed class AudioEffectChain : AudioEffect
+{
+    AudioEffectChain();
+    AudioEffectChain(params IAudioEffect[] effects);
+
+    IReadOnlyList<IAudioEffect> Effects { get; }
+    int Count { get; }
+
+    T    Add<T>(T effect) where T : IAudioEffect;   // returns the instance — keep it for live control
+    bool Remove(IAudioEffect effect);               // safe while audio is flowing (atomic array swap)
+    void Clear();
+
+    void Process(Span<byte> pcm, int sampleRate);   // convenience over raw PCM16 bytes
+}
+```
+
+### Built-in effects
+
+```csharp
+new GainEffect          { Gain = 1f,   GainDb = 0f };                        // 0–32 linear, soft limiter
+new NoiseGateEffect     { ThresholdDb = -45f, AttackMs = 5f, ReleaseMs = 150f };
+new BiquadFilterEffect  { Type = BiquadFilterType.LowPass, Frequency = 1000f, Q = 0.707f };
+BiquadFilterEffect.Telephone();                                              // 1.2 kHz band-pass
+new DistortionEffect    { Drive = 8f,  Mix = 1f };                           // Drive 1–50
+new RingModEffect       { Frequency = 50f, Mix = 1f };                       // 20–80 Hz = robot
+new EchoEffect          { DelayMs = 250f, Feedback = 0.35f, Mix = 0.35f };   // Delay ≤ 2000 ms
+new ChorusEffect        { RateHz = 0.8f, DepthMs = 6f, Mix = 0.5f, Feedback = 0f };
+new ReverbEffect        { RoomSize = 0.6f, Damping = 0.4f, Mix = 0.35f };    // Freeverb
+new PitchShiftEffect    { Semitones = 0f };                                  // ±24; .Ratio is read-only
+```
+
+`BiquadFilterType`: `LowPass`, `HighPass`, `BandPass`, `Notch`.
+
+`PitchShiftEffect` is the only one with meaningful latency (~50 ms, `PitchShiftEffect.WindowMs`).
+
+### Presets
+
+```csharp
+AudioEffectChain chain = AudioEffectPresets.Create(AudioEffectPreset.Robot);
+
+public enum AudioEffectPreset
+{
+    Robot, Chipmunk, DeepVoice, Cathedral, Telephone, Megaphone, Ensemble
+}
+```
+
+⚠️ **Never attach an effect chain to capture that feeds speech recognition or wake-word detection** —
+it destroys accuracy.
+
+## IAudioRecorder Interface
+
+Records the mic to WAV (16 kHz mono PCM16). Registered transient by `AddAudioServices()`;
+platform-agnostic — built on whatever `IAudioSource` is registered.
+
+```csharp
+public interface IAudioRecorder : IAsyncDisposable
+{
+    Task<AccessState> RequestAccess();
+    Task StartAsync(AudioRecordingOptions? options = null, CancellationToken cancellationToken = default);
+    Task<AudioRecording?> StopAsync();     // null when nothing was captured
+
+    bool IsRecording { get; }
+    TimeSpan Elapsed { get; }
+
+    event EventHandler<double>? InputLevelChanged;   // level of the signal being written
+}
+
+public record AudioRecordingOptions
+{
+    string?                 Path        { get; init; }   // null -> timestamped file in the local app data dir
+    AudioRecordMode         Mode        { get; init; } = AudioRecordMode.Wet;
+    AudioEffectChain?       Effects     { get; init; }   // ignored when Mode == Dry
+    AudioProcessingOptions? Processing  { get; init; }
+    TimeSpan?               MaxDuration { get; init; }
+}
+
+public enum AudioRecordMode { Wet, Dry, Both }
+
+public record AudioRecording(
+    string Path,          // the processed take (or the raw one when Mode == Dry)
+    string? DryPath,      // the raw take — only when Mode == Both
+    TimeSpan Duration,
+    int SampleRate,
+    int Channels,
+    long SizeInBytes
+);
+```
+
+Capture is always started **dry**; the chain runs in the recorder's own drain loop. That is what makes
+`Both` possible without splitting the capture stream (`PipeStream` is single-reader).
+
+`AudioRecorder.DefaultDirectory` — `LocalApplicationData/shiny.audio/recordings`.
+
+Output is WAV/PCM16 only; there is no AAC/MP3 encoder.
+
+## AudioEffectProcessor (static)
+
+Applies a chain to audio that already exists — the companion to recording dry.
+
+```csharp
+public static class AudioEffectProcessor
+{
+    // Read a 16-bit PCM WAV, apply the chain, write another WAV. Returns the duration written.
+    static TimeSpan ProcessFile(string inputPath, string outputPath, AudioEffectChain effects);
+
+    // In place over samples already in memory.
+    static void Process(Span<short> samples, AudioEffectChain effects, int sampleRate = 16000);
+}
+```
+
+## WavWriter / WavReader
+
+Streaming RIFF/WAVE PCM I/O (`Shiny.Audio` namespace).
+
+```csharp
+public sealed class WavWriter : IDisposable, IAsyncDisposable
+{
+    const int HeaderSize = 44;
+
+    WavWriter(Stream output, int sampleRate = 16000, int channels = 1,
+              int bitsPerSample = 16, bool leaveOpen = false);
+
+    int SampleRate { get; } int Channels { get; } int BitsPerSample { get; }
+    long DataLength { get; } TimeSpan Duration { get; }
+
+    void Write(ReadOnlySpan<byte> pcm);
+    void Write(ReadOnlySpan<short> samples);   // 16-bit only
+    void Finish();                             // patches RIFF/data sizes; automatic on dispose
+
+    static byte[] CreateFile(ReadOnlySpan<byte> pcm, int sampleRate = 16000,
+                             int channels = 1, int bitsPerSample = 16);
+    static void WriteHeader(Span<byte> dest, int sampleRate, int channels,
+                            int bitsPerSample, int dataSize);
+}
+
+public sealed class WavReader : IDisposable, IAsyncDisposable
+{
+    WavReader(Stream input, bool leaveOpen = false);
+    static WavReader Open(string path);
+
+    int SampleRate { get; } int Channels { get; } int BitsPerSample { get; }
+    long DataLength { get; } TimeSpan Duration { get; }
+
+    int Read(Span<byte> buffer);          // 0 at end of data
+    int ReadSamples(Span<short> samples); // 16-bit only; returns sample count
+}
+```
+
+The writer streams (header sizes are patched on close), so long recordings never sit in memory.
+The reader walks the RIFF chunk list, so `LIST`/`fact` chunks are handled; non-PCM formats throw
+`NotSupportedException`.
 
 ## IAudioPlayer Interface
 
@@ -399,6 +598,7 @@ public interface IAudio
     IAudioSource  Source  { get; }   // fresh transient per access
     IAudioMonitor Monitor { get; }   // iOS/Mac Catalyst + Android
     IAudioDevices Devices { get; }   // iOS/Mac Catalyst + Android
+    IAudioRecorder Recorder { get; } // fresh transient per access; every platform
 }
 ```
 
@@ -636,11 +836,12 @@ public static class SpeechServiceCollectionExtensions
 // but NOT the monitor/devices — use AddAudioServices() to get the full set + the IAudio facade.
 public static class AudioServiceCollectionExtensions
 {
-    // Registers IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudio
+    // Registers IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudioRecorder + IAudio
     IServiceCollection AddAudioServices(this IServiceCollection services);
 
     IServiceCollection AddAudioMonitor(this IServiceCollection services);  // IAudioMonitor (iOS/MacCat + Android)
     IServiceCollection AddAudioDevices(this IServiceCollection services);  // IAudioDevices (iOS/MacCat + Android)
+    IServiceCollection AddAudioRecorder(this IServiceCollection services); // IAudioRecorder (all platforms, transient)
 }
 ```
 
