@@ -62,8 +62,19 @@ dotnet add package Shiny.Blazor.Controls.Camera
                 Facing="Back"
                 ScaleMode="AspectFill"
                 Zoom="1"
+                IsPinchToZoomEnabled="True"
                 IsTorchOn="False"
                 Filter="None" />
+```
+
+Zoom is driven by whatever you bind to `Zoom`; `IsPinchToZoomEnabled="True"` adds a two-finger pinch on the
+preview as a second driver of the same property. Both go through the same clamp, so a slider bound to `Zoom`
+follows the pinch and neither can leave `MinZoom`..`MaxZoom`:
+
+```xml
+<Slider Minimum="{Binding MinZoom, Source={x:Reference Camera}}"
+        Maximum="{Binding MaxZoom, Source={x:Reference Camera}}"
+        Value="{Binding Zoom, Source={x:Reference Camera}, Mode=TwoWay}" />
 ```
 
 ```csharp
@@ -117,8 +128,12 @@ this.Camera.VideoBitrate = 8_000_000;             // null = platform default for
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
-// Live filter — applied to the preview AND to captured photos (Apple + Android API 31+; not recorded video, not Windows)
+// Live colour filter — sugar over Effects; always applied FIRST in the chain
 this.Camera.Filter = CameraFilter.Noir;
+
+// Effects chain — colour grades, spatial looks, compositing, post-capture transforms. Applied to the
+// preview, to captured photos AND to recorded video (see the Effects section for per-platform coverage).
+this.Camera.Effects.Add(CameraEffects.Comic);
 ```
 
 > `RequestPermissionAsync()` / `StartAsync()` / `StopAsync()` / `GetAvailableCamerasAsync()` are still available
@@ -512,6 +527,117 @@ public Func<DocumentDetectedEventArgs<Passport>, Task<bool>> OnPassport => async
 - `CaptureAndStopAsync()` grabs the still and stops, returning the `CameraPhoto` (which also raises `MediaCaptured`). Use `CapturePhotoAsync()` alone to capture without stopping.
 - To resume after a stop, call `Camera.StartAsync()` then `Camera.Scan()` to re-arm.
 
+## Effects (pluggable filters)
+
+`CameraView.Effects` is an ordered, live collection applied to **the preview, captured photos and recorded
+video**. `CameraView.Filter` still works and is sugar: the chosen `CameraFilter` is always applied **first**,
+so setting both is well-defined.
+
+There are four effect kinds, because there are four genuinely different mechanisms. Implement one or more:
+
+| Interface | What it does | Use for |
+|---|---|---|
+| `IColorEffect` | returns a `ColorMatrix4x5` | colour grades — honoured on **every** platform and surface |
+| `INativeEffect` | returns a `NativeEffectDescriptor` (per-backend GPU program) | spatial looks — comic, sketch, blur, distortion |
+| `IDrawEffect` | `Draw(ICanvas, RectF, CameraEffectContext)` | compositing — face masks, stickers, watermarks |
+| `ICaptureEffect` | `ValueTask<byte[]> ApplyAsync(byte[] jpeg, ct)` | slow post-capture work — AI stylization |
+
+### Built-ins
+
+```csharp
+// 12 colour grades — the CameraFilter enum values, also reachable as effects
+CameraEffects.Mono, Noir, Sepia, Invert, Vivid, Cool, Warm, Fade, Chrome, Instant, Tonal
+
+// 5 spatial looks (need to see a pixel's neighbours, so no colour matrix can express them)
+CameraEffects.Comic, Sketch, Posterize, Pixelate, Blur
+
+camera.Filter = CameraFilter.Noir;          // applied first
+camera.Effects.Add(CameraEffects.Comic);    // then this
+```
+
+### Custom effects
+
+```csharp
+// colour — works everywhere
+camera.Effects.Add(new ColorEffect("my.look", new ColorMatrix4x5([
+    1.0f, 0,    0,    0, 0.02f,
+    0,    0.9f, 0,    0, 0.02f,
+    0,    0,    1.0f, 0, 0.02f,
+    0,    0,    0,    1, 0
+])));
+
+// compositing — runs on preview, stills and recordings from one implementation
+camera.Effects.Add(new DelegateDrawEffect("watermark", (canvas, frame, ctx) =>
+{
+    canvas.FontColor = Colors.White;
+    canvas.FontSize = frame.Height * 0.04f;
+    canvas.DrawString($"{ctx.Elapsed:mm\\:ss}", 20, 20, 300, 40,
+        HorizontalAlignment.Left, VerticalAlignment.Top);
+}));
+```
+
+`IDrawEffect.Draw` runs **off the UI thread** once per frame, in **frame pixel space** (origin top-left,
+`ctx.Width`/`ctx.Height`), front camera already un-mirrored. `ctx.Overlays` carries the analyzer's latest boxes
+and `ctx.AnalyzerResult` its latest ungated typed result — that is how an effect anchors to something the
+camera is tracking. `ctx.Surface` tells you which of `Preview` / `Photo` / `Video` you are drawing into.
+
+### Coverage is uneven — ask before you offer
+
+```csharp
+if (CameraView.GetEffectSupport(CameraEffects.Comic) != EffectSupport.Full)
+    ComicButton.IsEnabled = false;    // Full | ColorOnly | StillOnly | Unsupported
+```
+
+| | Apple (iOS/Catalyst/macOS) | Android | Blazor | Windows |
+|---|---|---|---|---|
+| Colour effects, preview | ✅ | ✅ API 31+ | ✅ CSS | ❌ |
+| Colour effects, photo | ✅ | ✅ all API levels | ✅ | ✅ |
+| Spatial effects, preview | ✅ Core Image | ✅ API 33+ (Blur: 31+) | ✅ SVG filter (no `Pixelate`) | ❌ |
+| Spatial effects, photo | ✅ | ✅ managed CPU pass | ⚠️ CSS/SVG only | ✅ managed CPU pass |
+| Draw effects | ✅ all surfaces | ✅ all surfaces | ❌ not yet | preview + photo |
+| Effects in **recorded video** | ✅ pixel + draw | ⚠️ draw only | ❌ | ❌ |
+
+### Face masks (Messenger-style)
+
+```csharp
+camera.Analyzer = new FaceAnalyzer { DetectLandmarks = true };   // required — off by default (costs per frame)
+camera.Effects.Add(new FaceMaskEffect
+{
+    Mask = await LoadImageAsync("shades.png"),   // or set OnDraw for custom drawing
+    Anchor = FaceAnchor.EyeCenter,               // EyeCenter | FaceCenter | Forehead | Nose | Mouth
+    Scale = 2.4f,                                // multiples of eye distance
+    Smoothing = 0.35f                            // 0 = raw (juddery — the pipeline drops frames)
+});
+```
+
+`DetectedFace.Landmarks` (`FaceLandmarks`) gives `LeftEye`/`RightEye`/`NoseBase`/`MouthLeft`/`MouthRight`/
+`MouthBottom` plus derived `EyeCenter`, `EyeDistance` and `Roll`. Populated by Apple Vision and Android MLKit
+only; Windows and the managed head report boxes with `Landmarks == null`. Eyes are named **as seen on screen**,
+so the front camera's mirroring is already accounted for.
+
+### AI stylization (`Shiny.Maui.Controls.Camera.Ai` / `Shiny.Blazor.Controls.Camera.Ai`)
+
+```csharp
+// MAUI — a capture effect, so CapturePhotoAsync returns the stylized image
+camera.Effects.Add(new AiPhotoStylizer(imageGenerator)
+{
+    Prompt = "Redraw this photo as a comic-book illustration…"    // default is already comic
+});
+
+// Blazor — no automatic capture stage, so call it yourself
+var jpeg = await camera.CapturePhotoAsync();
+var comic = await stylizer.StylizeAsync(jpeg);
+```
+
+Built on Microsoft.Extensions.AI's `IImageGenerator` (`EditImageAsync`), so any provider works. **Seconds of
+latency and a per-image cost** — present it as capture → spinner → reveal, never on a frame loop. On failure it
+raises `Error` and returns the original photo. `IImageGenerator` is still evaluation-only, so consuming apps
+need `<NoWarn>$(NoWarn);MEAI001</NoWarn>`.
+
+> Procedural `CameraEffects.Comic` and the AI stylizer are complementary, not alternatives: the first is a free,
+> offline, live viewfinder; the second is a generated image on the shutter. Adding both gives the App Store
+> photo-toy flow.
+
 ## Basic Usage — Blazor
 
 ```razor
@@ -579,10 +705,14 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 | `IsActive` | `bool` | `true` | Whether the session runs |
 | `Zoom` | `double` | `1` | Clamped to `MinZoom`..`MaxZoom` |
 | `MinZoom` / `MaxZoom` | `double` | `1` | Reported zoom range |
+| `IsPinchToZoomEnabled` | `bool` | `false` | Two-finger pinch on the preview drives `Zoom`. Writes through `Zoom`, so it's clamped to `MinZoom`..`MaxZoom` and anything else bound to `Zoom` (slider, view model) tracks it live. No-op where the device reports no range (`MinZoom == MaxZoom`) — e.g. macOS |
 | `IsTorchOn` | `bool` | `false` | Continuous torch |
 | `FlashMode` | `CameraFlashMode` | `Off` | Still-capture flash (`Off`/`On`/`Auto`) |
 | `ScaleMode` | `PreviewScaleMode` | `AspectFill` | `AspectFill` / `AspectFit` |
-| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal` — applied to preview + captured photos (live preview needs Android API 31+; not recorded video; no-op on Windows) |
+| `Filter` | `CameraFilter` | `None` | `None`/`Mono`/`Noir`/`Sepia`/`Invert`/`Vivid`/`Cool`/`Warm`/`Fade`/`Chrome`/`Instant`/`Tonal`. Sugar over `Effects` — applied **first** in the chain |
+| `Effects` | `IList<ICameraEffect>` | empty | Ordered, live effects chain — colour, spatial, compositing and post-capture. See **Effects** above for per-platform coverage |
+| `EffectChain` | `CameraEffectChain` | `Empty` | Read-only immutable snapshot of `Filter` + `Effects` that the handlers render against |
+| `LastAnalyzerResult` | `object?` | `null` | The active analyzer's latest **ungated** result (updated every frame), handed to draw effects as `ctx.AnalyzerResult` |
 | `ShowDetectionOverlay` | `bool` | `true` | Surface overlay boxes for the overlay |
 | `Analyzer` | `IFrameAnalyzer?` | `null` | The single frame analyzer (content property) — assign/swap live; toggle via its `IsEnabled` |
 | `VideoQuality` | `VideoQuality` | `High` | Target capture resolution: `Lowest`/`Low` (480p)/`Medium` (720p)/`High` (1080p)/`UltraHigh` (4K)/`Highest`. Session-level — changing it reconfigures the camera; unsupported rungs fall back to the nearest supported one |
@@ -618,7 +748,11 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Analyzer geometry maps cleanly into the recorded frame.** `OverlayBox` / `RecognizedText.BoundingBox` are normalized upright coordinates and `IVideoOverlayRenderer` draws in encoded-frame pixel space, so drawing a detection into the recording is `box.X * context.Width`, `box.Y * context.Height`. That is only correct because the analyzed frame and the encoded frame share a field of view: on iOS/macOS they are literally the same sample buffer, and on Android the handler binds a shared **`ViewPort`** whenever `ImageAnalysis` and `VideoCapture` are bound together (without it CameraX sizes analysis 4:3 and the recorder 16:9, and a box would sit visibly off the thing it is boxing). The ViewPort is applied *only* in that combined case, so no existing single-use-case setup has its recorded field of view moved.
 - **Android: video + analyzer together works, but costs `ImageCapture`** — `Preview + VideoCapture + ImageAnalysis` is a guaranteed CameraX combination at LIMITED hardware level, so recording while an analyzer runs is supported (a dash cam reading signs or plates off its own feed). A *fourth* use case needs LEVEL_3, which most phones are not, so `ImageCapture` is dropped for the duration of a recording that has an enabled analyzer attached — `CapturePhotoAsync` throws a message saying exactly that, and photo capture returns automatically when the recording stops. Outside a recording, nothing changes: analyzer + `ImageCapture` bind together as before.
 - **Burn-in video overlay ≠ live overlay** — the `CameraOverlayView` / `CameraOverlayDrawable` only paint the on-screen preview; nothing they draw reaches the saved file. To composite into the *recording*, set `VideoRecordingOptions.Overlay` (`IVideoOverlayRenderer` / `DelegateVideoOverlay` / `DrawableVideoOverlay`). `DrawOverlay` runs **off the UI thread** once per encoded frame — read UI state via a volatile/immutable snapshot, never touch UI objects — and draws in **frame pixel space** (`ctx.Width`/`Height`), origin top-left, front camera already un-mirrored. Supported on iOS / Mac Catalyst / macOS / Android; **Windows throws `PlatformNotSupportedException`** for now (record without the overlay, or use the on-preview overlay). Omitting `Overlay` keeps the fast native recorder.
-- **Filters affect preview + photos, not video** — `Filter` is baked into the live preview and the `CapturePhotoAsync` JPEG, but **recorded video records the unfiltered feed**. Windows has no live filter at all (preview and photo are unfiltered there). On **Android the live-preview filter needs API 31+** (it uses `RenderEffect`); on older Android the preview is unfiltered but captured photos are still filtered. The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
+- **Effect coverage differs by platform and surface** — check `CameraView.GetEffectSupport(effect)` and grey the control out rather than shipping one that silently does nothing. Specifics: **Apple** applies everything everywhere, including into recorded video. **Android** applies colour effects to the preview from API 31 and to photos on every API level; spatial *shaders* need API 33 (Blur only needs 31, since it maps to `RenderEffect.CreateBlurEffect`), and below that the preview is unfiltered while the photo still comes back filtered via a managed CPU pass. Recorded video on Android gets **draw effects only** — the preview's `RenderEffect` lives on `PreviewView`, not on the `VideoCapture` use case, so pixel effects do not reach the file. **Windows** has no live-preview effect hook at all (`StillOnly`). The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
+- **Effect order is meaningful and preserved** — `[Comic, Mono]` is not `[Mono, Comic]`. Consecutive *colour* effects are collapsed into a single matrix for speed, but a spatial effect between them stops the fold, so nothing is silently reordered.
+- **Draw effects run off the UI thread, once per frame, on three surfaces** — read mutable state through a volatile field or an immutable snapshot, never touch UI objects, and expect to be called concurrently for the preview and an in-progress recording. `FaceMaskEffect` keeps per-surface smoothing state for exactly this reason.
+- **`ICaptureEffect` is slow by design** — an AI stylizer adds seconds to `CapturePhotoAsync`. Show a busy state; never put one on a frame loop.
+- **Writing an AGSL shader for a custom `INativeEffect`?** It compiles only on-device at API 33+, and a compile error is *not* thrown to you — the step is dropped and the effect silently does nothing, which is indistinguishable from "not supported here". Subscribe to `CameraView.CameraError`, which now reports the compile message. The trap that bit the built-ins: **`flat` is a reserved interpolation qualifier**, so `float3 flat = …` kills the whole shader. Same for `smooth`, `sample`, `varying`, `attribute`, `centroid`.
 - **"Camera permission denied" but the preview works** — you're gating on `RequestPermissionAsync()` in `OnAppearing` before the handler is connected (it returns `false` → looks denied, and the early-return also leaves the lens list empty). Don't gate on it; rely on auto-start + `CameraError`, and load cameras once the view is loaded.
 - **Android minSdk** — CameraX requires API 23+. Set `<SupportedOSPlatformVersion>` to 23 or higher in the consuming app or you'll get a manifest-merge error.
 - **macOS** — best-effort host; multiple webcams enumerate via `GetAvailableCamerasAsync()`; FaceTime + USB devices report an `External`/unspecified facing, so use `CameraId` rather than `Facing` to choose.
@@ -627,6 +761,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Box flicker / not persisting** — an analyzer's boxes stay drawn until it returns a *different* set or `null`; return the same set (or nothing while busy) to keep them. Returning `null`/empty every frame clears them.
 
 - **Video quality lives on `CameraView`, not `VideoRecordingOptions`** — a common wrong guess. Both AVFoundation (session preset) and CameraX (`QualitySelector` on the `Recorder`) fix the capture resolution when the session is configured, so it cannot be a per-recording argument without reconfiguring the camera every time recording starts. Set `VideoQuality` / `VideoBitrate` / `VideoFrameRate` once, or bind them to a setting; a change while running reconfigures the session and is **ignored mid-recording** (it would truncate the file being written) — it lands on the next recording instead. On Apple the preset sizes the *whole* session, so dropping it also shrinks what the preview and any frame analyzer see.
+- **iOS takes the camera away without telling you — the handler now notices.** AVFoundation suspends a capture session on a phone call, another app claiming the device, a second foreground app in Split View, or system thermal/power pressure. Nothing is raised by the framework: the preview layer holds its last frame and a running recording simply stops receiving any, so a `AVAssetWriter`-backed clip ends at the moment of the interruption while the app carries on looking healthy. `CameraView.CameraError` now fires with the reason, and the session is restarted on `AVCaptureSessionInterruptionEnded` (and on a `MediaServicesWereReset` runtime error) as long as `IsActive` is still `true`. Backgrounding is deliberately not reported — it raises the same notification on every app switch and is ordinary lifecycle — but it still resumes through the same path. **For unattended recording, handle `CameraError`**: it is the only signal that footage stopped.
 - **`Highest` is not free** — it resolves to 4K on modern hardware, which for a continuously-recording app means storage filling fast and a hot device. If size or thermals matter, drop `VideoFrameRate` before you drop resolution: halving the frame rate roughly halves encode work and costs far less perceptually on a mostly-static scene.
 
 ## When to Use What
@@ -644,5 +779,10 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Scan a passport** → `PassportAnalyzer` (deterministic MRZ); **read a credit card** → `CreditCardAnalyzer` (brand+number deterministic).
 - **Parse a free-form or unknown document with AI** → `Camera.Analyzer = new AiDocumentAnalyzer(chatClient)` from `.Camera.Ai` (detects presence, then sends one frame to a Microsoft.Extensions.AI `IChatClient`). On Blazor, assign a `DocumentAnalyzer` and drive it with `AiDocumentScanner`. Use a strongly-typed `AiDocumentAnalyzer<T>` when you have a fixed schema.
 - **Offer a choice of detectors** → build them once, assign the chosen one to `Camera.Analyzer` (only one runs at a time).
-- **Apply a live look** → set `Filter`.
+- **Apply a live colour grade** → set `Filter` (or add the matching `CameraEffects.*` to `Effects`).
+- **Apply a comic / sketch / blur look** → add `CameraEffects.Comic` (or `Sketch`/`Posterize`/`Pixelate`/`Blur`) to `Effects` — procedural, offline, live on the preview.
+- **Ship your own look** → add a `ColorEffect` (matrix, works everywhere) or an `INativeEffect` with a `NativeEffectDescriptor` (per-backend GPU program) to `Effects`.
+- **Stick something on the user's face** → `FaceAnalyzer { DetectLandmarks = true }` + a `FaceMaskEffect` in `Effects`.
+- **Draw a watermark / timestamp into preview, photos and video** → add a `DelegateDrawEffect` to `Effects` (the older recording-only `VideoRecordingOptions.Overlay` still works).
+- **"Redraw my photo as a comic" like the App Store apps** → add an `AiPhotoStylizer` (`.Camera.Ai`) to `Effects`; pair it with `CameraEffects.Comic` for a matching live viewfinder.
 - **Pick a specific lens / webcam** → `GetAvailableCamerasAsync()` + `CameraId`.
