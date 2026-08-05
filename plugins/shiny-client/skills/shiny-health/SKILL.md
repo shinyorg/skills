@@ -216,10 +216,10 @@ Android uses Health Connect (the replacement for the deprecated Google Fit API).
 
 **AndroidManifest.xml:**
 ```xml
-<!-- Declare which health data your app reads -->
+<!-- Declare which health data your app reads (only include the types you use) -->
 <uses-permission android:name="android.permission.health.READ_STEPS" />
 <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
-<uses-permission android:name="android.permission.health.READ_TOTAL_ENERGY_BURNED" />
+<uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
 <uses-permission android:name="android.permission.health.READ_DISTANCE" />
 <uses-permission android:name="android.permission.health.READ_WEIGHT" />
 <uses-permission android:name="android.permission.health.READ_HEIGHT" />
@@ -230,12 +230,31 @@ Android uses Health Connect (the replacement for the deprecated Google Fit API).
 <uses-permission android:name="android.permission.health.READ_SLEEP" />
 <uses-permission android:name="android.permission.health.READ_HYDRATION" />
 <uses-permission android:name="android.permission.health.READ_MENSTRUATION" />
+<uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" />
+<uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE" />
+<uses-permission android:name="android.permission.health.READ_BASAL_BODY_TEMPERATURE" />
+<uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
+<uses-permission android:name="android.permission.health.READ_VO2_MAX" />
+<uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+<uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
+<uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" />
+<uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+<uses-permission android:name="android.permission.health.READ_FLOORS_CLIMBED" />
+<uses-permission android:name="android.permission.health.READ_WHEELCHAIR_PUSHES" />
+<uses-permission android:name="android.permission.health.READ_SPEED" />
+<uses-permission android:name="android.permission.health.READ_POWER" />
+<uses-permission android:name="android.permission.health.READ_SEXUAL_ACTIVITY" />
+<uses-permission android:name="android.permission.health.READ_OVULATION_TEST" />
+<uses-permission android:name="android.permission.health.READ_CERVICAL_MUCUS" />
+<uses-permission android:name="android.permission.health.READ_INTERMENSTRUAL_BLEEDING" />
+<uses-permission android:name="android.permission.health.READ_EXERCISE" />
+<uses-permission android:name="android.permission.health.READ_NUTRITION" />
 <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
 <!-- Optional: declare which health data your app writes (only include the types you need) -->
 <uses-permission android:name="android.permission.health.WRITE_STEPS" />
 <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
-<uses-permission android:name="android.permission.health.WRITE_TOTAL_ENERGY_BURNED" />
+<uses-permission android:name="android.permission.health.WRITE_TOTAL_CALORIES_BURNED" />
 <uses-permission android:name="android.permission.health.WRITE_DISTANCE" />
 <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
 <uses-permission android:name="android.permission.health.WRITE_HEIGHT" />
@@ -246,16 +265,78 @@ Android uses Health Connect (the replacement for the deprecated Google Fit API).
 <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
 <uses-permission android:name="android.permission.health.WRITE_HYDRATION" />
 <uses-permission android:name="android.permission.health.WRITE_MENSTRUATION" />
+<uses-permission android:name="android.permission.health.WRITE_BLOOD_GLUCOSE" />
+<uses-permission android:name="android.permission.health.WRITE_BODY_TEMPERATURE" />
+<uses-permission android:name="android.permission.health.WRITE_BASAL_BODY_TEMPERATURE" />
+<uses-permission android:name="android.permission.health.WRITE_RESPIRATORY_RATE" />
+<uses-permission android:name="android.permission.health.WRITE_VO2_MAX" />
+<uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY" />
+<uses-permission android:name="android.permission.health.WRITE_LEAN_BODY_MASS" />
+<uses-permission android:name="android.permission.health.WRITE_BASAL_METABOLIC_RATE" />
+<uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
+<uses-permission android:name="android.permission.health.WRITE_FLOORS_CLIMBED" />
+<uses-permission android:name="android.permission.health.WRITE_WHEELCHAIR_PUSHES" />
+<uses-permission android:name="android.permission.health.WRITE_SPEED" />
+<uses-permission android:name="android.permission.health.WRITE_POWER" />
+<uses-permission android:name="android.permission.health.WRITE_SEXUAL_ACTIVITY" />
+<uses-permission android:name="android.permission.health.WRITE_OVULATION_TEST" />
+<uses-permission android:name="android.permission.health.WRITE_CERVICAL_MUCUS" />
+<uses-permission android:name="android.permission.health.WRITE_INTERMENSTRUAL_BLEEDING" />
+<uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+<uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
 
 <!-- Allow your app to discover Health Connect -->
 <queries>
     <package android:name="com.google.android.apps.healthdata" />
 </queries>
+
+<!-- REQUIRED on Android 14+ (API 34) where Health Connect is part of the platform.  Without this
+     alias Health Connect silently refuses to grant health permissions.  android:targetActivity must
+     match your MainActivity's android:name -->
+<application>
+    <activity-alias
+        android:name="ViewPermissionUsageActivity"
+        android:exported="true"
+        android:targetActivity="com.companyname.myapp.MainActivity"
+        android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+            <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        </intent-filter>
+    </activity-alias>
+</application>
+```
+
+**Platforms/Android/MainActivity.cs** — Health Connect links to your privacy policy from the
+permission dialog and will not grant permissions unless the activity handles the rationale action.
+Set an explicit `Name` so the `activity-alias` can target it:
+
+```csharp
+[Activity(
+    Name = "com.companyname.myapp.MainActivity",
+    Theme = "@style/Maui.SplashTheme",
+    MainLauncher = true,
+    ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density
+)]
+[IntentFilter(["androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"])]
+public class MainActivity : MauiAppCompatActivity
+{
+}
 ```
 
 **Requirements:**
-- The Health Connect app must be installed on the device
+- The Health Connect app must be installed on the device — on Android 14+ (API 34) it is built into the platform
 - Minimum SDK version must be set to **28** (Android 9)
+- Set `targetSdkVersion` to the platform you build against. An empty `<uses-sdk />` element suppresses
+  it and falls back to `minSdkVersion`, which recent Android versions block at install time with
+  "Unsafe app blocked - built for an older version of Android"
+- Permission names follow the **Health Connect record**, not the HealthKit type — `DataType.Calories`
+  reads `TotalCaloriesBurnedRecord` and needs `READ_TOTAL_CALORIES_BURNED`. There is no
+  `…_TOTAL_ENERGY_BURNED` permission on Android. A name Android does not recognize is silently
+  unknown: it can never be granted and every read of that type fails
+- Never request health permissions with `Permissions.RequestAsync<>` or the AndroidX activity-result
+  contracts directly — always go through `IHealthService.RequestPermissions`, which picks the right
+  flow for the OS version
 
 ## API Reference
 
@@ -645,6 +726,20 @@ await foreach (var result in health.Observe(DataType.HeartRate, pollingInterval:
 
 1. **Gate on availability** - Check `IsAvailable` (Android: Health Connect installed & up to date) before reading/writing
 2. **Always request permissions first** - Call `RequestPermissions` before reading or writing data. Use `PermissionType.Write` or `PermissionType.ReadWrite` when writing
+2. **Never query a `DataType` whose permission was refused** - The user can grant a subset of what
+   you asked for, so a partial grant is normal. On Android, querying an ungranted type **throws**
+   (`HealthConnectException` wrapping `SecurityException`) rather than returning an empty list, so a
+   single refused type aborts an entire dashboard load. Gate each query on the per-`DataType`
+   `Success` from `RequestPermissions`, or wrap the calls individually:
+   ```csharp
+   var result = await health.RequestPermissions(DataType.StepCount, DataType.Calories);
+   var granted = result.Where(x => x.Success).Select(x => x.Type).ToHashSet();
+
+   if (granted.Contains(DataType.StepCount))
+       Steps = (await health.GetStepCounts(start, end, Interval.Days)).Sum(x => x.Value);
+   ```
+   On iOS `Success` is not a reliable signal - HealthKit does not reveal read denials, so it can
+   report `true` and still return nothing
 2. **Use appropriate intervals** - Use `Interval.Days` for summaries, `Interval.Hours` for detailed breakdowns
 3. **Handle empty results** - Check `.Any()` before calling `.Average()` to avoid `InvalidOperationException`
 4. **Use CancellationToken** - Pass cancellation tokens for long-running queries
