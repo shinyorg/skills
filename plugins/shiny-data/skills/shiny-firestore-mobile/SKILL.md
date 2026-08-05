@@ -12,6 +12,8 @@ triggers:
   - MobileFirestoreDocumentStore
   - MobileFirestoreOptions
   - AddMobileFirestoreDocumentStore
+  - ConfigureDocument
+  - ToCollection
   - AddFirebaseIdentity
   - IFirebaseIdentity
   - FirebaseRestIdentity
@@ -95,9 +97,22 @@ builder.Services.AddMobileFirestoreDocumentStore(o =>
 {
     o.ProjectId = "my-project";              // optional when google-services.json is bundled
     o.PersistenceEnabled = true;             // default — offline cache on
-    o.MapTypeToCollection<Play>("plays");    // default collection = type name
+
+    // per-type mapping always goes in a ConfigureDocument<T> block
+    o.ConfigureDocument<Play>(cfg =>
+    {
+        cfg.ToCollection("plays");           // default collection = type name
+        cfg.MapIdProperty(x => x.Id);        // default: a property named Id
+        cfg.AddQueryFilter(p => p.Version >= 1);
+    });
 });
 ```
+
+> **Requires `Shiny.DocumentDb` 13.x.** The flat per-type methods (`o.MapTypeToCollection<T>`,
+> `o.MapIdProperty<T>`, `o.AddQueryFilter<T>`, `o.MapVersionProperty<T>`, `o.OnBeforeWrite<T>`,
+> `o.OnAfterWrite<T>`) were **removed** in 3.0.0 — never generate them. They all live on the
+> `ConfigureDocument<T>` builder now. Store-level members (`MapIdType<TId>`, `AddInterceptor`,
+> `AddBulkInterceptor`) are unchanged.
 
 This registers one singleton exposed as four contracts — all the **same instance**:
 
@@ -115,9 +130,9 @@ builder.Services.AddFirebaseIdentity(o => o.ApiKey = "your-web-api-key");
 ## Document requirements
 
 - Each document type maps to its own collection — the type name by default, overridable with
-  `MapTypeToCollection<T>`.
+  `cfg.ToCollection(name)` (or the provider-agnostic `cfg.Table = name`).
 - The document **id is the Firestore document id**. It comes from a property named `Id` by default
-  (`MapIdProperty<T>` to override), matched **case-insensitively** against the serialized JSON.
+  (`cfg.MapIdProperty(...)` to override), matched **case-insensitively** against the serialized JSON.
 - The id must be present and non-empty on every write — an empty id throws `InvalidOperationException`.
   This provider does **not** generate ids for you.
 - Documents are stored as native Firestore field maps converted from `System.Text.Json`. **Field names are
@@ -259,7 +274,7 @@ the native auth binding.
 Until then, **scope per-user data by collection path**:
 
 ```csharp
-o.MapTypeToCollection<Play>($"users/{uid}/plays");
+o.ConfigureDocument<Play>(cfg => cfg.ToCollection($"users/{uid}/plays"));
 ```
 
 Do not tell users their rules are enforced per-user today, and do not generate rules that rely on
@@ -276,12 +291,24 @@ Do not tell users their rules are enforced per-user today, and do not generate r
 | `JsonSerializerOptions` | Drives field names and (de)serialization |
 | `UseReflectionFallback` | Default `true`; set `false` for iOS full-AOT — see [Trimming and AOT](#trimming-and-aot) |
 | `Logging` | `Action<string>` diagnostic callback |
-| `MapTypeToCollection<T>(name)` | Override the collection (default: type name) |
-| `MapIdProperty<T>(x => x.MyId)` | Override the id property (default: `Id`) |
 | `MapIdType<TId>(...)` | Custom id CLR types beyond Guid/int/long/string |
-| `AddQueryFilter<T>(predicate)` | Global filter, auto-applied to every query; named overload available |
-| `MapVersionProperty<T>(...)` | **Registered but not enforced today** — see below |
-| `AddInterceptor` / `AddBulkInterceptor` / `OnBeforeWrite<T>` / `OnAfterWrite<T>` | **Registered but not invoked today** — see below |
+| `AddInterceptor` / `AddBulkInterceptor` | **Registered but not invoked today** — see below |
+| `ConfigureDocument<T>(cfg => …)` | Everything per-type — the table below |
+
+### Per-type — inside `o.ConfigureDocument<T>(cfg => …)`
+
+| Member | Notes |
+|---|---|
+| `cfg.ToCollection(name)` | Override the collection (default: type name). `cfg.Table = name` is the same thing |
+| `cfg.MapIdProperty(x => x.MyId)` | Override the id property (default: `Id`) |
+| `cfg.AddQueryFilter(predicate)` | Global filter, auto-applied to every query; named overload available |
+| `cfg.MapVersionProperty(...)` | **Registered but not enforced today** — see below |
+| `cfg.OnBeforeWrite(...)` / `cfg.OnAfterWrite(...)` | **Registered but not invoked today** — see below |
+
+The builder is provider-agnostic, so it also offers `MapTemporal`, `MapBlob`, `MapSpatialProperty`,
+`MapVectorProperty`, `MapFullTextProperty` and `MapComputedProperty`. **This provider supports none of
+them** — mapping one throws `DocumentConfigurationException` when the store is built, listing every
+problem at once. Never generate them for a mobile Firestore store.
 
 ## Trimming and AOT
 
@@ -324,14 +351,17 @@ generate code that uses them**; suggest the listed workaround instead.
 
 These are the dangerous ones: they compile, they configure, they **do nothing** on the Android path today.
 
-- **Write interceptors.** `AddInterceptor`, `AddBulkInterceptor`, `OnBeforeWrite<T>`, `OnAfterWrite<T>` are
-  stored on the options and exposed via the base pipeline, but the Android adapter's write path never invokes
-  them. Do not use interceptors for auditing, validation, or timestamping on this provider — put that logic in
-  the calling code.
-- **Optimistic concurrency.** `MapVersionProperty<T>` records the mapping, but the write path is a plain
+- **Write interceptors.** `AddInterceptor`, `AddBulkInterceptor`, `cfg.OnBeforeWrite(...)`,
+  `cfg.OnAfterWrite(...)` are stored on the options and exposed via the base pipeline, but the Android
+  adapter's write path never invokes them. Do not use interceptors for auditing, validation, or timestamping
+  on this provider — put that logic in the calling code.
+- **Optimistic concurrency.** `cfg.MapVersionProperty(...)` records the mapping, but the write path is a plain
   `set()` — no version read, no compare, no increment, and `ConcurrencyException` is never thrown. A stale
-  write silently wins. (The XML doc on `MapVersionProperty` describes the intended transactional behavior, not
-  today's.) Do not present version mapping as working concurrency control here.
+  write silently wins. Do not present version mapping as working concurrency control here.
+
+Everything *else* the shared builder offers but this provider cannot do — temporal, blobs, computed,
+spatial, vector, full-text — now fails loudly at store construction rather than silently, so those are no
+longer in this category.
 
 ## Emulator testing
 
