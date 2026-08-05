@@ -433,7 +433,10 @@ Apply styles at the TableView level. Individual cell/section properties override
 
 ## Drag & Sort
 
-Enable reorder controls (up/down arrows) on a section:
+`UseDragSort="True"` puts a drag handle (☰) on every row in the section. Dragging a handle lifts
+the row under the finger, shows an insertion line at the drop position, and auto-scrolls when the
+drag reaches the top or bottom edge of the table. Rows only reorder within their own section, and
+touches anywhere other than a handle still scroll the table normally.
 
 ```xml
 <shiny:TableView ItemDroppedCommand="{Binding ItemDroppedCommand}">
@@ -447,7 +450,37 @@ Enable reorder controls (up/down arrows) on a section:
 </shiny:TableView>
 ```
 
-The `ItemDroppedCommand` receives `ItemDroppedEventArgs` with `Section`, `Cell`, `FromIndex`, `ToIndex`.
+The `ItemDroppedCommand` receives `ItemDroppedEventArgs` with `Section`, `Cell`, `Item`,
+`FromIndex`, and `ToIndex`. The indices are positions among the section's rendered rows.
+
+Cells declared in XAML are reordered by the control itself - the handler is only a notification.
+
+### Drag sort on a templated section
+
+Rows built from `ItemsSource`/`ItemTemplate` are **not** reordered for you: their order lives in your
+collection. Move the item yourself using `Item` (the moved row's binding context) and `ToIndex`:
+
+```xml
+<shiny:TableSection Title="Players" UseDragSort="True" ItemsSource="{Binding Players}">
+    <shiny:TableSection.ItemTemplate>
+        <DataTemplate>
+            <shiny:LabelCell Title="{Binding Name}" ValueText="{Binding Position}" />
+        </DataTemplate>
+    </shiny:TableSection.ItemTemplate>
+</shiny:TableSection>
+```
+
+```csharp
+void OnItemDropped(ItemDroppedEventArgs args)
+{
+    if (args.Item is Player player)
+    {
+        var from = this.Players.IndexOf(player);
+        if (from >= 0 && from != args.ToIndex)
+            this.Players.Move(from, args.ToIndex);
+    }
+}
+```
 
 ## Scroll Control
 

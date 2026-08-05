@@ -13,6 +13,20 @@ public interface ISchedulerEventProvider
     void OnCalendarDateSelected(DateOnly selectedDate);
     void OnAgendaTimeSelected(DateTimeOffset selectedTime);
     bool CanSelectAgendaTime(DateTimeOffset selectedTime);
+
+    // ---- drag/resize on SchedulerAgendaView (default interface methods - override only what you need) ----
+
+    // Gates whether this event can be dragged/resized at all. Called once when the gesture arms.
+    // DEFAULTS TO FALSE: opting in requires both AllowEventDrag on the view AND this override.
+    bool CanChangeEvent(SchedulerEvent evt) => false;
+
+    // Called as the event is dragged, before commit. Return false to reject the position.
+    // Must be cheap - it runs on every snap boundary crossed.
+    bool CanChangeEventTo(SchedulerEventChange change) => true;
+
+    // Called once when the gesture completes; the change is ALREADY applied optimistically.
+    // Return true to keep it, false to revert. Throwing reverts and raises EventChangeFailed.
+    Task<bool> OnEventChanged(SchedulerEventChange change) => Task.FromResult(false);
 }
 ```
 
@@ -30,6 +44,34 @@ public class SchedulerEvent
     public DateTimeOffset End { get; set; }
 }
 ```
+
+## SchedulerEventChange Model
+
+Produced by an agenda drag or resize and handed to `CanChangeEventTo` / `OnEventChanged`.
+
+```csharp
+public class SchedulerEventChange
+{
+    public required SchedulerEvent Event { get; init; }
+    public required DateTimeOffset OriginalStart { get; init; }   // before the gesture
+    public required DateTimeOffset OriginalEnd { get; init; }
+    public required DateTimeOffset NewStart { get; init; }        // already snapped
+    public required DateTimeOffset NewEnd { get; init; }          // never closer than MinEventDuration
+    public required SchedulerEventChangeKind Kind { get; init; }
+}
+
+public enum SchedulerEventChangeKind { Move, ResizeStart, ResizeEnd }
+
+// Surfaced by SchedulerAgendaView.EventChangeFailed (MAUI event / Blazor EventCallback)
+public class SchedulerEventChangeFailure
+{
+    public SchedulerEventChange Change { get; }
+    public Exception Exception { get; }
+}
+```
+
+`OriginalStart`/`OriginalEnd` are the event's *true* times, not the clipped position the timeline
+drew - a multi-day event that visually starts at 00:00 still reports the day it really began on.
 
 ## Supporting Models
 
@@ -160,6 +202,67 @@ Day/multi-day timeline with overlap detection, Apple Calendar-style date picker,
 | `ShowAdditionalTimezones` | `bool` | `false` |
 | `AdditionalTimezones` | `IList<TimeZoneInfo>` | empty |
 | `UseFeedback` | `bool` | `true` |
+| `AllowEventDrag` | `bool` | `false` |
+| `AllowEventResize` | `bool` | `false` |
+| `DragSnapMinutes` | `int` | `15` (clamped 1-60) |
+| `MinEventDuration` | `TimeSpan` | 15 min |
+| `DragActivationDelay` | `TimeSpan` | 350 ms |
+| `AllowCrossDayDrag` | `bool` | `true` |
+| `DragSnapGuideColor` | `Color?` | `null` (separator colour) |
+
+`EventChangeFailed` is an `EventHandler<SchedulerEventChangeFailure>` on the view.
+
+### Drag & resize (agenda timeline only)
+
+```xml
+<shiny:SchedulerAgendaView
+    Provider="{Binding Provider}"
+    AllowEventDrag="True"
+    AllowEventResize="True"
+    DragSnapMinutes="15"
+    MinEventDuration="00:15:00"
+    AllowCrossDayDrag="True" />
+```
+
+```csharp
+public class MyEventProvider : ISchedulerEventProvider
+{
+    // ... GetEvents / OnEventSelected / etc ...
+
+    public bool CanChangeEvent(SchedulerEvent evt)
+        => !evt.IsAllDay && evt.Start > DateTimeOffset.Now;   // no editing the past
+
+    public bool CanChangeEventTo(SchedulerEventChange change)
+        => change.NewStart.LocalDateTime.TimeOfDay >= TimeSpan.FromHours(8);   // office hours only
+
+    public async Task<bool> OnEventChanged(SchedulerEventChange change)
+    {
+        try
+        {
+            await this.api.Reschedule(change.Event.Identifier, change.NewStart, change.NewEnd);
+            return true;   // keep the optimistic change
+        }
+        catch (HttpRequestException)
+        {
+            return false;  // the view reverts to OriginalStart/OriginalEnd
+        }
+    }
+}
+```
+
+Behaviour to know:
+
+- On touch the drag arms on a **long press** (`DragActivationDelay`); moving before it elapses hands
+  the gesture back to the scroller so the timeline still scrolls. A mouse drag starts immediately.
+- The change is applied **optimistically** and reverted if `OnEventChanged` returns false or throws.
+- A move never changes duration; a resize clamps at `MinEventDuration` from both directions rather
+  than flipping the event inside out.
+- A move clamps to the day it started on rather than spilling past midnight - except on a cross-day
+  drag, where the day changes instead. An event that already spilled (overnight) is never yanked back.
+- Times are computed in **wall-clock** space, so a drag across a DST transition lands where the finger
+  was rather than an hour off.
+- All-day events are not draggable, and timed ↔ all-day conversion is not supported.
+- `SchedulerCalendarView` (month grid) and `SchedulerCalendarListView` have no drag editing.
 
 ## SchedulerCalendarListView
 
@@ -359,6 +462,30 @@ The Blazor `SchedulerAgendaView` has full feature parity with MAUI:
 
 Blazor agenda parameters: `Provider`, `SelectedDate` (+`SelectedDateChanged`), `DaysToShow` (1–7, clamped), `ShowCarouselDatePicker`, `DatePickerMode` (`None` / `Carousel` / `Calendar` — `Calendar` renders a full month picker with ‹/› navigation and today highlight), `ShowAdditionalTimezones`, `AdditionalTimezones` (`IList<TimeZoneInfo>` — extra time columns with UTC offset labels), `ShowCurrentTimeMarker`, `CurrentTimeMarkerColor` (default `#EF4444`), `DefaultEventColor` (default `#6366F1`), `TimeSlotHeight`, `MinDate`, `MaxDate`, `Use24HourTime`. Overlapping events lay out side-by-side with proportional widths; the current time marker refreshes itself every minute without re-rendering the component.
 
+Blazor agenda drag/resize mirrors MAUI - `AllowEventDrag`, `AllowEventResize`, `DragSnapMinutes`,
+`MinEventDuration`, `DragActivationDelay`, `AllowCrossDayDrag`, `DragSnapGuideColor` (a CSS colour
+string), plus `EventChangeFailed` as an `EventCallback<SchedulerEventChangeFailure>` and one
+Blazor-only parameter:
+
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `DragValidationMode` | `AgendaDragValidationMode` | `OnCommit` | `OnCommit` never round-trips to .NET while the pointer moves. `PerPosition` calls `CanChangeEventTo` on every snap boundary so a rejected position shows live - one interop hop per boundary, visibly slower on WASM. |
+
+```razor
+<SchedulerAgendaView Provider="provider"
+                     @bind-SelectedDate="selectedDate"
+                     AllowEventDrag="true"
+                     AllowEventResize="true"
+                     DragSnapMinutes="15"
+                     MinEventDuration="TimeSpan.FromMinutes(15)"
+                     DragValidationMode="AgendaDragValidationMode.PerPosition"
+                     EventChangeFailed="OnChangeFailed" />
+```
+
+The drag uses Pointer Events (not HTML5 drag-and-drop), so it works with mouse, touch and pen. It sets
+`touch-action: none` on draggable events, which means a touch drag that *starts on an event* no longer
+scrolls the timeline - drag from the empty background to scroll.
+
 Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`SelectedDateChanged`), `DaysPerPage`, `DefaultEventColor`, `DayHeaderBackgroundColor`, `DayHeaderTextColor`, `MinDate`, `MaxDate`.
 
 ## Scheduler Important Notes
@@ -378,6 +505,14 @@ Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`Sel
 - All-day events always sort to top within their day group
 - Custom templates must use AOT-safe static lambda bindings, never string-based bindings
 - `AdditionalTimezones` is an `IList<TimeZoneInfo>` — add timezones in code-behind
+- **`SchedulerEvent.Identifier` must be unique when drag/resize is enabled on Blazor.** It defaults to
+  a `Guid`, so this is safe unless you assign your own. Blazor matches the dragged event across the JS
+  boundary by identifier; a duplicate makes the drag a silent no-op (traced to `Debug`) rather than
+  moving the wrong event. MAUI matches by object reference and is unaffected.
+- Drag/resize is **off by default and additive**: with `AllowEventDrag`/`AllowEventResize` unset, no
+  gesture recognizers are attached on MAUI, no JS module is imported on Blazor, and the rendered tree
+  is unchanged. The three new provider members are default interface methods, so existing
+  `ISchedulerEventProvider` implementations compile and behave exactly as before.
 - **Let `GetEvents()` throw and it is now handled, not fatal.** The views load through `async void`, so
   before this an exception from your provider (failed request, malformed data) escaped to the
   synchronization context and terminated the app. It is now caught, written to `Debug`, and the view is
