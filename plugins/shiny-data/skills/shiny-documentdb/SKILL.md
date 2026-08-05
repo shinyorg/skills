@@ -4,6 +4,51 @@ description: Generate code using Shiny.DocumentDb, a schema-free multi-provider 
 auto_invoke: true
 triggers:
   - document store
+  - outbox
+  - transactional outbox
+  - AddOutbox
+  - AddDocumentOutbox
+  - OutboxMessage
+  - IOutboxDispatcher
+  - IOutboxAdmin
+  - OutboxRunner
+  - OutboxOptions
+  - OutboxFields
+  - WatchOutbox
+  - PublishToOutbox
+  - Enqueue
+  - domain events
+  - integration events
+  - dead letter
+  - requeue
+  - SupportsTransactions
+  - ConfigureDocument
+  - DocumentTypeBuilder
+  - DocumentModelBuilder
+  - DocumentConfigurationValidator
+  - field encryption mapping
+  - field-level encryption
+  - encrypt property
+  - IDocumentEncryptor
+  - AesGcmDocumentEncryptor
+  - DocumentEncryption
+  - DocumentEncryptionFormat
+  - EncryptedValueInfo
+  - PlaintextView
+  - FirstOrDefault
+  - SingleOrDefault
+  - IDocumentUpdateBuilder
+  - ToJsonList
+  - ToJsonAsyncEnumerable
+  - FirstOrDefaultJson
+  - FirstOrDefaultRawJson
+  - ToRawJsonAsyncEnumerable
+  - WriteJsonArrayTo
+  - ToJsonCursorPage
+  - RawJsonRows
+  - SupportsRawJson
+  - raw JSON result
+  - return JSON without deserializing
   - document db
   - DocumentStore
   - SqliteDocumentStore
@@ -23,6 +68,16 @@ triggers:
   - vector search
   - NearestVectors
   - MapVectorProperty
+  - VectorData
+  - VectorStore
+  - VectorStoreCollection
+  - MapVectorRecord
+  - AddDocumentDbVectorStore
+  - DocumentDbVectorStore
+  - VectorStoreKey
+  - VectorStoreVector
+  - MEVD
+  - Semantic Kernel
   - AutoEmbedOnInsert
   - auto-embed
   - IEmbeddingGenerator
@@ -126,7 +181,7 @@ triggers:
   - Sql.Avg
   - interpolated filter
   - FilterInterpolatedStringHandler
-  - MapTypeToTable
+  - cfg.Table
   - table per type
   - GetDiff
   - JsonPatchDocument
@@ -228,7 +283,7 @@ triggers:
   - MapIndexedProperty
   - promoted column
   - PartiQL
-  - MapTypeToCollection
+  - ToCollection
   - DuckDbDatabaseProvider
   - Shiny.DocumentDb.DuckDb
   - duckdb
@@ -333,6 +388,19 @@ triggers:
   - ITenantResolver
   - TenantIdAccessor
   - AddMultiTenantDocumentStore
+  - MCP
+  - Model Context Protocol
+  - Claude Desktop
+  - agent access
+  - MapDocuments
+  - MapDocumentCollection
+  - minimal API
+  - REST endpoints
+  - SSE
+  - server-sent events
+  - live query
+  - TenantStoreOptions
+  - ITenantStoreManager
   - tenant per database
   - shared table
   - tenant isolation
@@ -417,7 +485,6 @@ triggers:
   - offline sync
   - SyncDocumentStore
   - data sync
-  - outbox
   - Sync<T>
   - AddDataSync
   - ISyncEntity
@@ -458,6 +525,8 @@ triggers:
   - shinydocdb
   - terminal ui
   - admin tui
+  - outbox screen
+  - outbox_status
   - vector sidecar
   - VectorTableName
   - stale embedding
@@ -527,10 +596,10 @@ Invoke this skill when the user wants to:
 - Choose between database providers (SQLite, IndexedDB, MySQL, SQL Server, PostgreSQL, Oracle)
 - Use IndexedDB for client-side storage in Blazor WebAssembly apps
 - Query documents by geographic proximity (within radius, bounding box, nearest neighbors)
-- Configure spatial indexing for `GeoPoint` properties (`MapSpatialProperty`)
+- Configure spatial indexing for `GeoPoint` properties (`cfg.MapSpatialProperty`)
 - Use SQLite R*Tree spatial indexes or CosmosDB native GeoJSON queries
-- Use optimistic concurrency with document-level version properties (`MapVersionProperty`)
-- Override the document Id property (`MapIdProperty`) without dedicating a table
+- Use optimistic concurrency with document-level version properties (`cfg.MapVersionProperty`)
+- Override the document Id property (`cfg.MapIdProperty`) without dedicating a table
 - Observe in-process document changes as an `IAsyncEnumerable<DocumentChange<T>>` (`IObservableDocumentStore.NotifyOnChange<T>`)
 - Watch a single document by Id (`WhenDocumentChanged<T>(id)`)
 - Monitor changes filtered by a query's predicates (`store.Query<T>().Where(...).NotifyOnChange()`)
@@ -573,7 +642,7 @@ Invoke this skill when the user wants to:
   - `Shiny.DocumentDb.AzureTable` — Azure Table Storage (and Cosmos DB Table API) provider + `AddAzureTableDocumentStore(...)`
   - `Shiny.DocumentDb.DynamoDb` — Amazon DynamoDB provider + `AddDynamoDbDocumentStore(...)`
   - `Shiny.DocumentDb.DocumentDb` — Amazon DocumentDB provider (thin MongoDB-provider subclass; TLS + `retryWrites=false` defaults; no `$text` full-text / no vector) + `AddDocumentDbDocumentStore(...)`
-  - `Shiny.DocumentDb.Redis` — Redis Stack (RedisJSON + RediSearch) provider — server-side full-text/vector(KNN)/geo, `MapIndexedProperty` push-down to `FT.SEARCH`, `INCR`-based Int/Long Id auto-gen, keyspace-notification change feed + `AddRedisDocumentStore(...)`
+  - `Shiny.DocumentDb.Redis` — Redis Stack (RedisJSON + RediSearch) provider — server-side full-text/vector(KNN)/geo, `cfg.MapIndexedProperty` push-down to `FT.SEARCH`, `INCR`-based Int/Long Id auto-gen, keyspace-notification change feed + `AddRedisDocumentStore(...)`
   - `Shiny.DocumentDb.RavenDb` — RavenDB provider (opaque STJ envelope, client-side LINQ over id-prefix streams, RQL `ToQueryString`) + `AddRavenDbDocumentStore(...)`
   - `Shiny.DocumentDb.Firestore` — Google Firestore provider (native-map storage, single-field push-down + full-scan fallback, native cursor paging, snapshot-listener change feed) + `AddFirestoreDocumentStore(...)`
   - `Shiny.DocumentDb.DuckDb` — DuckDB (embedded analytical) provider + DI extensions
@@ -771,7 +840,7 @@ services.AddAzureTableDocumentStore(o =>
 {
     o.ConnectionString = "UseDevelopmentStorage=true"; // or ServiceUri + TokenCredential/SharedKeyCredential/SasCredential
     o.TableName        = "Documents";
-    o.MapVersionProperty<Order>(x => x.Version);        // opt-in optimistic concurrency (ETag-backed)
+    o.ConfigureDocument<Order>(cfg => cfg.MapVersionProperty(x => x.Version));   // opt-in optimistic concurrency (ETag-backed)
 });
 
 // Amazon DynamoDB
@@ -781,14 +850,14 @@ services.AddDynamoDbDocumentStore(o =>
     o.Region          = Amazon.RegionEndpoint.USEast1; // or o.ServiceUrl for DynamoDB Local; o.Credentials for explicit creds
     o.AutoCreateTable = true;                          // dev convenience; off by default
     o.ConsistentRead  = false;                         // default eventual consistency
-    o.MapVersionProperty<Order>(x => x.Version);
+    o.ConfigureDocument<Order>(cfg => cfg.MapVersionProperty(x => x.Version));
 });
 ```
 
 **Azure Table & DynamoDB — key facts (both are NoSQL key-partitioned stores):**
 - **Key model:** the library's `(typeName, id)` identity maps to `PartitionKey/RowKey` (Table) or `pk/sk` HASH/RANGE (DynamoDB). One table holds every type; `Query<T>()` is always a single-partition scan.
 - **Queries are client-side:** `Where`/`OrderBy`/`Paginate`/`Select`/aggregates evaluate in memory (the LiteDB `ExpressionInterpreter` model) after loading the type's partition. This is a **full type scan** — fine for modest per-type sets, plan hot paths accordingly.
-- **Promoted columns for server-side pushdown:** `MapIndexedProperty<T>(x => x.Status)` writes the scalar as a native top-level column/attribute. LINQ predicates over a promoted property push down into a server-side filter (Azure Table OData `$filter`, DynamoDB `FilterExpression`) to shrink the candidate set; the full predicate still re-runs client-side so results are exact. The string `Query(whereClause)` / `QueryStream` / `Count(whereClause)` overloads and `ToQueryString()` are **supported** and target promoted columns — Azure Table takes a raw **OData** `$filter` fragment, DynamoDB a **PartiQL** `WHERE` condition (reference promoted props by their CLR/JSON name). `Project(string)` is not supported.
+- **Promoted columns for server-side pushdown:** `cfg.MapIndexedProperty(x => x.Status)` writes the scalar as a native top-level column/attribute. LINQ predicates over a promoted property push down into a server-side filter (Azure Table OData `$filter`, DynamoDB `FilterExpression`) to shrink the candidate set; the full predicate still re-runs client-side so results are exact. The string `Query(whereClause)` / `QueryStream` / `Count(whereClause)` overloads and `ToQueryString()` are **supported** and target promoted columns — Azure Table takes a raw **OData** `$filter` fragment, DynamoDB a **PartiQL** `WHERE` condition (reference promoted props by their CLR/JSON name). `Project(string)` is not supported.
 - **Change observation:** both implement `IObservableDocumentStore.NotifyOnChange<T>` (in-process, this instance's writes) and `Query<T>().NotifyOnChange()`. **DynamoDB also** implements `IChangeFeedDocumentStore.SubscribeChanges<T>` backed by **DynamoDB Streams** (any-writer, stream auto-enabled on table create).
 - **Int/Long Id auto-generation is unsupported** — a default Int/Long Id on Insert throws `NotSupportedException` (no cheap `MAX`); use Guid or string Ids, or assign the Int/Long Id explicitly. Guid/string auto-gen works.
 - **Optimistic concurrency:** `MapVersionProperty<T>` uses the Table `ETag` (If-Match) or a DynamoDB conditional write on a top-level `Version` attribute → `ConcurrencyException` on conflict. Blind (unversioned) upsert is last-write-wins.
@@ -877,18 +946,58 @@ public class OrderService(IDocumentStore store)
 
 #### Tenant-Per-Database (separate database per tenant)
 
-Each tenant gets a lazily-created separate database. `IDocumentStore` is registered as **scoped** and resolves to the correct tenant's store per request.
+Each tenant gets its own store, built on first use and held in a **bounded** cache. `IDocumentStore`, `IDocumentSession` and `IDocumentSessionFactory` are all registered **scoped/wired to the current tenant**.
 
 ```csharp
 services.AddSingleton<ITenantResolver, HttpContextTenantResolver>();
 
+// Relational convenience — you return options, the store is built for you
 services.AddMultiTenantDocumentStore(tenantId => new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider($"Data Source={tenantId}.db")
 });
 
+// Any provider — you return a BUILT store
+services.AddMultiTenantDocumentStore(tenantId => new MongoDbDocumentStore(new MongoDbDocumentStoreOptions
+{
+    ConnectionString = "mongodb://...",
+    DatabaseName = $"tenant_{tenantId}"
+}));
+
 // Same consumer code — correct database selected automatically
 public class OrderService(IDocumentStore store) { ... }
+```
+
+Both overloads take an optional `Action<TenantStoreOptions>`:
+
+```csharp
+services.AddMultiTenantDocumentStore(OptionsFor, o =>
+{
+    o.MaxCachedStores = 250;                    // default 100; LRU eviction beyond it
+    o.IdleTimeout = TimeSpan.FromMinutes(30);   // default 20 min; null disables idle eviction
+    o.StoreNameFactory = t => t.Split('-')[0];  // db.namespace tag; defaults to the tenant id
+    o.SeedFromRegisteredSeeders();              // run AddDocumentSeeder seeders per tenant, on first touch
+    o.OnTenantStoreCreated = async ctx => { /* ctx.TenantId, ctx.Store, ctx.Services, ctx.CancellationToken */ };
+});
+```
+
+Rules when generating tenant-per-database code:
+
+- **Resolve `IDocumentStore` per scope.** The cache evicts, so a store captured in a singleton can be disposed. Eviction itself is safe mid-request: the DI scope holds a lease and disposal waits for it.
+- **Seeding must be per tenant.** Startup seeding is skipped for the default store under tenant routing; use `o.SeedFromRegisteredSeeders()` (versioned run-once per tenant database).
+- **Provisioning is the caller's job.** DocumentDb creates tables inside a database that already exists.
+- **No cross-tenant queries** — iterate tenants yourself.
+- A source-generated `DocumentContext` keeps its own keyed store and is **not** tenant-routed.
+
+Operational control via `ITenantStoreManager` (registered automatically):
+
+```csharp
+public class TenantAdmin(ITenantStoreManager tenants)
+{
+    public IReadOnlyCollection<string> Open => tenants.ActiveTenants;
+    public Task Onboard(string id) => tenants.WarmAsync(id);    // build + initialize off the request path
+    public Task Offboard(string id) => tenants.EvictAsync(id);  // close, waiting for in-flight requests
+}
 ```
 
 #### Direct Usage (without DI)
@@ -908,7 +1017,7 @@ var store = new DocumentStore(new DocumentStoreOptions
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DatabaseProvider` | `IDatabaseProvider` (required) | — | The database provider (`SqliteDatabaseProvider`, `SqlCipherDatabaseProvider`, `MySqlDatabaseProvider`, `SqlServerDatabaseProvider`, `PostgreSqlDatabaseProvider`, `OracleDatabaseProvider`, `DuckDbDatabaseProvider`) |
-| `TableName` | `string` | `"documents"` | Default table name for all document types not mapped via `MapTypeToTable` |
+| `TableName` | `string` | `"documents"` | Default table name for all document types that do not set `cfg.Table` |
 | `SkipTableInitialization` | `bool` | `false` | When `true`, never issues the lazy `CREATE TABLE IF NOT EXISTS` / index DDL that otherwise runs once per table on first touch, **including on reads**. For a read replica, an account without DDL rights, or a tool pointed at a database it must not change. The table must already exist — the first query otherwise fails with the provider's "no such table" error |
 | `TypeNameResolution` | `TypeNameResolution` | `ShortName` | How type names are stored (`ShortName` or `FullName`) |
 | `JsonSerializerOptions` | `JsonSerializerOptions?` | `null` | JSON serialization settings. When a `JsonSerializerContext` is attached as the `TypeInfoResolver`, all methods auto-resolve type info from the context |
@@ -923,17 +1032,22 @@ Map a version property on your document type for automatic optimistic concurrenc
 ### Configuration
 
 ```csharp
-// Expression-based
-var store = new DocumentStore(new DocumentStoreOptions
+var options = new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
-}.MapVersionProperty<Order>(o => o.RowVersion));
+};
 
-// AOT-safe overload
-.MapVersionProperty<Order>("RowVersion", o => o.RowVersion, (o, v) => o.RowVersion = v)
+// Expression-based
+options.ConfigureDocument<Order>(cfg => cfg.MapVersionProperty(o => o.RowVersion));
+
+// ...or the AOT-safe overload
+options.ConfigureDocument<Order>(cfg =>
+    cfg.MapVersionProperty("RowVersion", o => o.RowVersion, (o, v) => o.RowVersion = v));
+
+var store = new DocumentStore(options);
 ```
 
-All provider options classes support `MapVersionProperty`: `DocumentStoreOptions` (covers SQLite/SQLCipher/PostgreSQL/SQL Server/MySQL/Oracle/DuckDB), `LiteDbDocumentStoreOptions`, `CosmosDbDocumentStoreOptions`, `MongoDbDocumentStoreOptions`, and `IndexedDbDocumentStoreOptions`.
+`cfg.MapVersionProperty` works on every provider — it is a member of the shared `ConfigureDocument` builder, not of any one options class.
 
 ### Behavior
 
@@ -976,39 +1090,111 @@ await store.Update(stale); // throws ConcurrencyException
 | `ExpectedVersion` | `int` | Version the caller expected |
 | `ActualVersion` | `int?` | Version found in the store |
 
-## Table-Per-Type Mapping
+## Per-Type Configuration (`ConfigureDocument<T>`)
 
-By default all document types share a single table. Use `MapTypeToTable` to give a type its own dedicated table. Tables are lazily created on first use. Two types cannot map to the same custom table.
+**Everything about a document type is configured in one `ConfigureDocument<T>` block**, on every provider.
+There are no flat `options.MapXxx<T>(...)` methods — they were removed in v13.
+
+```csharp
+options.ConfigureDocument<Patient>(cfg =>
+{
+    cfg.Table = "Patients";                       // storage unit; omit to share the store default
+    cfg.MapIdProperty(x => x.Id);
+    cfg.AddSoftDelete(x => x.IsDeleted);
+    cfg.AddQueryFilter(u => !u.IsDeleted);
+    cfg.MapSpatialProperty(r => r.Location);
+    cfg.MapProperty(x => x.Ssn, p => p.Encrypt(EncryptionMode.Deterministic));
+    cfg.MapFullTextProperty([a => a.Title, a => a.Body]);
+    cfg.MapVectorProperty(d => d.Embedding, dimensions: 1536, metric: VectorDistance.Cosine);
+    cfg.ConfigureDocument<decimal>(cfg => cfg.MapComputedProperty("Total", o => o.Quantity * o.UnitPrice, setter: (o, v) => o.Total = v));
+    cfg.MapBlob(i => i.Signature, o => o.ComputeHash = true);
+    cfg.MapTemporal(o => o.Retention = TimeSpan.FromDays(90));
+    cfg.OnBeforeWrite((ctx, ct) => Task.CompletedTask);
+});
+```
+
+### The builder surface
+
+| Member | Description |
+|---|---|
+| `cfg.Table` | The type's storage unit — table / collection / container / object store. Unset ⇒ shares the store default |
+| `cfg.TypeName` | The resolved type name (per `TypeNameResolution`). Assign to `cfg.Table` to name it after the type |
+| `cfg.MapIdProperty(x => x.Key)` / `("Key")` | Custom Id property; the string form is the AOT-safe one |
+| `cfg.MapVersionProperty(x => x.RowVersion)` | Optimistic concurrency (+ AOT accessor overload) |
+| `cfg.AddQueryFilter(pred)` / `("name", pred)` | Global query filter, optionally named |
+| `cfg.MapProperty(x => x.Ssn, p => p.Encrypt(mode))` | Per-property options — field-level encryption |
+| `cfg.MapSpatialProperty(...)` | `GeoPoint?` or `Geometry?` — **one per type**, and it is the *only* geometry that spatial queries can name |
+| `cfg.MapVectorProperty(x => x.Embedding, dimensions: n, …)` | ANN embedding — **one per type**. Leave `indexKind` unset for the provider default |
+| `cfg.MapFullTextProperty(x => x.Body)` / `([a, b])` | Full-text index — **one per type** (several fields, one index) |
+| `cfg.MapComputedProperty<TValue>(...)` | Derived value — **one generic argument**, not two |
+| `cfg.MapBlob(...)` / `cfg.MapBlobCollection(...)` | Sidecar blob payloads |
+| `cfg.MapTemporal(o => ...)` | Append-only history |
+| `cfg.OnBeforeWrite(...)` / `cfg.OnAfterWrite(...)` | Write hooks scoped to this type |
+| `cfg.AddSoftDelete(x => x.IsDeleted)` | Soft delete |
+| `cfg.MapJsonSchema(...)` / `cfg.MapJsonSchemaFromFile(...)` | JSON Schema validation (`Shiny.DocumentDb.JsonSchema`) |
+
+**Provider vocabulary** — same builder, the backend's own word, only visible with that package referenced:
+`cfg.ToContainer(...)` (Cosmos), `cfg.ToCollection(...)` (MongoDB / LiteDB / Firestore), `cfg.ToStore(...)`
+(IndexedDB), `cfg.ToPartition(...)` + `cfg.MapIndexedProperty(...)` (Azure Table / DynamoDB),
+`cfg.MapIndexedProperty(...)` (Redis). `cfg.Table` is the provider-agnostic spelling of all of them.
+
+**Store-level** options stay on the options object, not the builder: `DatabaseProvider`, `TableName`,
+`TenantIdAccessor`, `TypeNameResolution`, `JsonSerializerOptions`, `UseEncryptor`, `MapIdType<TId>`,
+`MapFunctionTranslation`, `AddInterceptor` / `AddBulkInterceptor`, `AutoEmbedOnInsert`.
+
+### Rules
+
+- `ConfigureDocument<T>` is **additive** — call it again for the same type and it adds to what is there.
+  Setting `cfg.Table` twice takes the last value; two types on one name throws.
+- Spatial, vector and full-text are **one per type**. A second declaration throws naming both properties.
+- Mapping a feature the backend does not have is caught when the store is built:
+  `DocumentConfigurationException` lists **every** problem at once. `DocumentConfigurationValidator.Collect(options)`
+  returns the same list without throwing. Relational providers stay permissive for spatial/vector/full-text
+  (mapping a vector on plain SQLite just skips the index until `Shiny.DocumentDb.Sqlite.VectorSupport` is added).
 
 ### Basic mapping
 
 ```csharp
-var store = new DocumentStore(new DocumentStoreOptions
+var options = new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db"),
     TableName = "docs"                 // change the default table name (optional)
-}
-.MapTypeToTable<Order>("orders")       // explicit table name
-.MapTypeToTable<AuditLog>()            // auto-derived table name "AuditLog"
+};
+options.ConfigureDocument<Order>(cfg => cfg.Table = "orders");           // explicit table name
+options.ConfigureDocument<AuditLog>(cfg => cfg.Table = cfg.TypeName);    // named after the type
 // User stays in the default "docs" table
-);
+
+var store = new DocumentStore(options);
 ```
 
 ### Custom Id property
 
-By default every document type must have a property named `Id`. Override that with a custom property — by Guid, int, long, or string — using either `MapTypeToTable<T>(...)` (when combined with a dedicated table) or `MapIdProperty<T>(...)` (when the type stays in the default shared table). The two are independent: you can use both, either, or neither.
+Every document type must have a property named `Id` unless you override it. `cfg.MapIdProperty(...)` is
+independent of `cfg.Table` — use either, both, or neither. The property must be `Guid`, `int`, `long`,
+`string`, or a type registered with `MapIdType`.
 
 ```csharp
-var store = new DocumentStore(new DocumentStoreOptions
+options.ConfigureDocument<Sensor>(cfg =>
 {
-    DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
+    cfg.Table = "sensors";
+    cfg.MapIdProperty(s => s.DeviceKey);      // Guid DeviceKey as Id, in its own table
+});
+
+options.ConfigureDocument<BlogPost>(cfg => cfg.MapIdProperty(p => p.Slug));  // default shared table
+```
+
+### Configuring from a DocumentContext
+
+A generated context can declare its model next to its `[Document]` list — implement the generated
+`OnConfiguring` partial. It runs after the attribute-derived mapping, so what it sets wins.
+
+```csharp
+[Document(typeof(Patient))]
+public partial class AppContext : DocumentContext
+{
+    static partial void OnConfiguring(DocumentModelBuilder model)
+        => model.Document<Patient>(cfg => cfg.MapTemporal(o => o.Retention = TimeSpan.FromDays(90)));
 }
-// Dedicated table + custom Id
-.MapTypeToTable<Sensor>("sensors", s => s.DeviceKey)      // Guid DeviceKey as Id
-.MapTypeToTable<Tenant>("tenants", t => t.TenantCode)     // string TenantCode as Id
-// Default shared table + custom Id
-.MapIdProperty<BlogPost>(p => p.Slug)                     // string Slug as Id
-);
 ```
 
 ### Custom Id types (MapIdType)
@@ -1043,21 +1229,6 @@ options.MapIdType(new OrderIdConverter());
 - **Sortable Guid Ids**: `options.UseGuidV7Ids()` auto-generates time-ordered **version 7** GUIDs (`Guid.CreateVersion7()`) instead of random v4 — BCL only, storage format unchanged, drop-in for existing data. (`long` is already a built-in for sequential integer keys.)
 - The Id also lives in the JSON `Data` blob — give the type a matching `System.Text.Json` converter so LINQ predicates on the Id (`Where(x => x.Id == value)`) line up with the stored string.
 - A converter with no `generate`/`TryGenerate` throws `InvalidOperationException` on a default-Id Insert (assign explicitly).
-
-### MapTypeToTable and MapIdProperty overloads
-
-| Overload | Description |
-|----------|-------------|
-| `MapTypeToTable<T>()` | Auto-derive table name from type name |
-| `MapTypeToTable<T>(string tableName)` | Explicit table name |
-| `MapTypeToTable<T>(Expression<Func<T, object>> idProperty)` | Auto-derive table + custom Id |
-| `MapTypeToTable<T>(string tableName, Expression<Func<T, object>> idProperty)` | Explicit table + custom Id |
-| `MapIdProperty<T>(Expression<Func<T, object>> idProperty)` | Custom Id property only — type stays in the default shared table |
-| `MapIdProperty<T>(string propertyName)` | AOT-safe string overload |
-| `MapIdType<TId>(DocumentIdConverter<TId>)` | Register a custom Id **type** (converter instance) |
-| `MapIdType<TId>(toString, parse, isDefault?, generate?)` | Register a custom Id **type** (inline delegates) |
-
-All overloads return the options instance for fluent chaining. Duplicate table names throw `InvalidOperationException`.
 
 ## Strongly-Typed Context (DocumentContext)
 
@@ -1216,7 +1387,7 @@ parameters: new { minAge = 30 }
 parameters: new Dictionary<string, object?> { ["minAge"] = 30 }
 ```
 
-**3. Forwarding a generic parameter into a mapping API needs the annotation.** `MapVersionProperty`, `MapSpatialProperty`, `MapVectorProperty`, `MapFullTextProperty`, `MapComputedProperty`, `MapBlob`, and `MapBlobCollection` declare `[DynamicallyAccessedMembers(PublicProperties)]` on `T`. Passing a concrete type needs nothing; a generic helper must propagate it or it gets IL2091:
+**3. Forwarding a generic parameter into a mapping API needs the annotation.** `cfg.MapVersionProperty`, `cfg.MapSpatialProperty`, `cfg.MapVectorProperty`, `cfg.MapFullTextProperty`, `cfg.MapComputedProperty`, `cfg.MapBlob`, and `cfg.MapBlobCollection` declare `[DynamicallyAccessedMembers(PublicProperties)]` on `T`. Passing a concrete type needs nothing; a generic helper must propagate it or it gets IL2091:
 
 ```csharp
 static void Configure<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
@@ -1258,8 +1429,11 @@ public class Order
     [JsonIgnore] public string  FullName { get; set; } = "";
 }
 
-opts.MapComputedProperty<Order, decimal>(o => o.Total,    o => o.Quantity * o.UnitPrice);
-opts.MapComputedProperty<Order, string>(o => o.FullName,  o => o.First + " " + o.Last);
+opts.ConfigureDocument<Order>(cfg =>
+{
+    cfg.ConfigureDocument<decimal>(cfg => cfg.MapComputedProperty(o => o.Total, o => o.Quantity * o.UnitPrice));
+    cfg.ConfigureDocument<string>(cfg => cfg.MapComputedProperty(o => o.FullName, o => o.First + " " + o.Last));
+});
 ```
 
 Reference it by name in typed LINQ, the string API, projection, and OData; it is also populated on read:
@@ -1275,10 +1449,10 @@ await store.Query<Order>().Project("fullName as name, total").ToList();         
 - **Default (alias) mode** inlines the definition into each query — no schema change, every relational provider.
 - **`indexed: true`** materializes a native generated/computed column + index on the relational providers (`VIRTUAL` on SQLite/MySQL, `STORED` on PostgreSQL, `PERSISTED` on SQL Server, virtual on Oracle; DuckDB uses alias mode — it can't add a generated column via `ALTER`) so filters/sorts are index-served:
   ```csharp
-  opts.MapComputedProperty<Order, decimal>(o => o.Total, o => o.Quantity * o.UnitPrice, indexed: true);
+  opts.ConfigureDocument<Order>(cfg => cfg.MapComputedProperty<decimal>(o => o.Total, o => o.Quantity * o.UnitPrice, indexed: true));
   ```
 - **LiteDB / IndexedDB** evaluate it in memory (full filter/sort/project/read-back). **MongoDB / Cosmos** support read-back and projection, but **not** server-side filter/sort by a computed property — filter on the underlying stored fields there.
-- **AOT**: fully trim/AOT-safe (never compiled). For a pristine surface use the AOT overload with an explicit setter: `MapComputedProperty<Order, decimal>("Total", o => o.Quantity * o.UnitPrice, setter: (o, v) => o.Total = v)`.
+- **AOT**: fully trim/AOT-safe (never compiled). For a pristine surface use the AOT overload with an explicit setter: `cfg.MapComputedProperty<decimal>("Total", o => o.Quantity * o.UnitPrice, setter: (o, v) => o.Total = v)`.
 - The backing property must be writable; a self-referential definition throws.
 
 ## Document Types
@@ -1450,7 +1624,7 @@ var rows = await orders.Query()
     .ToList();                                           // IReadOnlyList<JsonObject>
 
 // (b) Late-bound over a registered type — same API, full write pipeline, metadata-resolved paths.
-var typed = store.Collection(typeof(Order));
+var typed = store.Collection<Order>();                   // same as store.Collection(typeof(Order))
 await typed.Insert(JsonNode.Parse("""{ "customer": "acme" }""")!.AsObject());
 var open = await typed.Query().Where("status == 'open'").ToList();
 ```
@@ -1458,7 +1632,7 @@ var open = await typed.Query().Where("status == 'open'").ToList();
 Rules that matter when generating code:
 
 - **`Insert` takes `JsonObject` or `JsonArray`, never a bare `JsonNode`** — call `.AsObject()` / `.AsArray()`. The object overload returns the **id**; the array overload returns the **count**. `Update`/`Upsert` take `JsonNode` and accept either shape.
-- **String grammar only.** There is no typed LINQ on a collection — never generate `store.Collection("x").Query().Where(o => …)`. Use `Query<T>()` when you have a CLR type.
+- **String grammar only.** There is no typed LINQ on a collection — never generate `store.Collection("x").Query().Where(o => …)`. Use `Query<T>()` when you have a CLR type. If you want the *typed* builder but a raw JSON **result**, that is the [JSON terminals](#json-terminals--results-as-raw-json-instead-of-t) on `Query<T>()`, not a collection.
 - **Type hints (`total:number`) are schema-free only** and are a *parse error* on a type-keyed collection. Vocabulary: `string number int long double decimal bool date guid`. **A hint is required** for `OrderBy` / `min` / `max` / `Project` over a numeric field — without one the field extracts as text and sorts lexicographically (`"100"` before `"9"`) on every provider except SQLite. `Where("total > 100")` needs no hint: the type is inferred from the literal.
 - **Ids.** Schema-free: property configurable (default `"id"`), read case-insensitively, written verbatim, auto-generated as a UUIDv7 **string**; ids compare as literal strings so pass back exactly what you stored. Type-keyed: the type's own `IdKind` — `Guid` → v4, `int`/`long` → sequence, declared `string` → **refuses** to auto-generate.
 - **Body is stored AS-IS** — on a type-keyed collection property names must match the type's serialized shape (camelCase by default).
@@ -1707,8 +1881,11 @@ public class Invoice
 services.AddDocumentStore(opts =>
 {
     opts.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db");
-    opts.MapBlob<Invoice>(i => i.Pdf);
-    opts.MapBlobCollection<Invoice>(i => i.Attachments);
+    opts.ConfigureDocument<Invoice>(cfg =>
+    {
+        cfg.MapBlob(i => i.Pdf);
+        cfg.MapBlobCollection(i => i.Attachments);
+    });
     // options: o => { o.Key = "sig"; o.ComputeHash = true; o.MaxSize = 256*1024; }  (ComputeHash OFF by default)
 });
 ```
@@ -1753,10 +1930,10 @@ Deleting a document cascades to its blob rows. `store.MaxBlobSize` (bytes) repor
 
 ## Temporal History (System-Time Versioning)
 
-Opt-in append-only versioning per type. Enable with `MapTemporal<T>` on the options; every `Insert`/`Update`/`Upsert`/`Remove`/`SetProperty`/`RemoveProperty`/`BatchInsert` (including writes inside a `UnitOfWork`) records a versioned snapshot to a per-type history sidecar. Only mapped types incur the extra write.
+Opt-in append-only versioning per type. Enable with `cfg.MapTemporal(...)` in the type's `ConfigureDocument` block; every `Insert`/`Update`/`Upsert`/`Remove`/`SetProperty`/`RemoveProperty`/`BatchInsert` (including writes inside a `UnitOfWork`) records a versioned snapshot to a per-type history sidecar. Only mapped types incur the extra write.
 
 ```csharp
-options.MapTemporal<Order>(o =>
+options.ConfigureDocument<Order>(cfg => cfg.MapTemporal(o =>
 {
     o.Retention    = TimeSpan.FromDays(90);   // prune expired (closed) versions older than this
     o.MaxVersions  = 50;                      // …or keep only the newest N versions per document
@@ -1764,16 +1941,16 @@ options.MapTemporal<Order>(o =>
     // Scope-aware (11.0): resolve the actor from the write's session DI scope (a request-scoped ICurrentUser);
     // takes precedence over CaptureActor. Ideal for ASP.NET where the user is per-request.
     o.ResolveActor = sp => sp.GetService<ICurrentUser>()?.Id;
-});
+}));
 ```
 
 ### Provider support
 
 Implemented on **every** provider. Each persists versions to its own sidecar: relational stores (SQLite, SQLCipher, PostgreSQL, SQL Server, MySQL, Oracle, DuckDB) → `{table}_history` table; LiteDB / MongoDB → `{collection}_history` collection; CosmosDB → `{container}_history` container (partitioned by `/typeName`); IndexedDB → `{store}_history` object store.
 
-The history-query methods live on the **`ITemporalDocumentStore`** capability interface (`ITemporalDocumentStore : IDocumentStore`), **not** the base `IDocumentStore` — the same pattern as `IObservableDocumentStore` / `IChangeFeedDocumentStore`, and the `Backup`/`ClearAllAsync` precedent. History is an optional capability, not universal CRUD: promoting it to `IDocumentStore` would force every consumer to see methods that throw unless the type is `MapTemporal`-mapped, and force every backend to implement them. Resolve or cast to `ITemporalDocumentStore` (every store, relational and NoSQL, implements it). A history call for a type not passed to `MapTemporal<T>` throws `InvalidOperationException`.
+The history-query methods live on the **`ITemporalDocumentStore`** capability interface (`ITemporalDocumentStore : IDocumentStore`), **not** the base `IDocumentStore` — the same pattern as `IObservableDocumentStore` / `IChangeFeedDocumentStore`, and the `Backup`/`ClearAllAsync` precedent. History is an optional capability, not universal CRUD: promoting it to `IDocumentStore` would force every consumer to see methods that throw unless the type is `cfg.MapTemporal`-mapped, and force every backend to implement them. Resolve or cast to `ITemporalDocumentStore` (every store, relational and NoSQL, implements it). A history call for a type not passed to `MapTemporal<T>` throws `InvalidOperationException`.
 
-> **IndexedDB:** temporal adds new object stores, which IndexedDB only creates during a schema upgrade. Bump `options.Version` when adding `MapTemporal` to an already-deployed database (a fresh database needs no change).
+> **IndexedDB:** temporal adds new object stores, which IndexedDB only creates during a schema upgrade. Bump `options.Version` when adding `cfg.MapTemporal` to an already-deployed database (a fresh database needs no change).
 
 ### Reading history
 
@@ -1828,29 +2005,30 @@ Built on `System.Diagnostics.Metrics.Meter` (via `IMeterFactory`) and `ActivityS
 
 ### MongoDB-Specific Notes
 
-The `Shiny.DocumentDb.MongoDb` provider implements `IDocumentStore` natively over `MongoDB.Driver`. Documents are stored as a typed BSON envelope (`_id`, `id`, `typeName`, `data`, `createdAt`, `updatedAt`) inside a collection that defaults to `"documents"`. Map types to dedicated collections with `MapTypeToCollection`.
+The `Shiny.DocumentDb.MongoDb` provider implements `IDocumentStore` natively over `MongoDB.Driver`. Documents are stored as a typed BSON envelope (`_id`, `id`, `typeName`, `data`, `createdAt`, `updatedAt`) inside a collection that defaults to `"documents"`. Map types to dedicated collections with `cfg.ToCollection(...)` inside a `ConfigureDocument<T>` block.
 
 - **Predicates evaluated in C#** — LINQ expressions are translated to a MongoDB filter at the type/sort/skip/take level; complex predicates are evaluated client-side after a typed find.
 - **Raw SQL throws** — `Query<T>(string)` and `QueryStream<T>(string)` throw `NotSupportedException`. Use the LINQ-based `Query<T>()` overload.
 - **`Upsert` deep-merges in C#** — null properties are stripped recursively (RFC 7396 semantics).
 - **`UnitOfWork` uses a compensating model** — single-node MongoDB cannot use ACID multi-document transactions without a replica set. The provider tracks inserts and deletes them on failure (matches the CosmosDB provider).
-- **`MapTypeToCollection<T>(...)`** — fluent options API with overloads for auto-derived collection names, explicit names, and custom Id expressions.
+- **`cfg.ToCollection(...)`** — auto-derived or explicit collection name; combine with `cfg.MapIdProperty(...)` for a custom Id.
 - **Spatial supported** — MongoDB implements the full spatial surface via a `2dsphere` index: point queries (`WithinRadius`/`WithinBoundingBox`/`NearestNeighbors`) and the full geometry predicate family (`GeoIntersects`/`GeoContainedBy`/… via native `$geoIntersects`/`$geoWithin`/`$near`, with finer predicates refined in-process).
 - **Pre-configured client** — set `MongoDbDocumentStoreOptions.MongoClient` to share an existing `IMongoClient` (pooled, process-wide). When null, the provider creates one from `ConnectionString`.
 
 ```csharp
-var store = new MongoDbDocumentStore(new MongoDbDocumentStoreOptions
+var options = new MongoDbDocumentStoreOptions
 {
     ConnectionString = "mongodb://localhost:27017",
     DatabaseName = "mydb",
     CollectionName = "documents", // default; only used for unmapped types
     JsonSerializerOptions = ctx.Options,
     UseReflectionFallback = false
-}
-.MapTypeToCollection<User>()
-.MapTypeToCollection<Order>("orders")
-.MapTypeToCollection<Sensor>("sensors", s => s.DeviceKey)
-.MapVersionProperty<Order>(o => o.RowVersion));
+};
+options.ConfigureDocument<User>(cfg => cfg.ToCollection());
+options.ConfigureDocument<Order>(cfg => { cfg.ToCollection("orders"); cfg.MapVersionProperty(o => o.RowVersion); });
+options.ConfigureDocument<Sensor>(cfg => { cfg.ToCollection("sensors"); cfg.MapIdProperty(s => s.DeviceKey); });
+
+var store = new MongoDbDocumentStore(options);
 ```
 
 ### DuckDB-Specific Notes
@@ -1883,7 +2061,7 @@ var top = await store.Query<Order>()
 
 ## Orleans Grain Storage
 
-`Shiny.DocumentDb.Orleans` is a Microsoft Orleans `IGrainStorage` (+ `PubSubStore`) provider implemented entirely against `IDocumentStore`, so one implementation runs on every DocumentDb backend. Grain state is persisted as a nested, **queryable** `JsonElement` (not an opaque blob), and the envelope can opt into `MapTemporal` for a free audit trail of state mutations.
+`Shiny.DocumentDb.Orleans` is a Microsoft Orleans `IGrainStorage` (+ `PubSubStore`) provider implemented entirely against `IDocumentStore`, so one implementation runs on every DocumentDb backend. Grain state is persisted as a nested, **queryable** `JsonElement` (not an opaque blob), and the envelope can opt into `cfg.MapTemporal` for a free audit trail of state mutations.
 
 **Headline feature — query grain state without activating grains.** Orleans grain storage is a point key/value contract (Read/Write/Clear by grain id) with no query surface; normally you must activate a grain to read its state. Because this provider stores state as structured JSON under `$.state`, you can point a read-only `IDocumentStore` at the same grain-state table (`DocumentDbGrainStorage.ConfigureGrainState(opts, "orleans_default")`) and query it directly — no activation, no silo round-trip:
 
@@ -1900,7 +2078,7 @@ Caveat: this reads the **last-persisted** state (a live grain may hold unflushed
 | Orleans | Shiny.DocumentDb |
 |---|---|
 | document key | `Id = "{stateName}\|{grainId}"` |
-| ETag | `GrainStateRecord.Version` (mapped via `MapVersionProperty`) |
+| ETag | `GrainStateRecord.Version` (mapped via `cfg.MapVersionProperty`) |
 | concurrency conflict | `ConcurrencyException` → `InconsistentStateException` |
 | state blob | nested `JsonElement` in `GrainStateRecord.State` (queryable) |
 
@@ -1927,7 +2105,7 @@ siloBuilder.AddDocumentDbGrainStorage("Default", o =>
     o.StoreFactory = sp =>
     {
         var opts = new LiteDbDocumentStoreOptions { ConnectionString = "Filename=grains.db" };
-        opts.MapVersionProperty<GrainStateRecord>(x => x.Version);
+        opts.ConfigureDocument<GrainStateRecord>(cfg => cfg.MapVersionProperty(x => x.Version));
         return new LiteDbDocumentStore(opts);
     };
 });
@@ -1981,7 +2159,7 @@ Map a `Geometry?` property (not just `GeoPoint`) and query with the `Geo`-prefix
 ```csharp
 public class Zone { public string Id { get; set; } = ""; public Geometry? Area { get; set; } }
 
-options.MapSpatialProperty<Zone>(z => z.Area);        // or ("Area", z => z.Area) for AOT
+options.ConfigureDocument<Zone>(cfg => cfg.MapSpatialProperty(z => z.Area));   // or ("Area", z => z.Area) for AOT
 
 // stored-geometry <predicate> query-geometry; optional orderByDistanceFrom + filter; returns SpatialResult<T>
 var containing = await store.GeoIntersects<Zone>(new GeoPoint(45.5, -122.6));   // "which zones contain this point?"
@@ -1991,7 +2169,7 @@ var near       = await store.GeoWithinDistance<Zone>(routeLine, meters: 500);
 
 Predicate methods: `GeoIntersects`, `GeoContainedBy`, `GeoContains`, `GeoDisjoint`, `GeoTouches`, `GeoCrosses`, `GeoOverlaps`, `GeoEquals`, `GeoCovers`, `GeoCoveredBy`, `GeoWithinDistance(geometry, meters)`. Each takes `(Geometry, Geometry? orderByDistanceFrom = null, Expression<Func<T,bool>>? filter = null)` and returns `IReadOnlyList<SpatialResult<T>>` (`DistanceMeters` populated when `orderByDistanceFrom` is given). `NearestNeighbors` works over geometry-mapped types too.
 
-- **Measurement/validity:** `Geometry` exposes **in-memory** `Area` (m²), `Length`/`Perimeter`, `Centroid`, `NumPoints`, `NumGeometries`, `IsValid`, `IsSimple`, `MakeValid()`. These are C# accessors — they do **not** translate to SQL and do **not** compose with `MapComputedProperty` (computed properties are lowered to SQL). To filter/sort by a measurement server-side, compute the scalar in your app, store it as a normal property, and query that field. Use `MakeValid()` as a pre-insert guard so native Mongo/Cosmos indexes don't reject a shape.
+- **Measurement/validity:** `Geometry` exposes **in-memory** `Area` (m²), `Length`/`Perimeter`, `Centroid`, `NumPoints`, `NumGeometries`, `IsValid`, `IsSimple`, `MakeValid()`. These are C# accessors — they do **not** translate to SQL and do **not** compose with `cfg.MapComputedProperty` (computed properties are lowered to SQL). To filter/sort by a measurement server-side, compute the scalar in your app, store it as a normal property, and query that field. Use `MakeValid()` as a pre-insert guard so native Mongo/Cosmos indexes don't reject a shape.
 - **LINQ composition (`DocumentFunctions`, v11+):** to compose a spatial predicate with other `Where` clauses / `OrderBy` / `Count` / paging server-side, use `DocumentFunctions` inside `Query<T>().Where(...)`:
   ```csharp
   store.Query<Zone>()
@@ -2000,6 +2178,7 @@ Predicate methods: `GeoIntersects`, `GeoContainedBy`, `GeoContains`, `GeoDisjoin
   ```
   Family: `Intersects`/`Disjoint`/`Contains`/`Within`/`Covers`/`CoveredBy`/`Touches`/`Crosses`/`Overlaps`/`GeoEquals`/`WithinDistance` (in `Where`) + `Distance` (in `OrderBy`). Read as `field <predicate> query`. Lowers to native per provider: **SQLite** (R\*Tree + `docdb_st_*` UDF — all predicates), **MySQL/PostgreSQL** (native `ST_*`; PostgreSQL needs PostGIS — all predicates), **DuckDB** (native `ST_*`, auto-loads `spatial` — all except `WithinDistance`), **SQL Server** (native planar `geometry` column + `.ST*` — all except `Covers`/`CoveredBy` and `WithinDistance`), **Oracle** (native `SDO_GEOMETRY` column + MDSYS spatial index + `SDO_RELATE` operators, needs Oracle Spatial — all except `Crosses`), **CosmosDB** (`ST_INTERSECTS`/`ST_WITHIN`/`ST_DISTANCE` — intersects/within/disjoint/withindistance), **MongoDB** (`$geoIntersects`/`$geoWithin` — intersects/within/point-withindistance). `WithinDistance` in a `Where` needs a geodesic distance function, which SQL Server (planar `geometry`) and DuckDB (no polygon geodesic) lack — they **throw** rather than approximate wrongly; use `store.GeoWithinDistance(...)` (exact Haversine, every provider). `Distance`-in-`OrderBy` is native on SQLite/PostgreSQL/MySQL/DuckDB/SQL Server (SQL Server sorts by planar `STDistance` over the indexed column); on MongoDB use `store.NearestNeighbors`/`orderByDistanceFrom`. Where a predicate isn't native, the `DocumentFunctions` call in a `Where` **throws** — use the dedicated `store.Geo*` method (all predicates, every spatial provider). `PortableSpatial = true` on a relational provider forces the dependency-free envelope tier.
   **String-expression parity:** the same geo functions work in the string surface — `Where("…")`, interpolated `Where($"…")`, `OrderBy("…")`, `Project("…")` — using the same names (`intersects`/`within`/`withindistance`/`distance`/…). Supply the query geometry as an **interpolated `{value}`** (a `Geometry`/`GeoPoint`, bound as a parameter — only where the string carries args, i.e. `Where($"…")`) or an inline **GeoJSON string literal** (works everywhere incl. `OrderBy`/`Project`). E.g. `store.Query<Zone>().Where($"intersects(area, {poly}) and active == true")`, `.OrderBy("distance(area, '<geojson>')")`. `contains(field, …)` is geo when `field` is a `Geometry` property, else the string `Contains`.
+- **Only the mapped geometry is queryable (v13+).** Every spatial surface — `store.Geo*`, `DocumentFunctions` in `Where`/`OrderBy`, and the string grammar — must name the property passed to `cfg.MapSpatialProperty`. A second `Geometry?` property stores and round-trips normally but is **not** spatially queryable, and naming it throws `NotSupportedException` ("… is not a mapped spatial property … Mapped: 'area'"). Most relational providers answer these predicates from the sidecar's geometry column, which holds only the mapped property, so an unmapped path cannot be served honestly. When a document really has several shapes: **one semantic slot in several pieces** (a service area of three disjoint polygons) → one property typed `GeoMultiPolygon`/`GeoGeometryCollection`, whose union envelope is the right index key; **genuinely distinct slots** (a delivery's origin *and* destination) → the union envelope would span both and destroy index selectivity, so map the one you search by and keep the other as plain data.
 - **`GeoDisjoint`** is anti-selective — it scans the type (O(n)) on SQLite/refine paths. Use sparingly on large corpora.
 - **Fidelity:** SQLite / refine-path distances are Haversine/planar approximations; native `ST_DISTANCE` is geodesic. Ordering can differ on near-ties across providers.
 
@@ -2036,15 +2215,16 @@ public class Restaurant
     public string Cuisine { get; set; } = "";
 }
 
-var store = new DocumentStore(new DocumentStoreOptions
+var options = new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
-}
-.MapSpatialProperty<Restaurant>(r => r.Location)
-);
+};
+options.ConfigureDocument<Restaurant>(cfg => cfg.MapSpatialProperty(r => r.Location));
 
-// AOT-safe overload
-.MapSpatialProperty<Restaurant>("Location", r => r.Location)
+// ...or the AOT-safe overload
+options.ConfigureDocument<Restaurant>(cfg => cfg.MapSpatialProperty("Location", r => r.Location));
+
+var store = new DocumentStore(options);
 ```
 
 The mapped property may be nullable (`GeoPoint?`). A document whose location is `null` is skipped by the
@@ -2060,7 +2240,7 @@ public class CalendarEvent
     public GeoPoint? Location { get; set; }   // optional — null docs are simply not indexed
 }
 
-options.MapSpatialProperty<CalendarEvent>(e => e.Location);
+options.ConfigureDocument<CalendarEvent>(cfg => cfg.MapSpatialProperty(e => e.Location));
 ```
 
 ### Querying
@@ -2106,7 +2286,7 @@ Spatial sidecar data is automatically maintained — no manual steps needed:
 Embedding-similarity search via `store.NearestVectors<T>(query, k)` — also on `IDocumentSession` (`session.NearestVectors<T>(...)`), where inside `BeginTransaction` it reads the transaction's consistent snapshot. Capability is a store property: check `session.Store.SupportsVector` (not duplicated on the session). Supported on PostgreSQL (`pgvector`), SQL Server 2025, Oracle 23ai, CosmosDB (DiskANN), MongoDB (Atlas `$vectorSearch`), DuckDB (`vss`), and **SQLite** (`sqlite-vec`). LiteDB, IndexedDB, and MySQL throw `NotSupportedException`.
 
 ```csharp
-options.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536, metric: VectorDistance.Cosine);
+options.ConfigureDocument<Doc>(cfg => cfg.MapVectorProperty(d => d.Embedding, dimensions: 1536, metric: VectorDistance.Cosine));
 var hits = await store.NearestVectors<Doc>(queryEmbedding, k: 5);
 ```
 
@@ -2125,18 +2305,62 @@ using Shiny.DocumentDb.Extensions.AI;
 // so a scoped session picks the caller's own generator. Register the generator in DI.
 services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(/* ... */);
 services.AddDocumentStore(o =>
-    o.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536)
+    o.ConfigureDocument<Doc>(cfg => cfg.MapVectorProperty(d => d.Embedding, dimensions: 1536));
      .AutoEmbedOnInsert<Doc>(
          sourceSelector: d => d.Content,
          targetSetter:   (d, v) => d.Embedding = v,
          targetGetter:   d => d.Embedding));   // optional: skip when already set
 
 // Explicit-generator overload: a fixed instance, for the container-free `new DocumentStore(options)` path.
-opts.MapVectorProperty<Doc>(d => d.Embedding, dimensions: 1536)
+opts.ConfigureDocument<Doc>(cfg => cfg.MapVectorProperty(d => d.Embedding, dimensions: 1536));
     .AutoEmbedOnInsert<Doc>(generator, d => d.Content, (d, v) => d.Embedding = v, d => d.Embedding);
 ```
 
 Skips when the source text is null/empty or the target vector is already set. With the DI overload, a missing generator throws `InvalidOperationException` (register one, or use the explicit overload). There is **no** `OnBeforeInsert` hook anymore — for non-embedding "compute a derived field" needs use `OnBeforeWrite<T>` (an `IDocumentInterceptor` lambda over `ctx.Document`).
+
+### `Microsoft.Extensions.VectorData` connector (`Shiny.DocumentDb.Extensions.VectorData`)
+
+Use this when the surrounding code expects **MEVD's** `VectorStore` / `VectorStoreCollection<TKey, TRecord>` (MEAI, the Microsoft Agent Framework, Semantic Kernel) rather than `IDocumentStore`. For DocumentDb-native code, keep using `NearestVectors` above — the connector is interop, not the default.
+
+```csharp
+using Microsoft.Extensions.VectorData;
+using Shiny.DocumentDb.Extensions.VectorData;
+
+public class Note
+{
+    [VectorStoreKey] public string Id { get; set; } = "";          // MUST also be the document id
+    [VectorStoreData(IsIndexed = true)] public string Tag { get; set; } = "";
+    [VectorStoreVector(1536, DistanceFunction = DistanceFunction.CosineDistance)]
+    public ReadOnlyMemory<float> Embedding { get; set; }
+}
+
+services.AddDocumentDbVectorStore(o =>
+{
+    o.DatabaseProvider = new SqliteDatabaseProvider("Data Source=app.db") { EnableVectorExtension = true };
+    o.MapVectorRecord<Note>();     // reads the MEVD attributes → MapVectorProperty<Note>
+});
+
+var notes = sp.GetRequiredService<VectorStore>().GetCollection<string, Note>("Note");
+await notes.UpsertAsync(note);
+await foreach (var hit in notes.SearchAsync(queryEmbedding, top: 5,
+    new VectorSearchOptions<Note> { Filter = n => n.Tag == "release" })) { }
+```
+
+Rules that decide whether generated code works:
+
+- **`MapVectorRecord<T>()` must be called while the options are being configured** — DocumentDb fixes vector mappings when the store is constructed. `GetCollection<TKey, TRecord>(name)` only builds a facade and throws for an unmapped record. A `VectorStoreCollectionDefinition` therefore goes to `MapVectorRecord<T>(name, definition)`, **not** to `GetCollection`.
+- **The collection name must match the registration** — `MapVectorRecord<Note>()` defaults to `nameof(Note)`; pass a name to both, or to neither.
+- **`[VectorStoreKey]` must be the document's id** (`Id` by convention, otherwise `MapIdProperty<T>`), and be `string`/`Guid`/`int`/`long`. `TKey` on the collection must match that CLR type.
+- **One `[VectorStoreVector]` per record.** Multi-vector records throw at mapping time, and `VectorSearchOptions.VectorProperty` may only select the mapped one.
+- **Never emit `StorageName`** on `[VectorStoreKey]`/`[VectorStoreData]`/`[VectorStoreVector]` — it throws. DocumentDb's stored name is System.Text.Json's; use `[JsonPropertyName("...")]`.
+- **Filters pass through untouched** — MEVD's `Expression<Func<T, bool>>` is the exact shape `NearestVectors` takes, so push-down behaves as documented per provider.
+- **Text queries** (`SearchAsync("some text", …)`) need an `IEmbeddingGenerator<string, Embedding<float>>` from the definition, the `DocumentDbVectorStore` ctor, or DI; otherwise pass a `ReadOnlyMemory<float>` / `float[]` / `Embedding<float>`. For embedding on **write**, that is still `AutoEmbedOnInsert` above — the two packages compose and neither depends on the other.
+- **`AddDocumentDbVectorStore(configure)`** registers one store behind both `IDocumentStore` and `VectorStore` (relational/SQLite options). For a provider with its own options class (Mongo/Cosmos/Redis), register the store yourself and call the no-argument `AddDocumentDbVectorStore()`.
+- **Vector-capable providers only** — the constructor throws `NotSupportedException` on LiteDB/IndexedDB/MySQL/Azure Table/DynamoDB/Firestore/RavenDB.
+- **Not supported**: `GetDynamicCollection` (`Dictionary<string, object?>` records) and hybrid keyword+vector search.
+- `UpsertAsync` is a full replace (not merge-patch); `IncludeVectors` defaults to `false` so returned records have a cleared embedding unless asked; `ScoreThreshold` is a floor (`score >= threshold`), which only reads as "more relevant" on providers whose score is a similarity.
+
+`cfg.MapVectorProperty` also exists on **`IDocumentStoreOptions`** now (AOT-safe getter/setter form, nullable `indexKind` meaning "provider default"), which is what lets `MapVectorRecord<T>` work on every backend from one extension method. Prefer the concrete options class's strongly-typed overload in ordinary code.
 
 ### SQLite — loading `sqlite-vec`
 
@@ -2163,12 +2387,15 @@ Either flag (or the package helper) makes `SupportsVector` return `true`. Withou
 
 ## Full-Text Search
 
-Relevance-ranked text search over one or more string properties. **Declarative and up-front**: map the searchable property with `MapFullTextProperty<T>(...)` and the library creates the native index for you at startup. A type **must be mapped before it can be searched** — there is no ad-hoc full-text (unlike `.Where(x => x.Body.Contains(...))`, which works on any field). Supported on **every provider**: FTS5 (SQLite), `tsvector`+GIN (PostgreSQL), `FULLTEXT` (MySQL), Oracle Text (Oracle), Full-Text Index (SQL Server), the `fts` extension (DuckDB), full-text policy (Cosmos), `$text` (MongoDB), and an in-memory TF-IDF scan on LiteDB / IndexedDB.
+Relevance-ranked text search over one or more string properties. **Declarative and up-front**: map the searchable property with `cfg.MapFullTextProperty(...)` and the library creates the native index for you at startup. A type **must be mapped before it can be searched** — there is no ad-hoc full-text (unlike `.Where(x => x.Body.Contains(...))`, which works on any field). Supported on **every provider**: FTS5 (SQLite), `tsvector`+GIN (PostgreSQL), `FULLTEXT` (MySQL), Oracle Text (Oracle), Full-Text Index (SQL Server), the `fts` extension (DuckDB), full-text policy (Cosmos), `$text` (MongoDB), and an in-memory TF-IDF scan on LiteDB / IndexedDB.
 
 ```csharp
 // single field, or several combined into one index
-options.MapFullTextProperty<Article>(a => a.Body);
-options.MapFullTextProperty<Article>([a => a.Title, a => a.Body]);
+options.ConfigureDocument<Article>(cfg =>
+{
+    cfg.MapFullTextProperty(a => a.Body);
+    cfg.MapFullTextProperty([a => a.Title, a => a.Body]);
+});
 
 // terminal API — ordered by relevance descending, each with a Score (higher = better)
 IReadOnlyList<FullTextResult<Article>> hits =
@@ -2183,11 +2410,11 @@ var hits2 = await store.Query<Article>()
     .FullTextMatch("orleans", maxResults: 10);
 ```
 
-`FullTextResult<T>` carries `Document` and a normalized `double Score` (higher = more relevant; absolute scale is provider-specific — compare only within one result set). `MapFullTextProperty` also has an AOT-safe overload taking `propertyNames` + a `Func<T, IEnumerable<string?>>` selector (for combining fields or indexing a string collection), and an optional `FullTextLanguage` (controls stemming where the backend supports it). The index is engine-maintained, so `Insert`/`Update`/`Remove`/`Clear` keep it in sync automatically. Notes: engines with one full-text index per table (SQL Server, MongoDB) support a single mapped type per table/collection; **Oracle Text** and **SQL Server Full-Text Search** are optional server components that must be installed; Cosmos full-text needs `Microsoft.Azure.Cosmos` 3.61.0+.
+`FullTextResult<T>` carries `Document` and a normalized `double Score` (higher = more relevant; absolute scale is provider-specific — compare only within one result set). `cfg.MapFullTextProperty` also has an AOT-safe overload taking `propertyNames` + a `Func<T, IEnumerable<string?>>` selector (for combining fields or indexing a string collection), and an optional `FullTextLanguage` (controls stemming where the backend supports it). The index is engine-maintained, so `Insert`/`Update`/`Remove`/`Clear` keep it in sync automatically. Notes: engines with one full-text index per table (SQL Server, MongoDB) support a single mapped type per table/collection; **Oracle Text** and **SQL Server Full-Text Search** are optional server components that must be installed; Cosmos full-text needs `Microsoft.Azure.Cosmos` 3.61.0+.
 
 ### Composable full-text with Lucene syntax (`DocumentFunctions.LuceneMatch` / `LuceneScore`)
 
-For full-text as a **composable predicate** (not a separate ranked call), use `DocumentFunctions.LuceneMatch(field, luceneQuery)` inside a `Where`, and `DocumentFunctions.LuceneScore(field, luceneQuery)` inside an `OrderBy`/projection. They translate to the provider's native full-text engine over the **same `MapFullTextProperty` index** — so the type must still be mapped first. The `field` argument identifies the mapping (pass a mapped property); the search spans the whole combined index for the type.
+For full-text as a **composable predicate** (not a separate ranked call), use `DocumentFunctions.LuceneMatch(field, luceneQuery)` inside a `Where`, and `DocumentFunctions.LuceneScore(field, luceneQuery)` inside an `OrderBy`/projection. They translate to the provider's native full-text engine over the **same `cfg.MapFullTextProperty` index** — so the type must still be mapped first. The `field` argument identifies the mapping (pass a mapped property); the search spans the whole combined index for the type.
 
 ```csharp
 // AND with an ordinary predicate, page, and sort by relevance — one query
@@ -2255,8 +2482,11 @@ q = q.Where(x => x.Age >= 18);        // correct
 | `.ToAsyncEnumerable()` | `IAsyncEnumerable<T>` | Stream results one-at-a-time. |
 | `.Count()` | `Task<long>` | Count matching documents. |
 | `.Any()` | `Task<bool>` | Check if any documents match. |
+| `.First()` / `.FirstOrDefault()` | `Task<T>` / `Task<T?>` | First match. **Use these instead of `(await ToList())[0]`** — the row limit is pushed to the provider (`LIMIT 1`). `First` throws when nothing matched; `FirstOrDefault` returns null. Predicate and string-filter overloads exist: `.First(u => u.Age == 40)`, `.First("status == 'open'")`. |
+| `.Single()` / `.SingleOrDefault()` | `Task<T>` / `Task<T?>` | The only match; throws when a second one matches (two rows are fetched to detect it, no extra round trip). |
 | `.ExecuteDelete()` | `Task<int>` | Delete matching documents. Returns count. |
 | `.ExecuteUpdate(property, value)` | `Task<int>` | Update a property on all matching documents via `json_set()`. Returns count. |
+| `.ExecuteUpdate(build)` | `Task<int>` | Update **several** properties in ONE statement: `.ExecuteUpdate(b => b.Set(o => o.Status, "x").Set(o => o.ClosedAt, now))`. Prefer it over consecutive single-property calls — one statement, one predicate evaluation, atomic. Same property twice throws. |
 | `.Max(selector)` | `Task<TValue>` | Maximum value of a property. |
 | `.Min(selector)` | `Task<TValue>` | Minimum value of a property. |
 | `.Sum(selector)` | `Task<TValue>` | Sum of a property. |
@@ -2265,6 +2495,46 @@ q = q.Where(x => x.Age >= 18);        // correct
 | `.ToCursorPage(cursor, take)` | `Task<CursorPage<T>>` | One forward seek/keyset page. `null` cursor = first page; `NextCursor` null = last page. See Pagination. |
 | `.ToCursorStream(pageSize?)` | `IAsyncEnumerable<T>` | Walk every cursor page automatically — resumable full scan, no deep-offset cost. |
 | `.ToQueryString()` | `DocumentQueryString` | Build the query the configuration **would** run **without executing it** — for debugging/logging. See below. |
+
+### JSON terminals — results as raw JSON instead of `T`
+
+Same typed builder, different materialization. Generate these whenever the document is read only to be written back out (an ASP.NET endpoint returning stored documents), so nothing is deserialized just to be re-serialized.
+
+| Method | Returns | Typed twin |
+|--------|---------|-------------|
+| `.ToJsonList()` | `Task<IReadOnlyList<JsonObject>>` | `.ToList()` |
+| `.ToJsonAsyncEnumerable()` | `IAsyncEnumerable<JsonObject>` | `.ToAsyncEnumerable()` |
+| `.FirstJson()` / `.FirstOrDefaultJson()` | `Task<JsonObject>` / `Task<JsonObject?>` | `.First()` / `.FirstOrDefault()` |
+| `.SingleJson()` / `.SingleOrDefaultJson()` | `Task<JsonObject>` / `Task<JsonObject?>` | `.Single()` / `.SingleOrDefault()` |
+| `.FirstOrDefaultRawJson()` | `Task<string?>` | — (no parse at all) |
+| `.ToRawJsonAsyncEnumerable()` | `IAsyncEnumerable<string>` | — |
+| `.WriteJsonArrayTo(stream)` | `Task<int>` (rows written) | — |
+| `.ToJsonCursorPage(cursor, take)` | `Task<CursorPage<JsonObject>>` | `.ToCursorPage()` |
+| `.RawJsonRows(maxRows)` | `IAsyncEnumerable<string>` | the primitive the rest are built on |
+| `.SupportsRawJson` | `bool` | whether this query can use the lane at all |
+
+```csharp
+// one document — hand the stored body straight to the client, no parse
+var raw = await store.Query<Order>().Where(o => o.Id == id).FirstOrDefaultRawJson();
+return raw is null ? Results.NotFound() : Results.Content(raw, "application/json");
+
+// a whole list — one JSON array written straight to the response, never buffered
+ctx.Response.ContentType = "application/json";
+await store.Query<Order>()
+    .Where(o => o.Status == "open")
+    .OrderByDescending(o => o.CreatedAt)
+    .WriteJsonArrayTo(ctx.Response.Body, ct);
+```
+
+Rules that matter when generating code:
+
+- **Terminals only — build first, then take JSON.** `Where` / `OrderBy` / `Paginate` / `IgnoreQueryFilters` all still apply and are all typed; there is no string-grammar building after a JSON terminal (that is `store.Collection(...)`).
+- **Works on every provider.** Relational + Cosmos hand back the persisted body untouched; everywhere else the provider materializes `T` and re-serializes through the type's `JsonTypeInfo` — same JSON, same API, but no saving. Don't promise a perf win on MongoDB/LiteDB/IndexedDB/Redis/RavenDB/Firestore/AzureTable/DynamoDB.
+- **Encrypted types throw `NotSupportedException`** — the stored body holds ciphertext and only the typed terminals decrypt. Never generate a raw terminal for a type with `cfg.MapProperty(x => x.P, p => p.Encrypt())`.
+- **When JSON is an optimization and the typed path is also correct, probe — don't catch.** `query.SupportsRawJson` is `false` for an encrypted type and after `Select`/`Project`/`GroupBy`; generate `query.SupportsRawJson ? await query.ToJsonList(ct) : <typed path>`. That is what the built-in OData engine and the AI `query` tool do. Generate a bare raw terminal (no probe) only when the raw JSON *is* the requirement.
+- **Shape differs from the object** — materialized computed properties live outside the body and blob payloads are metadata envelopes, so neither appears. Use the typed terminals when you need them.
+- **`WriteJsonArrayTo` writes `[]` when nothing matches** and returns the row count; set `Response.ContentType` yourself.
+- **Not on projections.** After `Select` / `Project` / `GroupBy` the raw terminals throw — the result is no longer a stored document. `Project(...)` already returns `IDocumentQuery<JsonObject>`; use its `ToList()`.
 
 ### Inspecting the generated query — `.ToQueryString()`
 
@@ -2347,6 +2617,17 @@ int updated = await store.Query<User>()
 int updated = await store.Query<Order>()
     .Where(o => o.ShippingAddress.City == "Portland")
     .ExecuteUpdate(o => o.ShippingAddress.City, "Eugene");
+
+// Several properties in one statement (preferred over consecutive ExecuteUpdate calls)
+int expired = await store.Query<Order>()
+    .Where(o => o.Status == "open" && o.CreatedAt < cutoff)
+    .ExecuteUpdate(b => b
+        .Set(o => o.Status, "expired")
+        .Set(o => o.ClosedAt, DateTimeOffset.UtcNow));
+
+// One document — never materialize a list to take its first element
+var youngest = await store.Query<User>().OrderBy(u => u.Age).FirstOrDefault();
+var byEmail  = await store.Query<User>().Single(u => u.Email == email);
 
 // Scalar aggregates
 var maxAge = await store.Query<User>().Max(u => u.Age);
@@ -2449,7 +2730,7 @@ await foreach (var o in store.Query<Order>().OrderByDescending(x => x.CreatedAt)
 
 - **Choose offset (`PageResult`) when you need a page number or a total count**; choose cursor when you only move forward, page deep, or forever-scroll.
 - A cursor is valid only for the **exact same `OrderBy` + filters** that produced it — reusing it under a different sort throws `InvalidOperationException` (a shape hash catches it). Not valid after `Select`/`Project`/`GroupBy` (throws `NotSupportedException`). `take` must be `> 0` and `≤ 10,000`.
-- Index the sort key (`MapIndexedProperty`) for hot cursor paths, and order by a **non-nullable** column (a `NULL` sort value at a page boundary can skip rows).
+- Index the sort key (`cfg.MapIndexedProperty`) for hot cursor paths, and order by a **non-nullable** column (a `NULL` sort value at a page boundary can skip rows).
 - **Provider tier:** relational providers seek server-side; LiteDB/IndexedDB/MongoDB page the keyset client-side; Cosmos/DynamoDB/Azure Table throw `NotSupportedException` (not yet supported).
 
 ### Dynamic sort columns (string-based OrderBy)
@@ -2911,11 +3192,17 @@ re-enabled (it's only disabled to guarantee per-doc interceptors fire — moot w
 Register interceptors to observe/mutate writes; the after-hook runs inside the transaction with the
 generated id/version. Per-document (`IDocumentInterceptor`) fires for Insert/BatchInsert(per item)/
 Update/Upsert/Remove; bulk (`IDocumentBulkInterceptor`) fires once for ExecuteUpdate/ExecuteDelete/Clear.
+`DocumentBulkContext.Assignments` is an ordered `IReadOnlyList<(string Property, object? Value)>` (13.0 — it
+replaced the single nullable `Assignment` tuple): one entry for `ExecuteUpdate(property, value)`, several for
+the builder overload, empty for Delete/Clear.
 
 ```csharp
 opts.AddInterceptor(new AuditInterceptor());
-opts.OnBeforeWrite<Order>((ctx, ct) => { /* mutate ctx.Document or throw to abort */ return Task.CompletedTask; });
-opts.OnAfterWrite<Order>((ctx, ct) => outbox.Enqueue(ctx.Id, ctx.Operation, ct));
+opts.ConfigureDocument<Order>(cfg =>
+{
+    cfg.OnBeforeWrite((ctx, ct) => { /* mutate ctx.Document or throw to abort */ return Task.CompletedTask; });
+    cfg.OnAfterWrite((ctx, ct) => outbox.Enqueue(ctx.Id, ctx.Operation, ct));
+});
 ```
 
 Interceptors can also be **registered in DI** to get constructor-injected dependencies. `AddDocumentStore` resolves every `IDocumentInterceptor` / `IDocumentBulkInterceptor` from the container and runs them after the options-registered ones. Since 11.0 this fires on **every** provider (previously DI interceptors silently never ran on the non-relational providers or in Orleans grain storage).
@@ -2961,20 +3248,20 @@ public async Task AfterWrite(DocumentWriteContext ctx, CancellationToken ct)
 
 **Ordering:** both interceptor interfaces expose `int Order => 0` — lower runs first; ties keep registration order (options before DI).
 
-**Replacing a write — `ctx.Cancel()` (11.4):** in `BeforeWrite`, `ctx.Cancel(bool succeeded = true)` tells the store to issue **no** write for the operation because the interceptor performed one itself. No `AfterWrite` fires, no change notification / temporal history entry is written, and later interceptors are skipped. `Remove` returns the `succeeded` value; `Insert`/`Update`/`Upsert` return nothing, so it's ignored there. Set-based: `DocumentBulkContext.Cancel(int affected = 0)` in `BeforeBulkWrite`, with `ctx.QueryAs<T>()` giving back the originating query (same predicate + filters; `null` for `Clear`, where `ctx.Store` is the handle). Do the replacement write through `ctx.Store`/`ctx.Session` so it commits with the same unit. Valid only in the before-hook (throws elsewhere). To **fail** a write, throw — `Cancel` is not an error path. Cancelling during a provider `BatchInsert` (one set write) throws `NotSupportedException`; on relational stores a registered per-doc interceptor already makes `BatchInsert` loop the single-doc insert, so cancelling just skips that document. **Don't hand-roll soft delete on this — use `AddSoftDelete<T>` below.**
+**Replacing a write — `ctx.Cancel()` (11.4):** in `BeforeWrite`, `ctx.Cancel(bool succeeded = true)` tells the store to issue **no** write for the operation because the interceptor performed one itself. No `AfterWrite` fires, no change notification / temporal history entry is written, and later interceptors are skipped. `Remove` returns the `succeeded` value; `Insert`/`Update`/`Upsert` return nothing, so it's ignored there. Set-based: `DocumentBulkContext.Cancel(int affected = 0)` in `BeforeBulkWrite`, with `ctx.QueryAs<T>()` giving back the originating query (same predicate + filters; `null` for `Clear`, where `ctx.Store` is the handle). Do the replacement write through `ctx.Store`/`ctx.Session` so it commits with the same unit. Valid only in the before-hook (throws elsewhere). To **fail** a write, throw — `Cancel` is not an error path. Cancelling during a provider `BatchInsert` (one set write) throws `NotSupportedException`; on relational stores a registered per-doc interceptor already makes `BatchInsert` loop the single-doc insert, so cancelling just skips that document. **Don't hand-roll soft delete on this — use `cfg.AddSoftDelete(...)` below.**
 
 ```csharp
-opts.OnBeforeWrite<Order>(async (ctx, ct) =>
+opts.ConfigureDocument<Order>(cfg => cfg.OnBeforeWrite(async (ctx, ct) =>
 {
     if (ctx.Operation != DocumentOperation.Delete) return;
     var updated = await ctx.Store.SetProperty<Order>(ctx.Id!, x => x.Status, "voided", null, ct);
     ctx.Cancel(updated);                     // no DELETE issued; Remove() returns `updated`
-});
+}));
 ```
 
 ## Writing a provider (12.0+)
 
-The nine document providers share one `IDocumentQuery<T>` implementation. A provider derives from public **`DocumentQueryBase<T>`** and implements four members — `Clone()`, `ExecuteAsync(QueryPlan<T>)`, `DeleteMatchingAsync`, `SetPropertyMatchingAsync` — and inherits builder state/immutability, query-filter resolution, all client-side terminals, grouping, cursor paging, string projection, and the set-based-write interceptor plumbing. `ExecuteAsync` returns `QueryExecution<T>.Candidates` (nothing applied server-side), `.Filtered`, `.Complete`, or `.Partial(...)`; the base applies only what the engine did not. **Report push-down honestly** — claiming ordering/paging you did not apply silently returns wrong results. Optional hooks (`ObserveChanges`, `FullTextSearchCore`, `NearestVectorsCore`, `ToQueryString`, `ToCursorPage`) and the aggregate hooks (`CountCore`/`MaxCore`/…) have safe defaults; override only what the engine can do itself. On the options side implement **`IDocumentStoreOptions`** (3 explicit members) and cross-cutting features (soft delete, `MapJsonSchema`) light up for free. Shared per-type mapping state lives in `DocumentMappingRegistry`.
+The nine document providers share one `IDocumentQuery<T>` implementation. A provider derives from public **`DocumentQueryBase<T>`** and implements four members — `Clone()`, `ExecuteAsync(QueryPlan<T>)`, `DeleteMatchingAsync`, `SetPropertyMatchingAsync` — and inherits builder state/immutability, query-filter resolution, all client-side terminals, grouping, cursor paging, string projection, and the set-based-write interceptor plumbing. `ExecuteAsync` returns `QueryExecution<T>.Candidates` (nothing applied server-side), `.Filtered`, `.Complete`, or `.Partial(...)`; the base applies only what the engine did not. **Report push-down honestly** — claiming ordering/paging you did not apply silently returns wrong results. Optional hooks (`SetPropertiesMatchingAsync` for multi-property `ExecuteUpdate`, `ObserveChanges`, `FullTextSearchCore`, `NearestVectorsCore`, `ToQueryString`, `ToCursorPage`) and the aggregate hooks (`CountCore`/`MaxCore`/…) have safe defaults; override only what the engine can do itself. On the options side implement **`IDocumentStoreOptions`** — `Mappings`, `TypeNameResolution`, `Capabilities`, the interceptor pair, and `SerializerOptions`/`EnsureSerializerOptions` — and `ConfigureDocument<T>` plus every cross-cutting feature (soft delete, `cfg.MapJsonSchema`, field encryption) lights up for free. All per-type mapping state lives in the shared `DocumentMappingRegistry`; `Capabilities` is what the configuration validation pass reads to reject mappings your backend cannot honor.
 
 Store writes bracket persistence with the shared pipeline on `DocumentProviderBase` (implement `Mappings`, `IdCache`, `ResolveTypeInfo`, `ResolveDocumentTypeName`): `BeginWriteAsync(op, doc, id, typeInfo, ct)` → check `write.Proceed` (false = an interceptor replaced the write; `Remove` returns `write.CancelResult`), take `write.Doc`, get the id with `ResolveInsertId`/`ResolveInsertIdAsync` (insert) or `RequireDocumentId` (update), persist, then `CompleteWriteAsync(write, id, version, changeType, doc, ct)` which runs `AfterWrite` and publishes the change (buffered until commit inside a unit of work). Never re-implement `PublishChange` — the base owns the broadcaster.
 
@@ -2982,13 +3269,13 @@ Store writes bracket persistence with the shared pipeline on `DocumentProviderBa
 
 A named query filter (`soft-delete`) plus a cancelling interceptor — **not** built into the stores. Map the
 flag and `Remove`/`ExecuteDelete`/`Clear` set it instead of deleting, while every read hides flagged
-documents. Works on every provider. `AddSoftDelete` is an **extension method**: on `DocumentStoreOptions`
+documents. Works on every provider. `cfg.AddSoftDelete` is an **extension method**: on `DocumentStoreOptions`
 for the relational stores, and on each provider's options class **in that provider's namespace** (e.g.
 `using Shiny.DocumentDb.MongoDb;` for `MongoDbDocumentStoreOptions`).
 
 ```csharp
-opts.AddSoftDelete<Customer>(x => x.IsDeleted);   // bool      → true, filter !IsDeleted
-opts.AddSoftDelete<Order>(x => x.DeletedAt);      // DateTime? → now,  filter DeletedAt == null
+opts.ConfigureDocument<Customer>(cfg => cfg.AddSoftDelete(x => x.IsDeleted));  // bool      → true, filter !IsDeleted
+opts.ConfigureDocument<Order>(cfg => cfg.AddSoftDelete(x => x.DeletedAt));     // DateTime? → now,  filter DeletedAt == null
 
 await store.Remove<Customer>("c1");                        // UPDATE … flag = set
 await store.Get<Customer>("c1");                           // null (hidden)
@@ -3016,6 +3303,156 @@ about to be persisted (serialized with the store's own options/`JsonTypeInfo`, c
 if an earlier interceptor replaces `ctx.Document`); `ctx.GetJsonDocument()` returns a parsed
 `JsonDocument` (dispose it). Both return `null` for delete-by-id. Useful for auditing/redaction and the
 primitive the JSON-Schema package builds on.
+
+## Transactional Outbox (`AddOutbox` + `AddDocumentOutbox`, 13.0+)
+
+Records a domain event **in the same transaction as the write that caused it**, then delivers it in the
+background. Two registrations, each doing one thing:
+
+```csharp
+services.AddDocumentStore(o =>
+{
+    o.DatabaseProvider = new SqliteDatabaseProvider(path);
+    o.AddOutbox();                 // maps OutboxMessage → its own "outbox" table + the version property
+    // o.AddOutbox("my_outbox");   // custom table;  o.AddOutbox(null) leaves it in the shared table
+});
+
+services.AddDocumentOutbox<BusDispatcher>(o =>   // the BackgroundService + IOutboxAdmin
+{
+    o.MaxAttempts = 8;
+    o.PollInterval = TimeSpan.FromSeconds(5);
+    o.Retention = TimeSpan.FromDays(7);          // null keeps acknowledged messages forever
+    o.OrderedPartitions = false;
+});
+// or, for a transport that needs no injected state:
+services.AddDocumentOutbox((msg, ct) => bus.Publish(msg.MessageType, msg.Payload, ct));
+```
+
+**The rule that matters: always enqueue through the session doing the aggregate write.** A `store.Insert`
+of the message in a separate call is a dual write with extra steps — the exact failure the outbox removes.
+
+```csharp
+await using var session = store.OpenSession();
+session.Add(order)
+       .Enqueue(new OrderPlaced(order.Id, order.Total))            // buffered, not written yet
+       .Enqueue(new InventoryReserved(order.Id), partitionKey: order.Id);
+await session.SaveChanges();       // aggregate + messages commit together, or neither does
+
+session.EnqueueRaw("Shop.OrderPlaced", json);                       // pre-serialized payload
+session.Enqueue(evt, MyContext.Default.OrderPlaced);                // AOT-safe overload
+```
+
+Declarative form — publishes for every write of a type, from `AfterWrite` (inside the write's transaction):
+
+```csharp
+o.ConfigureDocument<Order>(cfg => cfg.PublishToOutbox(
+    ctx => new OrderChanged((string)ctx.Id!, ctx.Operation),        // return null to publish nothing
+    OutboxOperations.Insert | OutboxOperations.Update,              // default: All
+    partitionKey: ctx => (string)ctx.Id!));
+```
+
+Dispatcher — throw to retry (with backoff), return to acknowledge. Resolved from a **fresh DI scope per
+message**, so scoped dependencies work:
+
+```csharp
+public sealed class BusDispatcher(IBus bus) : IOutboxDispatcher
+{
+    public Task Dispatch(OutboxMessage message, CancellationToken ct)
+        => bus.Publish(message.MessageType, message.Payload, ct);
+}
+```
+
+Monitoring and operations:
+
+```csharp
+await foreach (var m in store.WatchOutbox(o => o.States = OutboxStates.DeadLettered, ct)) { }  // read-only
+await foreach (var e in store.WatchOutbox<OrderPlaced>(cancellationToken: ct)) { }             // decoded
+
+var admin = sp.GetRequiredService<IOutboxAdmin>();
+await admin.PendingCount();  await admin.OldestPendingAt();   // ALERT ON AGE, NOT DEPTH
+await admin.DeadLetters();   await admin.Requeue(ids);        // requeue only affects dead letters
+await admin.PurgeProcessed(DateTimeOffset.UtcNow.AddDays(-7));
+
+// Host-free (MAUI, a job, a deterministic test):
+var runner = new OutboxRunner(store, dispatcher, options, timeProvider);
+await runner.DrainOnce();  await runner.PurgeExpired();  await runner.PendingDepth();
+```
+
+Rules and gotchas:
+
+- **Delivery is at-least-once.** Consumers MUST be idempotent. There is no distributed transaction with the bus.
+- **Provider gate.** Requires `IDocumentStore.SupportsTransactions` — relational + LiteDB only. MongoDB,
+  Cosmos, Redis, RavenDB, Azure Table, DynamoDB, Firestore and IndexedDB implement a unit of work by
+  *compensation*, which does nothing for a process that dies mid-unit. `AddDocumentOutbox` throws at **host
+  startup** naming the provider. Suggest `IChangeFeedDocumentStore` there instead.
+- `OutboxOptions` has no `TableName` — the table is a store mapping, set once on `AddOutbox`.
+- Claiming is per-message optimistic concurrency (`ConcurrencyException` ⇒ another worker won). Any number of
+  workers scale by just running; no leader election.
+- The backoff doubles as a **visibility timeout**: claiming pushes `AvailableAt` forward, so a crashed
+  processor releases its message instead of stranding it.
+- `OrderedPartitions` orders within a `PartitionKey` only. A failed message blocks its own partition until it
+  dead-letters, after which ordering for that key is broken by definition. No key ⇒ no ordering.
+- `WatchOutbox` is a **monitor**, not a consumer: it never claims and does not promise every revision. Anyone
+  who needs every message must be the dispatcher.
+- `OutboxMessage` wire names are pinned with `[JsonPropertyName]` (camelCase) and mirrored by `OutboxFields`,
+  because other processes read these rows. Never address them with `nameof`.
+- AOT: `o.MessageTypeInfo = OutboxJsonContext.Default.OutboxMessage`.
+- Telemetry: span `outbox.dispatch`, counters `db.client.outbox.dispatched` / `.dead_lettered`, histogram
+  `db.client.outbox.dispatch.duration`, gauge `db.client.outbox.pending`. `traceparent` captured at enqueue,
+  restored at dispatch.
+
+## Field-Level Encryption (core, 13.0+)
+
+Encrypt named properties at rest on **every** provider — in the core package, no extra reference. It is a
+serialization-level transform (a `JsonTypeInfo` modifier installs an encrypting `JsonConverter`), NOT an
+interceptor — interceptors are write-only, so nothing would decrypt on read.
+
+```csharp
+var key = AesGcmDocumentEncryptor.GenerateKey();            // 32 bytes; store it in a real secret store
+opts.UseEncryptor(new AesGcmDocumentEncryptor("k1", key));
+opts.ConfigureDocument<Patient>(cfg => cfg.MapProperty(x => x.Ssn, p => p.Encrypt()));                                 // Randomized (default)
+opts.ConfigureDocument<Member>(cfg => cfg.MapProperty(x => x.Email, p => p.Encrypt(EncryptionMode.Deterministic)));    // equality-queryable
+```
+
+Stored value is `enc:1:<keyId>:<base64>`; `Get`/`Query` return plaintext. Rules to generate against:
+
+- **`Randomized`** (default): different ciphertext per write. ANY predicate over the property throws — do not
+  generate `Where(x => x.Ssn == …)` for a randomized property.
+- **`Deterministic`**: same ciphertext per value ⇒ `==`, `!=` and `WhereIn` work (the predicate's constant is
+  rewritten to ciphertext). **string properties only.** It leaks equality/frequency — recommend it only when a
+  query genuinely needs it.
+- Range/`StartsWith`/`Contains`/full-text/vector over an encrypted property throw. `OrderBy` is not rejected
+  but sorts by ciphertext — never generate it.
+- `null` stays JSON `null`, so `x.Ssn == null` works in both modes.
+- Encryptable types: string, bool, int, long, double, decimal, Guid, DateTime, DateTimeOffset (+ nullable).
+  Collections/complex objects are rejected at map time.
+- Must be a direct property (`x => x.Ssn`), mapped while configuring the store, and the options need a
+  `TypeInfoResolver`.
+- Do NOT map an encrypted property as computed/indexed-for-range/full-text/vector.
+- The raw JSON lane (`store.Collection(...)`) returns the envelope — it does not decrypt.
+- **Encryption is at rest only.** `Get`/`ToList`, OData responses and the AI tool results all return the
+  decrypted value. Mapping a property does NOT keep it out of an HTTP response — say so if the user seems to
+  expect otherwise, and suggest a DTO/projection.
+- **Serializing a materialized document re-encrypts it.** The converters are symmetric, so
+  `JsonSerializer.Serialize(doc, storeOptions)` turns every mapped property back into an envelope (a *new* one
+  each time under Randomized). Whenever you generate code that serializes documents with the store's options,
+  wrap them: `JsonSerializer.Serialize(doc, DocumentEncryption.PlaintextView(storeOptions))` — it returns the
+  same instance when nothing is encrypted, so it is free and safe to use unconditionally. It is a **writer**:
+  never point it at a stored body, it does not decrypt.
+- The JSON terminals on `Query<T>()` (`ToJsonList`, `FirstOrDefaultRawJson`, `WriteJsonArrayTo`, …) **throw
+  `NotSupportedException`** for a type with any encrypted property. Read it typed.
+- Rotation: add the new key to the ring → make it current → `await store.RewrapAsync<T>()` → only then retire
+  the old key. Pre-encryption plaintext values keep reading, and `RewrapAsync` converts them.
+- **`DocumentEncryptionFormat`** is the public, read-only contract for the stored envelope — for tooling that
+  inspects stored bodies *without* a key ring. `DocumentEncryptionFormat.TryParse(value, out var info)` yields
+  `info.Version`/`info.KeyId`; `TryRenderPlaintext(bytes, out var text)` renders decrypted bytes (every value
+  codec is UTF-8 text, so no CLR type is needed). It never decrypts. Generate it for a backup checker, a
+  repair job or a migration script — not a second hand-rolled `value.StartsWith("enc:")` test, which
+  mis-classifies an ordinary value that happens to start with `enc:`.
+- The **[Admin UI](https://shinylib.net/documentdb/admin/encrypted-fields/)** understands envelopes with no
+  key: it badges them, reports how many values sit under each key id (so you can tell whether a `RewrapAsync`
+  finished before retiring a key), and refuses a save that would replace an envelope with clear text. Its AI
+  assistant never decrypts.
 
 ## JSON Schema Validation (Shiny.DocumentDb.JsonSchema)
 
@@ -3076,7 +3513,7 @@ public sealed class TodoItem : ISyncEntity
 }
 
 builder.Services
-    .AddDocumentStore(o => o.UseSqlite("app.db").MapTypeToTable<TodoItem>())
+    .AddDocumentStore(o => { o.UseSqlite("app.db"); o.ConfigureDocument<TodoItem>(cfg => cfg.Table = cfg.TypeName); })
     .AddDataSync<MyDataSyncDelegate>(opts => opts.RegisterEndpoint<TodoItem>("https://api.example.com/todos"))
     .SyncDocumentStore(sync => sync.Sync<TodoItem>());
 ```
@@ -3127,7 +3564,7 @@ the offender); page size is clamped to `MaxTop`. Defaults are permissive — opt
 
 - Two packages: `Shiny.DocumentDb.OData` (dependency-free, AOT-clean engine; `ODataQueryPolicy` lives
   here) and `Shiny.DocumentDb.AspNetCore.OData` (ASP.NET Core host; JIT-only).
-- Global `AddQueryFilter` predicates always apply underneath `$filter`. `$count` is pre-paging.
+- Global `cfg.AddQueryFilter` predicates always apply underneath `$filter`. `$count` is pre-paging.
 - Status codes: `400` = policy violation or unknown property; `501` = `$expand` / spatial on a
   non-spatial provider; otherwise `200` (page size silently clamped to the cap).
 - Inserts and OData reads must share one serializer (in AOT, set the store's `JsonSerializerOptions`
@@ -3145,7 +3582,7 @@ var store = builder.AddPostgresDocumentStore("orders")   // or AddSqliteDocument
 builder.AddProject<Projects.Api>("api").WithReference(store);
 
 // Consuming service — provider-agnostic, keyed store + health + OpenTelemetry
-builder.AddDocumentStore("orders", configureOptions: o => o.MapTypeToTable<Order>());
+builder.AddDocumentStore("orders", configureOptions: o => o.ConfigureDocument<Order>(cfg => cfg.Table = cfg.TypeName));
 
 // Container-aware option setup — configureServiceOptions runs with the resolved IServiceProvider
 builder.AddDocumentStore("orders",
@@ -3287,9 +3724,13 @@ var store = new DocumentStore(new DocumentStoreOptions
 {
     DatabaseProvider = new SqliteDatabaseProvider("Data Source=mydata.db")
 }
-.AddQueryFilter<User>(u => !u.IsDeleted)                          // unnamed
-.AddQueryFilter<Order>("tenant", o => o.TenantId == tenantCtx.Current) // named
-.AddQueryFilter<Order>("status", o => o.Status != "Archived"));
+);
+options.ConfigureDocument<User>(cfg => cfg.AddQueryFilter(u => !u.IsDeleted));   // unnamed
+options.ConfigureDocument<Order>(cfg =>
+{
+    cfg.AddQueryFilter("tenant", o => o.TenantId == tenantCtx.Current);         // named
+    cfg.AddQueryFilter("status", o => o.Status != "Archived");
+});
 ```
 
 `AddQueryFilter<T>` is available on `DocumentStoreOptions`, `LiteDbDocumentStoreOptions`, `CosmosDbDocumentStoreOptions`, `MongoDbDocumentStoreOptions`, and `IndexedDbDocumentStoreOptions`.
@@ -3309,7 +3750,7 @@ var anyTenant = await store.Query<Order>().IgnoreQueryFilters("tenant").ToList()
 ### Captured variables re-read per query
 
 ```csharp
-options.AddQueryFilter<Order>("tenant", o => o.TenantId == tenantCtx.Current);
+options.ConfigureDocument<Order>(cfg => cfg.AddQueryFilter("tenant", o => o.TenantId == tenantCtx.Current));
 
 tenantCtx.Current = "acme";
 await store.Query<Order>().ToList();   // filters by acme
@@ -3438,7 +3879,7 @@ tools.AddType(jsonContext.Order, capabilities: DocumentAICapabilities.All, confi
     .Where(o => !o.IsArchived));
 ```
 
-Evaluated with compile-free, AOT-safe machinery — keep it to LINQ constructs the store can translate. Designed for **stable** scopes (a constant fixed for the singleton registration); for per-request isolation use store-level multi-tenancy / global query filters instead. Scoped `update` re-fetches by `Id`, so it throws on types whose Id is mapped to a differently-named property via `MapIdProperty` (other tools are unaffected).
+Evaluated with compile-free, AOT-safe machinery — keep it to LINQ constructs the store can translate. Designed for **stable** scopes (a constant fixed for the singleton registration); for per-request isolation use store-level multi-tenancy / global query filters instead. Scoped `update` re-fetches by `Id`, so it throws on types whose Id is mapped to a differently-named property via `cfg.MapIdProperty` (other tools are unaffected).
 
 ### Using the Tools
 
@@ -3482,6 +3923,101 @@ Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWi
 | `field` | string | Numeric field (required for sum/min/max/avg) |
 | `filter` | object | Structured filter (optional) |
 
+### Request-resolved scope filters (13.0+)
+
+`Where(predicate)` is fixed at registration. For a scope that differs per caller, use the callback overloads — resolved on **every tool call** from `AIFunctionArguments.Services`:
+
+```csharp
+tools.AddType(jsonContext.Order, configure: b => b
+    .Where(o => o.TenantId == "acme")                                             // static
+    .Where(ctx => o => o.Region == ctx.GetRequiredService<ICurrentUser>().Region)  // resolved per call
+    .Where<ITenantContext>((tenant, _) => o => o.TenantId == tenant.TenantId)      // resolve-a-service
+    .Where<IPermissionService>(async (perms, ctx) =>                               // async
+    {
+        var ids = await perms.GetVisibleCustomerIdsAsync(ctx.CancellationToken);
+        return o => ids.Contains(o.CustomerId);
+    }));
+```
+
+Rules when generating this:
+
+- **It fails closed.** A throwing filter, an unresolvable service, a null `Services`, or a null returned predicate all fail the tool call. Never write a `try/catch` that lets a call proceed without the predicate.
+- **Deny-all is `o => false`**, never `null`.
+- **Set `Services` on the `IChatClient` lane** — `new AIFunctionArguments(args) { Services = scope.ServiceProvider }`. The MCP server does it for you.
+- `AddDocumentStoreAITools` throws at **startup** when a `Where<TService>` service is not registered.
+- Collections take the same overloads returning a string-grammar clause.
+
+## MCP Server (Shiny.DocumentDb.Mcp / ShinyDocDbMcp, 13.0+)
+
+The same AI tools, exposed over the Model Context Protocol. Two shapes:
+
+```bash
+# stdio tool, for a local desktop client
+dotnet tool install -g ShinyDocDbMcp
+shiny-documentdb-mcp --provider sqlite --connection "Data Source=app.db"
+shiny-documentdb-mcp --profile prod-readonly        # a saved ShinyDocDbMyAdmin connection
+shiny-documentdb-mcp --config ./documentdb-mcp.json # collections, scopes, capabilities
+```
+
+```csharp
+// library, Streamable HTTP, for a shared server
+builder.Services
+    .AddDocumentDbMcpServer(mcp =>
+    {
+        mcp.AddType(AppJsonContext.Default.Order, capabilities: DocumentAICapabilities.ReadOnly, t => t
+            .Where<ITenantContext>((tenant, _) => o => o.TenantId == tenant.TenantId)
+            .IgnoreProperties(o => o.InternalNotes)
+            .MaxPageSize(50));
+        mcp.ExposeResources();      // documentdb://types, .../schema, .../sample, documentdb://stats
+        mcp.ExposePrompts();        // explain-collection, build-filter
+    })
+    .WithHttpTransport();
+
+app.MapDocumentDbMcp("/mcp").RequireAuthorization("mcp");
+```
+
+Rules when generating an MCP server:
+
+- `AddDocumentDbMcpServer` **is** the SDK's `AddMcpServer()` — never call both. It returns `IMcpServerBuilder`, so the caller chains `.WithHttpTransport()` or `.WithStdioServerTransport()`.
+- Its builder **is** `IDocumentAIToolBuilder` — same `AddType`/`AddCollection`, same per-type configuration.
+- **Read-only is the default.** A write capability needs `mcp.AllowWrites()` *as well as* the per-type flag, or registration throws at startup.
+- Always set a scope (`Where`) on anything multi-tenant, and prefer the resolved form on the HTTP transport.
+- The stdio tool cannot express a lambda scope — static clauses only, declared in `--config`.
+
+## REST + Live-Query Endpoints (Shiny.DocumentDb.AspNetCore, 13.0+)
+
+```csharp
+app.MapDocuments<Order>("/orders", o =>
+{
+    o.Operations = DocumentEndpoints.All;                 // default: Read | Count
+    o.MaxPageSize = 100;
+    o.DefaultPageSize = 25;
+    o.TypeInfo = AppJsonContext.Default.Order;            // required for AOT
+    o.DefaultOrderBy = x => x.Id;                         // cursor paging needs a stable order
+    o.RequireIfMatch = false;
+    o.AllowFilterOn(x => x.Status, x => x.CustomerId, x => x.Total);
+    o.Scope<ITenantContext>((tenant, _) => x => x.TenantId == tenant.TenantId);
+})
+.RequireAuthorization("orders");
+
+// schema-free lane (relational providers only)
+app.MapDocumentCollection("/intake", "intake_forms", o => o.AllowFilterOn("score"));
+```
+
+Routes: `GET /`, `GET /{id}`, `GET /count`, `GET /stream`, `POST /`, `PUT /{id}`, `PATCH /{id}`, `DELETE /{id}` — each gated by its `DocumentEndpoints` flag.
+
+Query string: `filter` (string grammar), `orderby` (`total desc`, comma-separated), `skip`/`take` (clamped to `MaxPageSize`), `cursor` (returns `{ items, nextCursor }`), `fields` (sparse fieldset).
+
+Rules when generating endpoints:
+
+- **Always set `Scope` on a public endpoint.** It is the only thing standing between a caller and every row. Out-of-scope is `404` (never `403`); a write that would land outside it is `400`. `DocumentScope.DenyAll<T>()` is the explicit "no access".
+- **Always set `AllowFilterOn` on a public endpoint** — an empty allowlist means every field is filterable.
+- `Scope<TService>` resolves from the **request** scope and is validated at startup.
+- `PATCH` is RFC 7396: unspecified members preserved, explicit `null` removes.
+- `ETag`/`If-Match` need a mapped version property (`cfg.MapVersionProperty`); `RequireIfMatch = true` makes a missing header `428`.
+- `DocumentEndpoints.Stream` (SSE) requires a provider implementing `IObservableDocumentStore` — otherwise mapping throws at startup. Put it behind rate limiting; it is not a durable subscription.
+- Do **not** map this and the OData endpoints on the same prefix. OData when the client speaks OData; this when you own both ends.
+
 ## Code Generation Best Practices
 
 1. **Configure `JsonSerializerContext` once** — set `DocumentStoreOptions.JsonSerializerOptions = ctx.Options` so all `JsonTypeInfo<T>` parameters auto-resolve. No need to pass them on every call.
@@ -3495,15 +4031,15 @@ Supported operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `startsWi
 7. **Create indexes for frequently queried properties** — `store.CreateIndexAsync<T>(expr, jsonTypeInfo)` for up to 30x faster queries.
 8. **Use `Dictionary<string, object?>` for AOT-safe raw SQL parameters** — anonymous objects work but dictionaries are fully AOT-compatible.
 9. **Keep index management separate** — index methods are on `DocumentStore`, not `IDocumentStore`; cast or use the concrete type.
-10. **Use `MapTypeToTable` for isolation** — when types have different lifecycles or access patterns, give them dedicated tables.
-11. **Custom Id is independent of table mapping** — use `MapIdProperty<T>(x => x.Slug)` to override the Id while keeping the type in the default shared table, or `MapTypeToTable<T>(tableName, idProperty)` to do both at once.
+10. **Use `cfg.Table` for isolation** — when types have different lifecycles or access patterns, give them dedicated tables.
+11. **Custom Id is independent of table mapping** — use `cfg.MapIdProperty(x => x.Slug)` to override the Id while keeping the type in the default shared table, or `cfg.Table` + `cfg.MapIdProperty(...)` to do both at once.
 21. **Change monitoring uses `IAsyncEnumerable`, not `IObservable`** — consume `store.NotifyOnChange<T>(ct)` with `await foreach` (or `query.NotifyOnChange(ct)` for per-query). Wrap the loop in a background `Task.Run` if you need to keep doing work while events arrive; cancel the token to unsubscribe.
 22. **Distinguish in-process vs native change feeds** — `IObservableDocumentStore.NotifyOnChange<T>` only sees writes through this store instance. To observe other writers, use `IChangeFeedDocumentStore.SubscribeChanges<T>` (Postgres / SQL Server / Cosmos only).
 12. **DI registration uses the extensions package** — install `Shiny.DocumentDb.Extensions.DependencyInjection` and call `services.AddDocumentStore(opts => { opts.DatabaseProvider = ...; })`. There are no provider-specific DI methods.
 13. **Raw SQL is provider-specific** — LINQ expressions work identically across all providers, but raw SQL queries (`store.Query<T>("sql")`) use provider-specific JSON functions. Prefer the fluent query builder for portable code. MongoDB, LiteDB, and IndexedDB do not accept raw SQL at all.
-14. **Spatial queries require `MapSpatialProperty`** — call `options.MapSpatialProperty<T>(x => x.Location)` (a `GeoPoint?`) or `MapSpatialProperty<T>(x => x.Area)` (a `Geometry?`) at setup to register which property drives spatial indexing. The property may be nullable; documents with a `null` location are skipped by the index (no throw on write, never returned by spatial queries). All SQL providers (**SQLite, PostgreSQL, MySQL, SQL Server, Oracle, DuckDB**) plus **CosmosDB** and **MongoDB** support spatial; the fallback stores (LiteDB, IndexedDB, Azure Table, DynamoDB) throw `NotSupportedException`. Full geometry (lines/polygons + the `Geo*` predicate family) requires v11+.
+14. **Spatial queries require `cfg.MapSpatialProperty`** — call `cfg.MapSpatialProperty(x => x.Location)` (a `GeoPoint?`) or `cfg.MapSpatialProperty(x => x.Area)` (a `Geometry?`) at setup to register which property drives spatial indexing. The property may be nullable; documents with a `null` location are skipped by the index (no throw on write, never returned by spatial queries). All SQL providers (**SQLite, PostgreSQL, MySQL, SQL Server, Oracle, DuckDB**) plus **CosmosDB** and **MongoDB** support spatial; the fallback stores (LiteDB, IndexedDB, Azure Table, DynamoDB) throw `NotSupportedException`. Full geometry (lines/polygons + the `Geo*` predicate family) requires v11+.
 15. **Backup is on concrete types, not `IDocumentStore`** — use `SqliteDocumentStore.Backup()`, `SqlCipherDocumentStore.Backup()`, or `LiteDbDocumentStore.Backup()` directly. Cast or store the concrete type.
 16. **`ClearAllAsync` is SQLite-only** — available on `SqliteDocumentStore` only, deletes all documents across all tables including spatial sidecar data.
-17. **Multi-tenancy uses the DI extensions package** — `AddDocumentStore(configure, multiTenant: true)` for shared-table, `AddMultiTenantDocumentStore(factory)` for tenant-per-database. Both require `ITenantResolver` to be registered.
+17. **Multi-tenancy uses the DI extensions package** — `AddDocumentStore(configure, multiTenant: true)` for shared-table, `AddMultiTenantDocumentStore(factory)` for tenant-per-database (options factory = relational, store factory = any provider). Both require `ITenantResolver` to be registered. Tenant stores are cached with a bound, so resolve `IDocumentStore` per scope and seed with `TenantStoreOptions.SeedFromRegisteredSeeders()`.
 18. **Shared-table tenancy is transparent** — consumer code injects `IDocumentStore` normally; the tenant filter is applied automatically to all queries, inserts, updates, and deletes.
 19. **Tenant-per-database registers IDocumentStore as scoped** — unlike the default singleton registration. This is required so the correct tenant store is resolved per request.
