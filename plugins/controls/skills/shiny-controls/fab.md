@@ -60,7 +60,7 @@ Place the `Fab` / `FabMenu` inside a `Grid` that fills the page — same pattern
 | Property | Type | Default | Binding Mode | Description |
 |---|---|---|---|---|
 | `Icon` | `ImageSource?` | `null` | OneWay | Icon shown inside the button |
-| `Text` | `string?` | `null` | OneWay | Optional label; when null the Fab is a perfect circle |
+| `Text` | `string?` | `null` | OneWay | Optional label; when null the Fab is a perfect circle. A short label (e.g. `+`) still renders circular — the Fab only stretches into a pill once the label needs more than `Size` |
 | `Command` | `ICommand?` | `null` | OneWay | Executed on tap |
 | `CommandParameter` | `object?` | `null` | OneWay | Parameter forwarded to the Command |
 | `FabBackgroundColor` | `Color` | `#2196F3` | OneWay | Fill color |
