@@ -18,6 +18,19 @@ triggers:
   - microphone
   - ISpeechToTextService
   - ITextToSpeechService
+  - SpeechTone
+  - SpeechEmotion
+  - SpeechAnnotations
+  - SpeechAnnotationHandling
+  - SpeechToneCapabilities
+  - audio tags
+  - emotion
+  - emotional tts
+  - expressive speech
+  - speech tone
+  - eleven v3
+  - emotion_preset
+  - express-as
   - IAudioSource
   - IAudioPlayer
   - IAudio
@@ -226,6 +239,9 @@ Invoke this skill when the user wants to:
 - Implement a custom cloud speech provider
 - Configure speech recognition options (language, silence timeout, on-device preference, keywords)
 - Configure text-to-speech options (voice, rate, pitch, volume)
+- Add emotion / tone / expressive delivery to synthesized speech
+- Use ElevenLabs v3 audio tags (`[excited]`, `[whispers]`) or Typecast emotion presets
+- Strip or normalize bracketed audio tags so they aren't spoken aloud
 - List available TTS voices
 - Start/stop continuous speech recognition with event-based results
 - Implement listen-until-silence dictation
@@ -648,6 +664,67 @@ public class MyViewModel(ITextToSpeechService tts)
     }
 }
 ```
+
+#### Emotion & Tone — `SpeechTone`
+
+Every provider exposes emotion differently. `SpeechTone` is the portable form; each provider
+projects it onto its own mechanism, and providers with no expressive control ignore it. **Always
+generate `SpeechTone` rather than provider-specific config when the user asks for emotion** — it is
+the only form that works across providers.
+
+```csharp
+await tts.SpeakAsync("We just shipped it.", new TextToSpeechOptions
+{
+    Tone = new SpeechTone
+    {
+        Emotion = SpeechEmotion.Excited,   // Neutral, Happy, Excited, Sad, Angry, Fearful,
+                                           // Calm, Whispering, Shouting, Friendly, Serious, Sarcastic
+        Intensity = 1.5f,                  // 0.0-2.0, 1.0 = provider default
+        Instructions = "Sound like you're sharing good news."   // free text, OpenAI only
+    }
+});
+```
+
+| Provider | Mechanism | Caveat |
+| --- | --- | --- |
+| ElevenLabs | inline audio tags in the text | **only** `eleven_v3` — set `TextToSpeechModel = "eleven_v3"` or tags get stripped |
+| Typecast | `emotion_preset` + `emotion_intensity` | presets are only normal/happy/sad/angry/whisper/toneup/tonedown — mapping is lossy; `Fearful` and `Sarcastic` fall back to `TypecastConfig.Emotion` |
+| Azure | SSML `mstts:express-as style` + `styledegree` | style support is per-voice; unsupported styles render in the default delivery |
+| OpenAI | `instructions` | needs `gpt-4o-mini-tts`; `tts-1` ignores the field |
+| iOS / Android / Windows / Browser | none | tone discarded, annotations stripped |
+
+#### Bracketed annotations — `SpeechAnnotationHandling`
+
+Only ElevenLabs `eleven_v3` performs bracketed tags; every other engine speaks them aloud verbatim.
+The default `Auto` handling promotes the first emotion-bearing tag to a `SpeechTone` and strips tags
+for providers that can't perform them, so annotated text is safe to pass anywhere:
+
+```csharp
+// eleven_v3: performs the tags. Everywhere else: says "We shipped it. Everything is live."
+// with the closest available emotion applied.
+await tts.SpeakAsync("[excited] We shipped it. [laughs] Everything is live.");
+
+// Text legitimately containing brackets — pass through untouched
+await tts.SpeakAsync("See footnote [a] below.", new TextToSpeechOptions
+{
+    AnnotationHandling = SpeechAnnotationHandling.Preserve
+});
+
+// Remove tags unconditionally, even on eleven_v3, and never promote them
+await tts.SpeakAsync(llmText, new TextToSpeechOptions
+{
+    AnnotationHandling = SpeechAnnotationHandling.Strip
+});
+```
+
+This is the recommended path for LLM-authored speech: prompt the model to emit `[excited]`-style
+tags and Shiny.Speech normalizes them for whichever provider is registered.
+
+Helpers on `SpeechAnnotations` when you need them directly: `Strip(text)`, `Extract(text)`,
+`ToEmotion(tag)`, `ToAnnotation(emotion)`, and `Resolve(text, options, capabilities)`.
+
+An explicit `Tone` always beats a tag found in the text. Tags with no portable emotion — `[laughs]`,
+`[sighs]`, `[door slams]` — are dropped rather than promoted.
 
 ### 3. Audio Capture
 
