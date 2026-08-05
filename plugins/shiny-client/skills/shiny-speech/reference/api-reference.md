@@ -735,6 +735,12 @@ public record TextToSpeechOptions
 
     // Volume level (default: 1.0)
     float Volume { get; init; } = 1.0f;
+
+    // Portable emotional direction; each provider projects it onto what it supports
+    SpeechTone? Tone { get; init; }
+
+    // What to do with bracketed annotations like [excited] in the text
+    SpeechAnnotationHandling AnnotationHandling { get; init; } = SpeechAnnotationHandling.Auto;
 }
 ```
 
@@ -778,6 +784,10 @@ Pluggable interface for cloud TTS backends. Implement to add custom providers.
 ```csharp
 public interface ITextToSpeechProvider
 {
+    // What this provider can do with a SpeechTone and with inline annotations.
+    // Defaults to SpeechToneCapabilities.None — override to opt in.
+    SpeechToneCapabilities ToneCapabilities => SpeechToneCapabilities.None;
+
     Task<IReadOnlyList<VoiceInfo>> GetVoicesAsync(
         CultureInfo? culture = null,
         CancellationToken cancellationToken = default
@@ -790,6 +800,66 @@ public interface ITextToSpeechProvider
     );
 }
 ```
+
+Inside `SynthesizeAsync`, call `SpeechAnnotations.Resolve` to get the text and tone to actually use —
+it applies the caller's `AnnotationHandling`, promotes inline tags to a tone, and strips them when
+`ToneCapabilities` says the provider can't perform them:
+
+```csharp
+var resolved = SpeechAnnotations.Resolve(text, options, this.ToneCapabilities);
+// resolved.Text — send this to your API
+// resolved.Tone — null when there's no direction to apply
+```
+
+### SpeechTone / SpeechEmotion / SpeechToneCapabilities
+
+```csharp
+public record SpeechTone
+{
+    public SpeechEmotion Emotion { get; init; } = SpeechEmotion.Neutral;
+    public float Intensity { get; init; } = 1.0f;   // 0.0-2.0, 1.0 = provider default
+    public string? Instructions { get; init; }      // free-text direction (OpenAI)
+}
+
+public enum SpeechEmotion
+{
+    Neutral, Happy, Excited, Sad, Angry, Fearful,
+    Calm, Whispering, Shouting, Friendly, Serious, Sarcastic
+}
+
+[Flags]
+public enum SpeechToneCapabilities
+{
+    None = 0,
+    InlineAnnotations = 1,  // bracketed tags survive in the text (ElevenLabs eleven_v3)
+    Emotion = 2,            // Emotion maps to a native field
+    Intensity = 4,          // Intensity maps to a native field
+    Instructions = 8        // Instructions delivered as natural language
+}
+
+public enum SpeechAnnotationHandling { Auto, Preserve, Strip }
+```
+
+### SpeechAnnotations
+
+```csharp
+public static class SpeechAnnotations
+{
+    // Applies AnnotationHandling, promotes the first emotion tag to a tone, and keeps or
+    // strips tags according to capabilities.
+    static ResolvedSpeech Resolve(string text, TextToSpeechOptions? options, SpeechToneCapabilities capabilities);
+
+    static string Strip(string text);                  // remove tags and the whitespace they leave
+    static IReadOnlyList<string> Extract(string text); // tag contents, in order, without brackets
+    static SpeechEmotion? ToEmotion(string annotation);// null for beats like "laughs"
+    static string? ToAnnotation(SpeechEmotion emotion);// null for Neutral
+}
+
+public record ResolvedSpeech(string Text, SpeechTone? Tone);
+```
+
+Tags are recognized by shape — up to three alphabetic words in square brackets — not by a fixed
+vocabulary, so `[1]`, `[a, b]` and long bracketed prose are left alone.
 
 ## Browser/WebAssembly Implementations
 
