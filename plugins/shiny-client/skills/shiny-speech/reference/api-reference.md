@@ -702,19 +702,47 @@ public record SpeechRecognitionOptions
     // Timeout for silence detection (default: 2 seconds)
     TimeSpan SilenceTimeout { get; init; } = TimeSpan.FromSeconds(2);
 
-    // Request on-device recognition when available
+    // Request on-device recognition: no network round trip, no session length cap.
+    // Best-effort — iOS sets RequiresOnDeviceRecognition when the locale supports it;
+    // Android uses the on-device recognizer (API 31+) when one is installed, else the
+    // system recognizer with the offline hint. Falls back silently, never throws.
     bool PreferOnDevice { get; init; }
 
     // Keywords for keyword detection (null = no keyword detection)
     // When set, KeywordHeard event fires on case-insensitive whole-word matches
     string[]? Keywords { get; init; }
 
-    // Voice-processing effects applied when a provider captures via IAudioSource (cloud
-    // providers). Enable EchoCancellation to stop TTS bleeding into the mic. null = raw.
-    // Native on-device recognizers ignore this.
+    // Voice-processing effects on the audio the recognizer hears. Enable EchoCancellation
+    // to stop TTS bleeding into the mic. Honored by the cloud providers (they capture via
+    // IAudioSource) AND the native Apple recognizer (it owns its AVAudioEngine); on those
+    // paths null means the full VoiceChat chain, not raw — pass Analysis to opt out.
+    // IGNORED ON ANDROID (logs a warning): the platform SpeechRecognizer is a separate
+    // process that opens the mic itself and exposes no voice-processing controls.
     AudioProcessingOptions? AudioProcessing { get; init; }
 }
 ```
+
+## SpeechRetryPolicy
+
+Backoff used by the native recognizers when a continuous session hits a recoverable platform error.
+Sessions re-arm instead of dying quietly; the caller sees the failure through
+`ISpeechToTextService.Error` either way.
+
+```csharp
+public static class SpeechRetryPolicy
+{
+    // Consecutive recoverable failures tolerated before the session stops itself
+    const int MaxConsecutiveFailures = 5;
+
+    // 0 for a healthy session, then 250ms / 500ms / 1s / 2s / 4s (held at the ceiling)
+    static TimeSpan GetBackoff(int consecutiveFailures);
+
+    static bool ShouldGiveUp(int consecutiveFailures);
+}
+```
+
+Any successful result resets the count. Errors that retrying cannot fix (missing permission,
+unsupported language) stop the session immediately rather than backing off.
 
 ## TextToSpeechOptions Record
 

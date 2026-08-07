@@ -435,6 +435,8 @@ Providers that cache an SDK/HTTP client (ElevenLabs, Typecast) rebuild it automa
 ```
 `MODIFY_AUDIO_SETTINGS` is required for the TTS audio-level Visualizer and for the native STT beep suppression.
 
+Do **not** add a `<queries>` element for `android.speech.RecognitionService` — `Shiny.Speech` ships its own library manifest with it and that merges into the app automatically. (Without that declaration, API 30+ package visibility hides the recognition service, `IsSupported` is `false` and `RequestAccess()` returns `AccessState.NotSupported` before the mic permission is ever requested. The library handles it; consumers should not duplicate it.)
+
 **iOS** — Add to `Info.plist`:
 ```xml
 <key>NSSpeechRecognitionUsageDescription</key>
@@ -917,8 +919,8 @@ Android's raw mic source and Windows capture never route to a Bluetooth mic impl
 is a no-op there. **Record enrollment and matching through the same options** — the embedding encodes
 the channel, so a template captured differently from the probe carries an offset no threshold fixes.
 
-With cloud STT providers, set it on `SpeechRecognitionOptions.AudioProcessing` (they capture through
-`IAudioSource`):
+With cloud STT providers **and the native Apple recognizer**, set it on
+`SpeechRecognitionOptions.AudioProcessing` (both capture through audio Shiny owns):
 
 ```csharp
 await stt.Start(new SpeechRecognitionOptions
@@ -934,7 +936,8 @@ Behavior notes when generating code:
 - **Android**: each flag maps to `AcousticEchoCanceler` / `NoiseSuppressor` / `AutomaticGainControl`, gated on `.IsAvailable`; echo cancellation also routes capture through `VoiceCommunication`.
 - **Windows**: no per-effect API — any flag selects the `Communications` capture category (driver-provided AEC/NS when present).
 - **Browser**: maps to `getUserMedia` constraints (`echoCancellation` / `noiseSuppression` / `autoGainControl`); AEC uses WebRTC AEC3 and cancels page-rendered TTS.
-- **Native on-device `ISpeechToTextService`** manages its own mic and ignores `AudioProcessing` — the setting only affects `IAudioSource` capture (cloud providers, raw capture).
+- **Native `ISpeechToTextService` on iOS/Mac Catalyst/macOS** honors `AudioProcessing` — it owns its `AVAudioEngine`. Omitting it defaults to the full `VoiceChat` chain (not raw capture), which is what an open mic during TTS wants; pass `AudioProcessingOptions.Analysis` to opt out.
+- **Native `ISpeechToTextService` on Android ignores `AudioProcessing` and logs a warning** — recognition runs in the platform's out-of-process `SpeechRecognizer`, which opens the mic itself. Use a cloud provider if the recognition path needs these effects there.
 
 ### 4. Audio Playback
 
@@ -1128,7 +1131,9 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 12. **Handle `AccessState`** — Check for `NotSupported`, `Denied`, and `Restricted` states
 13. **Use `IsListening`/`IsSpeaking`/`IsPlaying`** — Check state before starting new listening/speech/playback
 14. **Configure silence timeout** — Default 2 seconds; adjust for your use case
-15. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT when available
+15. **Use `PreferOnDevice`** — Set to `true` for offline-capable STT: no network round trip and no session length cap, which is what long continuous sessions want. Best-effort on both platforms (iOS `RequiresOnDeviceRecognition`; Android's on-device recognizer on API 31+, else the system recognizer with the offline hint) — a device without local recognition silently stays on the network path
+    - **Do not restart a session per phrase** — `Start()` keeps the mic open and the service re-arms the single-utterance platform recognizer itself. Start once, subscribe to `ResultReceived`, and `Stop()` when done. Stop/Start per question tears down the audio engine and loses whatever is said while it comes back up. Note `Keywords` is fixed at `Start()`: for a keyword set that changes per turn, match `ResultReceived` yourself rather than restarting
+    - **Trust the session to recover** — transient recognizer errors are reported through `Error` and re-armed behind a backoff (250ms doubling to 4s), resetting on the next result. After `SpeechRetryPolicy.MaxConsecutiveFailures` (5) in a row, or on an unrecoverable error (missing permission, unsupported language), the session stops itself. Do not hand-roll a restart loop in the `Error` handler
 16. **Browser detection is automatic** — `AddSpeechServices()` uses `OperatingSystem.IsBrowser()` at runtime to register browser implementations; no conditional code needed in your app
 17. **Browser audio capture is supported** — `IAudioSource` captures raw PCM via the Web Audio API (`getUserMedia` + `ScriptProcessorNode`), downsampled to 16kHz 16-bit mono
 18. **No JS setup in the browser** — `shiny-audio.js` ships as a static web asset inside the `Shiny.Audio` package (`_content/Shiny.Audio/shiny-audio.js`) and is imported automatically via `JSHost.ImportAsync`; never copy it into `wwwroot` or add a `<script>` tag
