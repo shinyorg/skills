@@ -125,6 +125,12 @@ this.Camera.VideoQuality = VideoQuality.Medium;   // 720p
 this.Camera.VideoFrameRate = 24;                  // null = platform default; the cheapest lever on heat/size
 this.Camera.VideoBitrate = 8_000_000;             // null = platform default for the resolution
 
+// Apple only: recording audio SHARES the audio session with other apps by default, so starting a recording
+// no longer stops the user's music/podcast/nav app — and, just as importantly, their pressing play no longer
+// interrupts the capture session (which would stop video too). Set false only when a clean audio track
+// matters more than their playback.
+this.Camera.MixWithOtherAudio = false;            // default true
+
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
 
@@ -724,6 +730,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 | `VideoQuality` | `VideoQuality` | `High` | Target capture resolution: `Lowest`/`Low` (480p)/`Medium` (720p)/`High` (1080p)/`UltraHigh` (4K)/`Highest`. Session-level — changing it reconfigures the camera; unsupported rungs fall back to the nearest supported one |
 | `VideoBitrate` | `int?` | `null` | Target encoding bitrate in bits/sec; `null` = platform default for the resolution |
 | `VideoFrameRate` | `int?` | `null` | Target capture frame rate; `null` = platform default. Clamped to what the device's active format supports |
+| `MixWithOtherAudio` | `bool` | `true` | **Apple only.** Recording audio shares the device's audio session, leaving other apps' playback running — and stops their playback from interrupting the capture. Read when a recording with `IncludeAudio` starts |
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest overlay boxes (read-only) |
 | `ScanWindow` | `RectF?` (get) | `null` | The active analyzer's scan window (read-only mirror) |
@@ -769,6 +776,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 
 - **Video quality lives on `CameraView`, not `VideoRecordingOptions`** — a common wrong guess. Both AVFoundation (session preset) and CameraX (`QualitySelector` on the `Recorder`) fix the capture resolution when the session is configured, so it cannot be a per-recording argument without reconfiguring the camera every time recording starts. Set `VideoQuality` / `VideoBitrate` / `VideoFrameRate` once, or bind them to a setting; a change while running reconfigures the session and is **ignored mid-recording** (it would truncate the file being written) — it lands on the next recording instead. On Apple the preset sizes the *whole* session, so dropping it also shrinks what the preview and any frame analyzer see.
 - **iOS takes the camera away without telling you — the handler now notices.** AVFoundation suspends a capture session on a phone call, another app claiming the device, a second foreground app in Split View, or system thermal/power pressure. Nothing is raised by the framework: the preview layer holds its last frame and a running recording simply stops receiving any, so a `AVAssetWriter`-backed clip ends at the moment of the interruption while the app carries on looking healthy. `CameraView.CameraError` now fires with the reason, and the session is restarted on `AVCaptureSessionInterruptionEnded` (and on a `MediaServicesWereReset` runtime error) as long as `IsActive` is still `true`. Backgrounding is deliberately not reported — it raises the same notification on every app switch and is ordinary lifecycle — but it still resumes through the same path. **For unattended recording, handle `CameraError`**: it is the only signal that footage stopped.
+- **Recording no longer evicts the user's audio on iOS, and their audio no longer kills the recording.** An `AVCaptureSession` configures and activates the app's shared `AVAudioSession` by default, and never with `MixWithOthers` — so starting a recording interrupted whatever was playing (music over CarPlay/Bluetooth, a podcast, a nav app), and anything starting playback afterwards interrupted the *capture session*, which stops **video** as well as audio. The handler now turns that automatic configuration off and sets `PlayAndRecord` + `MixWithOthers` itself, and only when `IncludeAudio` is set — a video-only recording touches the audio session not at all. Set `CameraView.MixWithOtherAudio = false` for the old exclusive behaviour, which is right only when a clean audio track beats the user's playback (the mic hears the speakers, and nothing removes that afterwards). `AllowBluetooth` (HFP) is deliberately never requested: it would drag a car or headset link into mono call quality mid-song; `AllowBluetoothA2DP` is output-only and costs nothing.
 - **`Highest` is not free** — it resolves to 4K on modern hardware, which for a continuously-recording app means storage filling fast and a hot device. If size or thermals matter, drop `VideoFrameRate` before you drop resolution: halving the frame rate roughly halves encode work and costs far less perceptually on a mostly-static scene.
 
 ## When to Use What
