@@ -33,6 +33,10 @@ triggers:
   - express-as
   - IAudioSource
   - IAudioPlayer
+  - IAudioPlayback
+  - concurrent playback
+  - overlapping audio
+  - StartAsync
   - IAudio
   - IAudioMonitor
   - IAudioDevices
@@ -273,6 +277,7 @@ Shiny Speech provides:
 - Platform-native text-to-speech via `ITextToSpeechService` (iOS, Android, Windows, Browser/WASM)
 - Platform-native audio capture via `IAudioSource` (raw PCM 16kHz, 16-bit, mono — all platforms including browser) with an `InputLevelChanged` VU signal on every platform
 - Platform-native audio playback via `IAudioPlayer` — play a `Stream`, or a remote URL / local file path via `PlayAsync(string)` (platform resolves the source natively; browser uses HTML5 Audio)
+- Concurrent playback — clips overlap instead of interrupting each other; `StartAsync` returns an `IAudioPlayback` handle (`Id`, `Source`, `IsPlaying`, `Completion`, `StopAsync()`) that stops one clip on its own, `IAudioPlayer.Active` lists what is playing, and `IAudioPlayer.StopAsync()` stops everything
 - Live microphone monitor via `IAudioMonitor` — routes the mic to the current output in near-real-time (PA / "talk over a Bluetooth speaker"); `Start`/`Stop`, adjustable `Gain`, `InputLevelChanged` VU signal, `AudioMonitorOptions` (voice processing + preferred devices), `SetInputDevice`/`SetOutputDevice`. iOS/Mac Catalyst + Android + Linux only
 - Audio route enumeration/selection via `IAudioDevices` — `GetInputs`/`GetOutputs`, `CurrentInput`/`CurrentOutput`, `Changed` event; normalized `AudioDevice.Type`. iOS/Mac Catalyst + Android + Linux only (`Changed` needs PulseAudio/PipeWire; `ShowOutputPicker()` is a no-op on Linux)
 - Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider, or `Shiny.Speech.Linux.Whisper` for offline STT
@@ -731,7 +736,7 @@ An explicit `Tone` always beats a tag found in the text. Tags with no portable e
 ### 3. Audio Capture
 
 ```csharp
-using Shiny.Audio; // IAudioSource, IAudioPlayer, PipeStream
+using Shiny.Audio; // IAudioSource, IAudioPlayer, IAudioPlayback, PipeStream
 using Shiny;       // AccessState (from Shiny.Core)
 
 public class MyViewModel(IAudioSource audioSource)
@@ -962,6 +967,44 @@ public class MyViewModel(IAudioPlayer audioPlayer)
     }
 }
 ```
+
+**Clips play concurrently.** Starting one does **not** stop the others — background music, a sound
+effect and a voice line can overlap. Use `StartAsync` when you need to control a clip after it starts:
+it returns an `IAudioPlayback` handle immediately.
+
+| Member | Meaning |
+| --- | --- |
+| `IAudioPlayer.StartAsync(stream \| source, ct)` | Start a clip, return an `IAudioPlayback` as soon as it is playing |
+| `IAudioPlayer.PlayAsync(stream \| source, ct)` | `StartAsync` + `await Completion` — waits for **this** clip only |
+| `IAudioPlayer.Active` | `IReadOnlyList<IAudioPlayback>` of everything currently playing, oldest first |
+| `IAudioPlayer.StopAsync()` | Stops **every** clip this player started |
+| `IAudioPlayback.StopAsync()` | Stops **one** clip; the rest keep playing |
+| `IAudioPlayback.Completion` | `Task` that finishes when that clip ends, stops, or is cancelled |
+| `IAudioPlayback.Id` / `Source` / `IsPlaying` | Identity, the URL/path (`null` for a stream), and live state |
+
+```csharp
+public class SoundboardViewModel(IAudioPlayer audioPlayer)
+{
+    IAudioPlayback? music;
+
+    public async Task StartMusic(CancellationToken ct)
+        => this.music = await audioPlayer.StartAsync("https://example.com/theme.mp3", ct);
+
+    // Overlaps the music rather than interrupting it
+    public Task Ping(CancellationToken ct)
+        => audioPlayer.PlayAsync(Path.Combine(FileSystem.AppDataDirectory, "ping.mp3"), ct);
+
+    public Task StopMusic() => this.music?.StopAsync() ?? Task.CompletedTask;   // effects keep playing
+    public Task StopEverything() => audioPlayer.StopAsync();
+}
+```
+
+- A `CancellationToken` passed to `StartAsync` / `PlayAsync` stops **that clip only**, and completes
+  it normally — cancellation does not throw out of `Completion`.
+- `IAudioPlayback` is `IAsyncDisposable`; disposing it stops the clip. `PlayAsync` disposes its own.
+- Want the old "one clip at a time" behavior? `await audioPlayer.StopAsync()` before playing.
+- `AudioLevelChanged` stays a single stream per player: while clips overlap it reports the **loudest**
+  of them, which is what a VU meter should show.
 
 ### 5. VU Meters (Audio Levels)
 

@@ -17,7 +17,7 @@ dotnet add package Shiny.Speech.Linux.Whisper    # Optional: offline on-device S
 ```csharp
 using Shiny;        // AccessState (from Shiny.Core), AddSpeechServices/AddAudio* DI extensions, UseShiny
 using Shiny.Speech; // ISpeechToTextService, ITextToSpeechService, VoiceInfo, SpeechRecognition*, TextToSpeechOptions
-using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioMonitor, IAudioDevices, IAudioRecorder,
+using Shiny.Audio;  // IAudio, IAudioSource, IAudioPlayer, IAudioPlayback, IAudioMonitor, IAudioDevices, IAudioRecorder,
                     // AudioDevice, AudioLevel, PipeStream, AudioEffectChain + effects, WavWriter/WavReader
 ```
 
@@ -518,28 +518,37 @@ The reader walks the RIFF chunk list, so `LIST`/`fact` chunks are handled; non-P
 ## IAudioPlayer Interface
 
 Platform-native audio playback. Registered as singleton. Implements `IAsyncDisposable`.
+**Clips play concurrently** — starting one does not stop the others.
 
 ```csharp
 public interface IAudioPlayer : IAsyncDisposable
 {
-    // Play audio (e.g. MP3) from a stream
-    Task PlayAsync(Stream audioStream, CancellationToken cancellationToken = default);
+    // Start audio (e.g. MP3) from a stream; returns as soon as it is playing.
+    Task<IAudioPlayback> StartAsync(Stream audioStream, CancellationToken cancellationToken = default);
 
-    // Play from a remote http/https URL or a local file path — the platform resolves the
+    // Start from a remote http/https URL or a local file path — the platform resolves the
     // source natively (no platform-specific file URI needed). Remote sources stream on
     // Android/Windows/Browser and are buffered on Apple.
+    Task<IAudioPlayback> StartAsync(string source, CancellationToken cancellationToken = default);
+
+    // StartAsync + await the handle's Completion. Waits for THIS clip; anything else keeps playing.
+    Task PlayAsync(Stream audioStream, CancellationToken cancellationToken = default);
     Task PlayAsync(string source, CancellationToken cancellationToken = default);
 
-    // Stop playback
+    // Everything currently playing, oldest first
+    IReadOnlyList<IAudioPlayback> Active { get; }
+
+    // Stop EVERY clip this player started
     Task StopAsync();
 
-    // Whether audio is currently playing
+    // Whether at least one clip is currently playing
     bool IsPlaying { get; }
 
     // True when this player can emit AudioLevelChanged during playback
     bool IsPlayerAnalysisSupported { get; }
 
     // Fires periodically during playback with the current RMS level (0.0 - 1.0).
+    // One stream per player: while clips overlap it reports the loudest of them.
     event EventHandler<double>? AudioLevelChanged;
 
     // True when SETTING Volume is supported (Android, Windows, macOS*, Browser);
@@ -554,6 +563,35 @@ public interface IAudioPlayer : IAsyncDisposable
     event EventHandler<float>? VolumeChanged;
 }
 ```
+
+### IAudioPlayback (one clip)
+
+`StartAsync` hands back a handle for the clip it started. Stopping it leaves everything else playing.
+
+```csharp
+public interface IAudioPlayback : IAsyncDisposable
+{
+    Guid    Id        { get; }   // identifies this clip among IAudioPlayer.Active
+    string? Source    { get; }   // the URL / file path, or null when started from a Stream
+    bool    IsPlaying { get; }   // false once it ends, stops, or is cancelled
+    Task    Completion { get; }  // completes at the end / on stop / on cancel; faults on a platform error
+
+    Task StopAsync();            // stops THIS clip only; safe to call repeatedly
+}
+```
+
+```csharp
+var music = await player.StartAsync("https://example.com/theme.mp3");
+await player.PlayAsync(chimeStream);    // overlaps the music, waits for the chime only
+
+await music.StopAsync();                // music stops, everything else keeps playing
+await player.StopAsync();               // stops the lot
+```
+
+- A `CancellationToken` passed to `StartAsync`/`PlayAsync` stops **that clip only** and completes it
+  normally — `Completion` does not throw `OperationCanceledException`.
+- For the old "one clip at a time" behavior, `await player.StopAsync()` before playing.
+- Disposing a handle stops its clip; `PlayAsync` disposes the one it created.
 
 ### Volume
 
