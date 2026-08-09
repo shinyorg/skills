@@ -2,6 +2,8 @@
 
 Material-style floating action button (`Fab`) and an expanding multi-action menu (`FabMenu`) that animates `FabMenuItem` children up from the main FAB with a staggered reveal.
 
+`FabMenuItem` renders as a **pill**: the label lives inside one capsule with a tinted circular icon chip on the edge nearest the main FAB, so the whole row is a single tap target. Every chip is inset so its centre lands on the main FAB's vertical axis. An item with no `Text` collapses to a plain circle of `Size`.
+
 ## Basic Usage
 
 ```xml
@@ -93,6 +95,7 @@ In addition to the main-Fab pass-throughs (`Icon`, `Text`, `FabBackgroundColor`,
 | `CloseOnBackdropTap` | `bool` | `true` | OneWay | Close when backdrop tapped |
 | `CloseOnItemTap` | `bool` | `true` | OneWay | Close after item tap |
 | `AnimationDuration` | `uint` | `200` | OneWay | Open/close animation duration (ms) |
+| `IconRotation` | `double` | `45` | OneWay | Degrees the main FAB rotates while open ("+" → "×"). `0` disables; ignored when the main FAB has `Text` |
 | `UseFeedback` | `bool` | `true` | OneWay | Feedback on toggle |
 
 Events: `ItemTapped(FabMenuItem)`.
@@ -102,18 +105,20 @@ Methods: `Open()`, `Close()`, `Toggle()`.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `Icon` | `ImageSource?` | `null` | Icon rendered inside the circular button |
-| `Text` | `string?` | `null` | Side label |
+| `Icon` | `ImageSource?` | `null` | Icon rendered in the circular chip |
+| `Text` | `string?` | `null` | Label inside the pill; when null the item collapses to a plain circle |
 | `Command` | `ICommand?` | `null` | Invoked on tap |
 | `CommandParameter` | `object?` | `null` | Parameter forwarded to the Command |
-| `FabBackgroundColor` | `Color` | `#2196F3` | Icon button fill |
-| `BorderColor` | `Color?` | `null` | Icon button outline |
-| `BorderThickness` | `double` | `0` | Icon button outline thickness |
-| `TextColor` | `Color` | `Black` | Side-label text color |
-| `LabelBackgroundColor` | `Color` | `White` | Side-label fill color |
-| `FontSize` | `double` | `13` | Side-label font size |
-| `Size` | `double` | `44` | Icon button diameter |
+| `FabBackgroundColor` | `Color` | theme `Primary` | Icon chip fill — and the whole pill's fill when the item has no `Text` |
+| `BorderColor` | `Color?` | theme `OutlineVariant` | Pill outline stroke |
+| `BorderThickness` | `double` | `1` | Pill outline thickness (`0` for a borderless pill) |
+| `TextColor` | `Color` | theme `OnSurface` | Label text color |
+| `LabelBackgroundColor` | `Color` | theme `SurfaceContainerHigh` | Pill body fill behind the label |
+| `FontSize` | `double` | `13` | Label font size |
+| `FontAttributes` | `FontAttributes` | `None` | Label font attributes |
+| `Size` | `double` | `44` | Pill height (diameter when the item has no `Text`) |
 | `IconSize` | `double` | `20` | Icon image size |
+| `HasShadow` | `bool` | `true` | Drop shadow on the pill |
 | `UseFeedback` | `bool` | `true` | Feedback on tap |
 
 Events: `Clicked`.
@@ -121,7 +126,9 @@ Events: `Clicked`.
 ## Behavior & Animation
 
 - Tapping the main Fab of a `FabMenu` toggles `IsOpen`
-- Opening the menu fades in the backdrop and animates each `FabMenuItem` up (fade + translate) with a small stagger; closing reverses it
+- Opening the menu fades in the backdrop and animates each `FabMenuItem` up (fade + translate + scale) with a small stagger, anchored on the main FAB's axis; closing reverses it
+- The main FAB rotates `IconRotation` degrees (45 by default) while open — the classic "+" → "×". It is skipped when the main FAB has `Text`, since a rotated label reads as broken
+- The whole pill is one tap target — label and icon chip both fire the item's `Command`
 - `IsOpen` is fully two-way bindable — setting it from a ViewModel animates in/out
 - Child items' own animations never conflict with the main Fab — it stays fixed
 - Tapping a menu item executes its `Command`, raises `ItemTapped` on the menu, and closes the menu when `CloseOnItemTap` is true (default)
@@ -132,7 +139,9 @@ Events: `Clicked`.
 - Always place `Fab` / `FabMenu` inside a Grid that fills the page so the FabMenu backdrop overlays everything (or use `ShinyContentPage` with `OverlayHost`)
 - Default to `HorizontalOptions="End"` + `VerticalOptions="End"` + `Margin="24"` for the canonical Material bottom-right placement
 - Bind `IsOpen` TwoWay when the ViewModel needs to drive the menu state; otherwise omit it and let taps control it
-- Keep `FabMenuItem` icons monochrome/filled for best visual contrast against the colored circles
+- Keep `FabMenuItem` icons monochrome/filled for best visual contrast against the colored chips
+- Leave `LabelBackgroundColor` / `TextColor` / `BorderColor` unset so the pill picks up the theme (surface-container-high body, on-surface label, outline-variant hairline); set only `FabBackgroundColor` per item to tint its chip
+- Keep every item's `Size` the same so the pills read as one column
 - Use `Icon` on every item when possible; `Text` is optional but strongly recommended for accessibility
 
 ## ViewModel Pattern
@@ -148,3 +157,64 @@ public partial class HomeViewModel : ObservableObject
     [RelayCommand] void Delete() { /* ... */ }
 }
 ```
+
+## Blazor
+
+Same look and the same knobs. `Fab` is a component; `FabMenu` takes a `List<FabMenuItem>` of plain data
+objects rather than child components. `Icon` is a string — an inline emoji, raw SVG markup, or an image
+URL (anything starting with `http`/`/` or ending in `.png`/`.jpg`/`.svg`/`.webp` is treated as an image).
+
+```razor
+@using Shiny.Blazor.Controls
+
+<FabMenu Items="items"
+         Icon="+"
+         FabBackgroundColor="#7C3AED"
+         ItemTapped="OnItemTapped" />
+
+@code {
+    readonly List<FabMenuItem> items = new()
+    {
+        new FabMenuItem { Text = "New Note",     Icon = "📝", FabBackgroundColor = "#10B981", Tag = "note"  },
+        new FabMenuItem { Text = "New Photo",    Icon = "📷", FabBackgroundColor = "#F59E0B", Tag = "photo" },
+        new FabMenuItem { Text = "New Reminder", Icon = "⏰", FabBackgroundColor = "#EF4444", Tag = "alarm" },
+    };
+
+    void OnItemTapped(FabMenuItem item) { /* item.Tag */ }
+}
+```
+
+### FabMenu Parameters (Blazor)
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `Items` | `List<FabMenuItem>?` | `null` | Menu items |
+| `IsOpen` / `IsOpenChanged` | `bool` | `false` | Two-way bindable open state |
+| `Icon` / `Text` | `string?` | `null` | Main FAB icon / label |
+| `FabBackgroundColor` | `string` | `var(--shiny-color-primary, #2196F3)` | Main FAB fill |
+| `TextColor` | `string` | `var(--shiny-color-on-primary, #FFFFFF)` | Main FAB label color |
+| `BorderColor` / `BorderThickness` | `string?` / `double` | `null` / `0` | Main FAB outline |
+| `FabSize` | `double` | `56` | Main FAB size |
+| `HasShadow` | `bool` | `true` | Drop shadow on the main FAB |
+| `MenuAlignment` | `string` | `"end"` | `"start"` grows the menu from the left and flips the chip to the leading edge |
+| `IconRotation` | `double` | `45` | Degrees the main FAB rotates while open (0 disables; ignored when `Text` is set) |
+| `HasBackdrop` | `bool` | `true` | Dim + 2px-blur backdrop while open |
+| `BackdropColor` | `string` | `var(--shiny-color-scrim, #000000)` | Backdrop color |
+| `BackdropOpacity` | `double` | `0.4` | Backdrop peak opacity |
+| `CloseOnBackdropTap` / `CloseOnItemTap` | `bool` | `true` | Auto-close behavior |
+| `ItemTapped` | `EventCallback<FabMenuItem>` | — | Fires the tapped item |
+
+Methods: `Open()`, `Close()`, `Toggle()` (via `@ref`).
+
+### FabMenuItem (Blazor, plain class)
+
+`Icon`, `Text`, `Tag` (`object?`, for identifying the item in `ItemTapped`), plus `FabBackgroundColor`,
+`TextColor`, `LabelBackgroundColor`, `BorderColor`, `BorderThickness` (default `1`), `Size` (`44`),
+`IconSize` (`20`), `FontSize` (`13`), `HasShadow` (`true`). Colors are CSS strings and default to the
+theme variables, so leaving them alone is the right call unless an item needs its own tint.
+
+- The host element is `display:inline-flex` and positions itself — wrap it in a `position:relative`
+  container and place it with `position:absolute; right:24px; bottom:24px` (or `position:fixed` for a
+  page-level FAB)
+- The backdrop is `position:fixed; inset:0`, so it always covers the viewport regardless of the host
+- All motion honors `prefers-reduced-motion`

@@ -225,8 +225,11 @@ A *transient* failure (no exception of this type) → `MessageStatus.Failed` + r
 | `SendButtonText` | `string` | `"Send"` | Send button label |
 | `SendButtonBackgroundColor` | `Color`/`string` | `#007AFF` | Send button background (MAUI) |
 | `SendButtonTextColor` | `Color`/`string` | `White` | Send button text (MAUI) |
-| `InputBarBackgroundColor` | `Color`/`string` | `#F5F5F5` | Input bar background (MAUI) |
-| `InputBarBorderColor` | `Color`/`string` | `#E0E0E0` | Input bar separator (MAUI) |
+| `InputBarBackgroundColor` | `Color?` | theme | Area behind the composer |
+| `InputBarBorderColor` | `Color?` | theme | Outline of the rounded composer (there is no separator rule) |
+| `InputBar` | `ChatEntryView` | built-in | The hosted composer. Read it to tweak (`InputBar.MaxLines = 3`) or assign your own to replace it (MAUI only) |
+| `MaxInputRows` | `int` | `6` | How tall the composer grows before it scrolls (Blazor only) |
+| `InputTemplate` | `RenderFragment?` | `null` | Replaces the built-in composer entirely (Blazor only) |
 | `IsInputBarVisible` | `bool` | `true` | Show/hide the input bar (set `false` for read-only chats) |
 | `ShowTypingIndicator` | `bool` | `true` | Enable typing indicators |
 | `ScrollToFirstUnread` | `bool` | `false` | Anchor initial scroll at the first unread (via `Info.LastReadDate`) instead of the end |
@@ -246,6 +249,87 @@ A *transient* failure (no exception of this type) → `MessageStatus.Failed` + r
 | `SubmitEntry()` | Programmatically submit the input text |
 | `EntryText` (property) | Get/set the input field text |
 | `MessageTapped` (event) | Fires for non-image bubble taps |
+
+## The composer — `ChatEntryView` (MAUI) / `ChatEntry` (Blazor)
+
+The composer is its own public control, laid out as a single rounded card in the AI-chat idiom — the
+formatting toolbar runs along the top, the **multiline** auto-growing entry spans the full width
+beneath it, and the remaining controls sit on a row below that:
+
+```
+┌────────────────────────────────────────────┐
+│  B  I  U  S  </>  🔗                       │   ← formatting (only if permitted)
+│  How can I help you today?                 │
+│  +  [Chat]                Model  🎤   ↑    │   ← LeftToolbar … RightToolbar + send
+└────────────────────────────────────────────┘
+```
+
+`ChatView` builds and hosts one automatically — **generate `<shiny:ChatView …/>` on its own for the
+normal case** and only supply a composer when the shape needs to change.
+
+It has **no dependency on `IChatSessionProvider` or `IChatSession`**. `ChatView` stays the only thing
+that talks to the session; it pushes state into the composer (`SetBodyPermissions`,
+`ShowAttachButton`, `SetInputEnabled`) and subscribes to its events. That is what makes the composer
+usable standalone — an AI prompt box or a comment field — with no chat session in sight.
+
+```xml
+<shiny:ChatView Provider="{Binding Provider}" SessionId="{Binding SessionId}">
+    <shiny:ChatView.InputBar>
+        <shiny:ChatEntryView PlaceholderText="How can I help you today?"
+                             SendButtonText="↑"
+                             MaxLines="5"
+                             CornerRadius="24">
+            <shiny:ChatEntryView.LeftToolbar>
+                <Border StrokeShape="RoundRectangle 14" Padding="10,4">
+                    <Label Text="Chat" FontSize="13" />
+                </Border>
+            </shiny:ChatEntryView.LeftToolbar>
+            <shiny:ChatEntryView.RightToolbar>
+                <Label Text="Model" FontSize="13" VerticalOptions="Center" />
+            </shiny:ChatEntryView.RightToolbar>
+        </shiny:ChatEntryView>
+    </shiny:ChatView.InputBar>
+</shiny:ChatView>
+```
+
+| `ChatEntryView` member | Type | Default | Notes |
+|---|---|---|---|
+| `Text` | `string` | `""` | Two-way by default |
+| `PlaceholderText` | `string` | `"Type a message..."` | |
+| `MaxLines` | `int` | `6` | Grows to this many lines, then scrolls internally |
+| `FontSize` / `FontFamily` | `double` / `string?` | `15` / `null` | `MaxLines` is recomputed from these |
+| `SendButtonText` | `string` | `"Send"` | |
+| `SendButtonBackgroundColor` / `SendButtonTextColor` | `Color?` | theme | |
+| `BarBackgroundColor` | `Color?` | theme | Area behind the composer |
+| `ComposerBackgroundColor` | `Color?` | theme | Fill inside the rounded outline |
+| `BorderColor` / `BorderThickness` | `Color?` / `double` | theme / `1` | |
+| `CornerRadius` | `double` | `24` | |
+| `ShowAttachButton` / `ShowActionsButton` | `bool` | `false` | `ChatView` drives these from permissions |
+| `LeftToolbar` / `RightToolbar` | `IList<IView>` | `[]` | Views added to either side of the control row; right sits before send |
+
+Events: `SendRequested` (`EventHandler<string>`), `AttachRequested`, `ActionsRequested`,
+`LinkRequested`, `EditCancelled`, `TextChanged`.
+Methods: `Submit()`, `ClearText()`, `FocusInput()`, `SetInputEnabled(bool)`,
+`EnterEditMode(string)`/`ExitEditMode()`, `SetBodyPermissions(MessageBodyPermissions)`,
+`ApplyWrap(prefix, suffix, placeholder)`, `InsertLink(displayText, url)`.
+
+Blazor's `ChatEntry` mirrors it as parameters: `@bind-Text`, `Placeholder`, `SendButtonText`,
+`IsEnabled`, `ShowAttach`, `BodyPermissions`, `MaxRows` (6), `SendOnEnter` (true),
+`LeftToolbar`/`RightToolbar` (`RenderFragment`), plus `OnSend`, `OnAttach`, `OnTyping`, and a
+`FocusAsync()` method. `ChatView` surfaces the two slots directly as `InputLeftToolbar` /
+`InputRightToolbar` — reach for those before `InputTemplate`, which replaces the whole composer:
+
+```razor
+<ChatView Provider="Provider" SessionId="@SessionId">
+    <InputRightToolbar>
+        <span style="font-size:13px;font-weight:600;">Model</span>
+    </InputRightToolbar>
+</ChatView>
+```
+
+**Enter key:** MAUI uses an `Editor`, so Enter inserts a newline and sending is the button's job (the
+AI-composer convention). Blazor sends on Enter and inserts a newline on Shift+Enter; set
+`SendOnEnter="false"` to match MAUI.
 
 ## What the control handles for you
 
@@ -331,4 +415,5 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
 - `GetMessagesAsync` is cursor-based — return `HasMore=false` when there's no more history. Messages within a page must be chronological ascending.
 - For reactions, expose `PermittedEmojis` (or `null` for the default set); the control toggles via `ReactToMessageAsync(id, emoji, add)`.
 - Set `IsInputBarVisible = false` for read-only chats. Set `AdjustForKeyboard = false` when hosting inside a FloatingPanel.
+- Don't hand-build a composer. `ChatView` already hosts a `ChatEntryView`/`ChatEntry`; set the pass-through properties, or supply your own composer via `InputBar` / `InputTemplate`. Never wire a composer to `IChatSession` directly — `ChatView` owns that.
 - For app-specific verbs (MAUI), add `ChatInputAction`/`ChatBubbleAction` — don't try to recreate the removed tool classes.
