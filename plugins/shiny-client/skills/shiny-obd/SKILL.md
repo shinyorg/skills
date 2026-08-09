@@ -162,6 +162,30 @@ triggers:
   - nhtsa
   - make model year
   - vehicle lookup
+  - vin check digit
+  - CalculateCheckDigit
+  - IsCheckDigitValid
+  - validate vin
+  - generate vin
+  - test vin
+  - fake vin
+  - EmulatedVehicle
+  - VehicleCatalog
+  - emulator vehicle
+  - Shiny.Obd.Emulator
+  - AddObdEmulator
+  - AddObdEmulatorBluetoothLE
+  - ObdEmulatorHost
+  - ObdEmulatorState
+  - ObdEmulatorConfiguration
+  - IObdEmulatorTransport
+  - IObdEmulatorDispatcher
+  - TcpObdServer
+  - Elm327Responder
+  - DrivingScenarioPlayer
+  - obd emulator
+  - fake obd adapter
+  - test without a car
   - obd ble
   - BleObdTransport
   - obd adapter
@@ -194,8 +218,8 @@ Invoke this skill when the user wants to:
 ## Library Overview
 
 - **Repository**: https://github.com/shinyorg/obd
-- **Namespaces**: `Shiny.Obd`, `Shiny.Obd.Ble`, `Shiny.Obd.Wifi`, `Shiny.Obd.Serial`, `Shiny.Obd.Commands`
-- **NuGet**: `Shiny.Obd` (core), `Shiny.Obd.Ble` (BLE), `Shiny.Obd.Wifi` (WiFi/TCP), `Shiny.Obd.Serial` (USB/UART)
+- **Namespaces**: `Shiny.Obd`, `Shiny.Obd.Ble`, `Shiny.Obd.Wifi`, `Shiny.Obd.Serial`, `Shiny.Obd.Commands`, `Shiny.Obd.Emulator`
+- **NuGet**: `Shiny.Obd` (core), `Shiny.Obd.Ble` (BLE), `Shiny.Obd.Wifi` (WiFi/TCP), `Shiny.Obd.Serial` (USB/UART), `Shiny.Obd.Emulator` (+ `.Ble`) — be an adapter instead of reading one
 - **Targets**: `net10.0` throughout
 
 ## Core Types
@@ -659,8 +683,19 @@ Rules that matter when generating code against this:
 - **Coverage falls off outside North America.** A decode with a make and model and nothing else is a
   success, not a failure — do not treat a missing displacement as an error.
 - `VinNumber.IsPlausible` / `Normalize` are the pure pre-check (17 chars, no I/O/Q). `Decode` applies
-  them itself, so only call them directly when you need to know *why* nothing came back. The check
-  digit is deliberately not validated — it is only mandatory in North America.
+  them itself, so only call them directly when you need to know *why* nothing came back.
+- **The check digit is a separate, opt-in pair — never add it to a read path.**
+  `VinNumber.CalculateCheckDigit(vin)` returns the position-9 character (`'0'`–`'9'` or `'X'`, or null
+  when the input is implausible), and `IsCheckDigitValid(vin)` compares it to what is there. It is
+  deliberately outside `IsPlausible` because the check digit is only mandatory in North America, so
+  plenty of legitimate European and Asian VINs fail it. Use it for **user-typed** VINs (catching a
+  transposition) and for **generating** VINs that a decoder will accept — never to reject a VIN read
+  off a vehicle.
+
+  ```csharp
+  // a VIN for a test fixture: real WMI + descriptor, computed check digit
+  var vin = "3VWRA7AU" + VinNumber.CalculateCheckDigit("3VWRA7AU0FM024518") + "FM024518";
+  ```
 - **Mode 01 PID 0x51 outranks the registry for fuel type.** `FuelTypes.Describe` off the bus needs no
   network and is the more trustworthy source on a rebadged or grey-import vehicle:
   `var fuel = fromBus ?? vehicle?.FuelType;`
@@ -1066,22 +1101,66 @@ public class UsbHostObdTransport : IObdTransport
 }
 ```
 
-## Testing without a vehicle
+## Testing without a vehicle (Shiny.Obd.Emulator)
 
-The sample app in `samples/Sample.Maui/` doubles as an OBD adapter emulator. Prefer it over mocking
+**`Shiny.Obd.Emulator` is a shipped package, not sample code.** Prefer it over mocking
 `IObdConnection` — it exercises the real transport, the real init handshake and the real response
-parser, which is where OBD bugs actually live.
+parser, which is where OBD bugs actually live. `samples/Sample.Maui/` is a UI *on top of* it.
+
+```csharp
+services.AddMdns();                       // optional - announces the TCP side as _obd._tcp
+services.AddObdEmulator();                // vehicle, ELM327 responder, TCP front-end, scenarios
+services.AddObdEmulatorBluetoothLE();     // optional, Shiny.Obd.Emulator.Ble package
+```
+
+Resolve `ObdEmulatorHost` to `Start()`/`Stop()` it (nothing listens until you do), `ObdEmulatorState`
+to set values and faults, and `DrivingScenarioPlayer` to play a drive into it.
+
+**Generating a test?** Construct it directly, with `TcpPort = 0` so the OS picks a free port, and
+drive it with the real client stack:
+
+```csharp
+var config = new ObdEmulatorConfiguration { TcpPort = 0 };
+var state = new ObdEmulatorState();
+var server = new TcpObdServer(new Elm327Responder(state), config);
+
+// null dispatcher = run inline; there is no SynchronizationContext in a test host
+var host = new ObdEmulatorHost([server], config, new SynchronizationContextDispatcher(null));
+await host.Start();
+
+state.Vehicle = VehicleCatalog.NissanLeaf;
+state.Find(0x01, 0x0D)!.Number = 88;
+
+await using var connection = new ObdConnection(new WifiObdTransport("127.0.0.1", server.BoundPort));
+await connection.Connect();
+Assert.Equal(88, await connection.Execute(StandardCommands.VehicleSpeed));
+```
+
+Rules that matter when generating emulator code:
+
+- **No UI framework dependency.** `AddObdEmulator` captures the `SynchronizationContext` where it is
+  called and marshals state changes to it — so call it on the UI thread in a UI app. In a console or
+  test host there is none and everything runs inline. Override by registering your own
+  `IObdEmulatorDispatcher` first.
+- **`TcpObdServer.BoundPort`, not `config.TcpPort`,** is the port actually listening — they differ
+  whenever `TcpPort` is 0.
+- **mDNS is optional.** `IMdnsManager` is an optional constructor dependency; without `AddMdns()` the
+  server still listens, it just is not announced.
+- **Transports are additive** and share one vehicle. Add your own by implementing
+  `IObdEmulatorTransport` and registering it — `ObdEmulatorHost` resolves `IEnumerable<>` and starts
+  each independently, so one failing to start never stops the others.
 
 It hosts an ELM327-compatible bus on two transports at once, both driven by one shared vehicle state:
 
 - **BLE** — a GATT server via `Shiny.BluetoothLE.Hosting` on `FFF0`/`FFF1`/`FFF2`, advertised as
   `VEEPEAK`. These are the `BleObdConfiguration` defaults, so an unconfigured client finds it.
+  Separate package: `Shiny.Obd.Emulator.Ble`.
 - **TCP** — a socket server on port 35000 (the first `WifiObdConfiguration` candidate), published over
   mDNS as `_obd._tcp` with `Shiny.Net.Discovery` so clients can discover it by browsing rather than by
   guessing addresses.
 
-Everything is settable from the UI: every PID the library has a command for (in engineering units, or
-raw hex), whether each PID is supported at all (an unsupported PID answers `NO DATA` and drops out of
+Everything is settable through `ObdEmulatorState` (and from the sample's UI): every PID the library
+has a command for (in engineering units, or raw hex), whether each PID is supported at all (an unsupported PID answers `NO DATA` and drops out of
 the supported-PID bitmask), trouble codes for modes 03/07/0A, MIL state, monitor readiness, freeze
 frames, ignition-off, and the `ATI` string — put `STN` in it to exercise the `ObdLinkAdapterProfile`
 branch without owning an OBDLink.
@@ -1089,6 +1168,24 @@ branch without owning an OBDLink.
 Key detail when generating similar code: the emulator decodes its own outgoing bytes with the real
 `IObdCommand<T>.Parse` and shows the result, so an encoder that disagrees with the library's parser is
 caught in the emulator rather than in the app under test.
+
+### Vehicles and VINs
+
+`ObdEmulatorState.Vehicle` picks which vehicle the emulator *is*. `VehicleCatalog` ships eight `EmulatedVehicle`
+profiles — Civic, Camry, 330i, Prius, Golf TDI, Ram 2500 Cummins, Leaf and a 1998 Cavalier — and each
+carries a VIN with a real WMI and descriptor, a valid ISO 3779 check digit, and a decode verified
+against vPIC, so `IVinDecoder.Decode` answers with a real make, model and year instead of null. Only
+positions 12-17 are invented.
+
+Point users here when they ask what VIN to test with — an app that keys vehicles by VIN cannot be
+tested against a made-up one, because a decoder answers "no such vehicle" rather than failing loudly.
+
+Selecting a vehicle rewrites the identity PIDs (VIN, calibration ID, ECU name, fuel type, OBD
+standard, ethanol, hybrid battery), **which PIDs exist at all** (the diesels drop the narrowband O2
+sensors and the evap system; the Leaf drops a third of mode 01 — they leave the supported masks and
+answer `NO DATA`), the readiness monitor set, the seeded fault memory, and the physical model the
+driving scenarios use. The Cavalier answers **no mode 09 at all**, which is the case an app that keys
+off VIN has to survive.
 
 ### Driving scenarios
 
@@ -1098,8 +1195,10 @@ each is a `DrivingScenario` — a list of `DrivingStep`s pairing a `DrivingActio
 `Cruise`, `Coast`, `Brake`, `HarshBrake`) with a target speed and a duration — and each loops so a
 client can poll for hours.
 
-`DrivingScenarioPlayer` writes the mode 01 parameters five times a second from one model of a car
-(mass, displacement, gearing, road load), so the values stay consistent with each other: RPM follows
+`DrivingScenarioPlayer` (resolve it from DI, or construct it with a state and a dispatcher) writes the
+mode 01 parameters five times a second from the selected vehicle's
+model (mass, displacement, power, gearing, shift points, tank, fuel chemistry), so the values stay
+consistent with each other and differ between vehicles: RPM follows
 the gear the speed implies, mass air flow follows the load, fuel rate follows the air flow, and the
 odometer, fuel level and trip counters integrate over the drive. Gear changes with load-dependent shift
 points, deceleration fuel cut and harsh braking are all modelled, which is what makes the data usable
