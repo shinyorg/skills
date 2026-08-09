@@ -254,6 +254,10 @@ Behaviour to know:
 
 - On touch the drag arms on a **long press** (`DragActivationDelay`); moving before it elapses hands
   the gesture back to the scroller so the timeline still scrolls. A mouse drag starts immediately.
+  The press is timed from the raw touch-down, not from the pan (a pan does not begin until the
+  finger has already moved), and arming disables the enclosing scroller natively for that one
+  gesture. A press that arms and then never travels is still a tap: nothing is saved and the event
+  is still selected.
 - The change is applied **optimistically** and reverted if `OnEventChanged` returns false or throws.
 - A move never changes duration; a resize clamps at `MinEventDuration` from both directions rather
   than flipping the event inside out.

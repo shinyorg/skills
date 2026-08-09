@@ -1,6 +1,17 @@
 # TextEntry
 
-A text entry control with animated floating placeholder, customizable border, Bootstrap input-group style left/right tool slots (flush addon segments with background, shared borders, outer-only corner radius), hint text for validation errors, and character count display. Available on both MAUI and Blazor.
+A text entry control with a Material 3 floating label, customizable border, left/right tool slots,
+hint text for validation errors, character count, input masking, an autofill/autocorrect opt-out, and
+(MAUI, iOS + Android) a bar docked to the top of the soft keyboard. Available on both MAUI and Blazor.
+
+Two things to know before generating code:
+
+- **`Variant="Floating"` is the M3 outlined notch.** The label rides up ONTO the top border stroke and
+  sits in a gap cut out of the outline. It never overlaps the text being typed. `Classic` (the default)
+  leaves the placeholder to the native control.
+- **Tools are inline by default.** An icon or label sits on the field itself with no separator and no
+  grey block, tinted with the on-surface-variant token. Set `ToolStyle="Addon"` for the older Bootstrap
+  input-group look (filled block + hairline separator).
 
 ## MAUI
 
@@ -24,7 +35,9 @@ A text entry control with animated floating placeholder, customizable border, Bo
 | Property | Type | Default | Description |
 |---|---|---|---|
 | Text | string | "" | Current text value (TwoWay) |
-| Placeholder | string | "" | Floating placeholder text |
+| Placeholder | string | "" | Placeholder / floating label text |
+| Variant | TextEntryVariant | Classic | `Classic` (native placeholder) or `Floating` (M3 notched outline) |
+| ToolStyle | TextEntryToolStyle | Inline | `Inline` (bare tinted glyph on the field) or `Addon` (filled block + separator) |
 | PlaceholderColor | Color | Grey | Placeholder color when unfocused |
 | FocusedPlaceholderColor | Color | #007AFF | Placeholder color when focused/floating |
 | BorderColor | Color | #CCCCCC | Border color when unfocused |
@@ -47,6 +60,12 @@ A text entry control with animated floating placeholder, customizable border, Bo
 | HasError | bool | false | Error state — turns border and hint red |
 | ErrorColor | Color | #DC3545 | Color used when HasError is true |
 | ShowCharacterCount | bool | false | Show "N/MaxLength" counter |
+| IsAutoCompleteEnabled | bool | true | False switches off autofill, autocorrect, predictive text and spell check together |
+| IsSpellCheckEnabled | bool | true | Spell check (forced off when IsAutoCompleteEnabled is false) |
+| IsTextPredictionEnabled | bool | true | Suggestion strip (forced off when IsAutoCompleteEnabled is false) |
+| Accessory | KeyboardAccessoryView? | null | Bar docked to the top of the soft keyboard (iOS + Android) |
+| AccessoryPreset | KeyboardAccessoryPreset | None | Stock bar: `Done`, `Navigation`, `NavigationAndDone` |
+| FieldGroup | string? | null | Groups fields for accessory prev/next navigation |
 | LeftTools | IList<TextEntryTool> | [] | Tools on the left side |
 | RightTools | IList<TextEntryTool> | [] | Tools on the right side (ContentProperty) |
 | Mask | string? | null | Input mask pattern (`#` = digit slot, other chars are literals auto-inserted) |
@@ -105,11 +124,94 @@ TextEntry supports left and right tool slots. Tools are `TextEntryTool` instance
 |---|---|---|
 | Icon | ImageSource? | Tool icon |
 | Text | string? | Tool text label |
-| ToolColor | Color | Text/icon color |
+| ToolColor | Color? | Tint. Unset follows the on-surface-variant theme token. Applies to the label and, when `Icon` is a `FontImageSource`, the glyph — a bitmap `Image` cannot be tinted by MAUI |
+| FontSize | double | Label size (default 14) |
+| IconSize | double | Icon box size (default 20) |
 | Command | ICommand? | Tap command |
 | CommandParameter | object? | Command parameter |
 
 **ITextEntryAwareTool** — Implement this interface on a TextEntryTool subclass to get Attach/Detach lifecycle calls with access to the parent TextEntry.
+
+### Turning off autocomplete
+
+Autofill, autocorrect, predictive text and spell check are three separate platform switches, and any
+one of them will happily rewrite a half-typed serial number. `IsAutoCompleteEnabled="False"` turns off
+all of them at once — that is the property to reach for. The individual switches are there when only
+one of them is in the way.
+
+```xml
+<shiny:TextEntry Placeholder="Serial number"
+                 Text="{Binding Serial, Mode=TwoWay}"
+                 IsAutoCompleteEnabled="False" />
+```
+
+What it actually does per platform:
+
+| Platform | Effect |
+|---|---|
+| **iOS / Catalyst** | `AutocorrectionType = No`, `SpellCheckingType = No`, and an empty `TextContentType` — the documented opt-out from AutoFill and the strong-password sheet |
+| **Android** | `InputTypes.TextFlagNoSuggestions` plus `ImportantForAutofill = NoExcludeDescendants` (API 26+). Password fields are left alone: assigning `InputType` there would clear the mask, and autofill on a password field is wanted |
+| **Windows** | Spell check off; there is no autofill API to opt out of |
+
+### Keyboard accessory bar (iOS + Android)
+
+A bar docked to the **top edge of the soft keyboard** while the field has focus. It is not a tool inside
+the entry — it belongs to the keyboard, appears when the keyboard comes up and goes away with it.
+
+The usual reason to want one: **the iOS numeric keypad has no return key**, so without a Done button
+there is no way for the user to dismiss it.
+
+```xml
+<!-- Stock bar -->
+<shiny:TextEntry Placeholder="Amount"
+                 Keyboard="Numeric"
+                 Text="{Binding Amount, Mode=TwoWay}"
+                 AccessoryPreset="NavigationAndDone" />
+
+<!-- Your own bar -->
+<shiny:TextEntry Placeholder="Notes" Text="{Binding Notes, Mode=TwoWay}">
+    <shiny:TextEntry.Accessory>
+        <shiny:KeyboardAccessoryView>
+            <shiny:KeyboardNavigationItem Direction="Previous" />
+            <shiny:KeyboardNavigationItem Direction="Next" />
+            <shiny:KeyboardAccessorySpacer />
+            <shiny:KeyboardAccessoryItem Text="#tag" Command="{Binding InsertTagCommand}" />
+            <shiny:KeyboardDismissItem />
+        </shiny:KeyboardAccessoryView>
+    </shiny:TextEntry.Accessory>
+</shiny:TextEntry>
+```
+
+**Types** (all in `Shiny.Maui.Controls`, the `shiny` xmlns):
+
+| Type | Purpose |
+|---|---|
+| `KeyboardAccessoryView` | The bar. `Items` is the content property; `BarContent` replaces the whole row with your own layout |
+| `KeyboardAccessoryItem` | Icon/label button — `Icon`, `Text`, `ToolColor`, `Command`, `Clicked` |
+| `KeyboardNavigationItem` | `Direction="Previous"`/`"Next"`. Moves focus across the page and disables itself at the ends |
+| `KeyboardDismissItem` | "Done" — puts the keyboard away |
+| `KeyboardAccessorySpacer` | Flexible gap; everything after it is pushed to the right |
+
+`KeyboardAccessoryView` properties: `BarHeight` (44), `BarBackgroundColor`, `BarBorderColor`,
+`ItemSpacing` (4), `CurrentOwner` (the field being served, read-only).
+
+`KeyboardAccessoryPreset`: `None` (default), `Done`, `Navigation`, `NavigationAndDone`.
+
+**Platform matrix — this is a deliberately platform-only feature:**
+
+| Platform | Behaviour |
+|---|---|
+| **iOS / Catalyst** | The real `UIResponder.InputAccessoryView`. Rides the keyboard animation exactly, because the OS owns it |
+| **Android** | No accessory API exists (the IME is a separate process), so the same bar is rendered in the activity's content view and driven by the IME window insets — frame-synced with `WindowInsetsAnimation` on API 30+. Shown only while the IME is genuinely up, so a hardware keyboard correctly shows no bar |
+| **Windows / macOS / Linux / Blazor** | Nothing. The property compiles and does nothing |
+
+**Field navigation** is resolved by `KeyboardFieldNavigator`: every enabled, visible, non-read-only
+`TextEntry`/`InputView` on the page, in depth-first visual-tree order (MAUI has no `TabIndex`). Set
+`FieldGroup` on the fields to navigate within a subset. Virtualized containers only realize visible
+rows, so navigation cannot reach a field that has not been realized yet.
+
+Do **not** confuse this with [On-Screen Keyboard](./onscreen-keyboard.md) — that one *draws keys* for
+kiosks. This one never draws a key; it decorates the OS keyboard.
 
 ### Input Masking
 
@@ -190,26 +292,31 @@ When `Mask` is set:
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | Text | string | "" | Current text (two-way via TextChanged) |
-| Placeholder | string | "" | Floating placeholder |
-| PlaceholderColor | string | #9CA3AF | CSS color |
-| FocusedPlaceholderColor | string | #007AFF | CSS color |
-| BorderColor | string | #CCCCCC | CSS color |
-| FocusedBorderColor | string | #007AFF | CSS color |
+| Placeholder | string | "" | Placeholder / floating label |
+| Variant | TextEntryVariant | Classic | `Classic` (browser placeholder) or `Floating` (M3 notched outline) |
+| ToolStyle | TextEntryToolStyle | Inline | `Inline` or `Addon` |
+| PlaceholderColor | string? | on-surface-variant token | CSS color |
+| FocusedPlaceholderColor | string? | primary token | CSS color |
+| BorderColor | string? | outline token | CSS color |
+| FocusedBorderColor | string? | primary token | CSS color |
 | BorderThickness | double | 1 | Border width (px) |
 | FocusedBorderThickness | double | 2 | Focused border width (px) |
 | CornerRadius | string | 8px | CSS border-radius |
-| EntryBackgroundColor | string | transparent | CSS color |
+| EntryBackgroundColor | string? | surface token | CSS color |
 | FontSize | double | 15 | Font size (px) |
 | FontFamily | string | inherit | CSS font-family |
-| TextColor | string | inherit | CSS color |
+| TextColor | string? | on-surface token | CSS color |
 | IsReadOnly | bool | false | Read-only mode |
 | IsPassword | bool | false | Password masking |
 | MaxLength | int | 0 | Max characters (0 = unlimited) |
 | HintText | string? | null | Hint text below field |
-| HintColor | string | #9CA3AF | CSS color |
+| HintColor | string? | on-surface-variant token | CSS color |
 | HasError | bool | false | Error state |
-| ErrorColor | string | #DC3545 | CSS color |
+| ErrorColor | string? | error token | CSS color |
 | ShowCharacterCount | bool | false | Show counter |
+| IsAutoCompleteEnabled | bool | true | False emits `autocomplete="off"`, `autocorrect="off"`, `autocapitalize="off"`, `spellcheck="false"` plus `data-lpignore` / `data-1p-ignore` / `data-form-type="other"` for the password managers |
+| IsSpellCheckEnabled | bool | true | Spell check |
+| IsTextPredictionEnabled | bool | true | Autocorrect / auto-capitalisation |
 | LeftTools | List\<TextEntryTool\>? | null | Left tool list |
 | RightTools | List\<TextEntryTool\>? | null | Right tool list |
 | CssClass | string? | null | Additional CSS class |
@@ -244,7 +351,7 @@ Tools use the same `TextEntryTool` base class as MAUI. Pass them as `List<TextEn
 |---|---|---|
 | Icon | string? | Icon text/emoji |
 | Text | string? | Tool text label |
-| ToolColor | string | CSS color for the tool |
+| ToolColor | string? | CSS color. Null follows the on-surface-variant theme token |
 | IsVisible | bool | Whether the tool is shown (default: true) |
 | Clicked | Action? | Click callback |
 | CssClass | string? | Additional CSS class |
@@ -275,7 +382,7 @@ Tools use the same `TextEntryTool` base class as MAUI. Pass them as `List<TextEn
 
 @code {
     string amount = "";
-    List<TextEntryTool> leftTools = [new TextEntryTool { Text = "$", ToolColor = "#059669" }];
+    List<TextEntryTool> leftTools = [new TextEntryTool { Text = "$" }];
     List<TextEntryTool> rightTools = [new ClearButtonTool()];
 }
 ```
@@ -303,3 +410,10 @@ Parameters added for masking:
 |---|---|---|---|
 | Mask | string? | null | Input mask pattern (`#` = digit, others are literals) |
 | FormattedText | string | "" | Read-only formatted display value |
+
+### Blazor: no keyboard accessory
+
+There is no Blazor equivalent of the MAUI keyboard accessory bar, on purpose. iOS Safari already draws
+its own bar above the keyboard and will not let a page remove it, so ours would stack on top of it and
+the user would see two; Chrome on Android draws none, so the behaviour would diverge across the only
+two browsers that matter. Do not generate one.

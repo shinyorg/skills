@@ -113,7 +113,9 @@ Full-width button-style cell.
 | `TitleAlignment` | `TextAlignment` | `Center` |
 
 ### EntryCell
-Inline text input.
+Inline text input. Shares [TextEntry](./textentry.md)'s **input masking**, **keyboard accessory bar**
+and **autocomplete opt-out** — but none of its chrome (no tools, no floating label, no hint text; the
+cell already supplies title, description and hint).
 
 ```xml
 <shiny:EntryCell Title="Email" ValueText="{Binding Email, Mode=TwoWay}"
@@ -131,6 +133,39 @@ Inline text input.
 | `TextAlignment` | `TextAlignment` | `End` |
 | `CompletedCommand` | `ICommand?` | `null` |
 | `ValueTextColor` | `Color?` | `null` |
+| `Mask` | `string?` | `null` |
+| `FormattedValueText` | `string` | `""` |
+| `Accessory` | `KeyboardAccessoryView?` | `null` |
+| `AccessoryPreset` | `KeyboardAccessoryPreset` | `None` |
+| `FieldGroup` | `string?` | `null` |
+| `IsAutoCompleteEnabled` | `bool` | `true` |
+
+**Masking** — identical contract to `TextEntry`: `#` is a digit slot, other characters are literals
+inserted as the user types. `ValueText` holds the **raw digits**, `FormattedValueText` holds what is on
+screen, and the keyboard and max length are set from the mask.
+
+```xml
+<shiny:EntryCell Title="Phone" Mask="(###) ###-####" ValueText="{Binding Phone, Mode=TwoWay}" />
+```
+
+**Keyboard accessory (iOS + Android)** — a bar docked to the top of the soft keyboard while the cell
+has focus. On a settings form the useful shape is prev/next plus Done, scoped with `FieldGroup` so the
+arrows walk that section rather than every input on the page:
+
+```xml
+<shiny:TableSection Title="Payment">
+    <shiny:EntryCell Title="Card"   Mask="#### #### #### ####" FieldGroup="payment"
+                     AccessoryPreset="NavigationAndDone" ValueText="{Binding Card, Mode=TwoWay}" />
+    <shiny:EntryCell Title="Expiry" Mask="##/####" FieldGroup="payment"
+                     AccessoryPreset="NavigationAndDone" ValueText="{Binding Expiry, Mode=TwoWay}" />
+</shiny:TableSection>
+```
+
+See [TextEntry](./textentry.md) for the full accessory API — the item types and the platform matrix are
+the same, and `TableView` is not virtualized so prev/next reaches every cell on the page.
+
+**Blazor** — `Mask` and `IsAutoCompleteEnabled` are supported; there is no accessory bar (see
+[TextEntry](./textentry.md) for why).
 
 ### DatePickerCell
 Opens native date picker dialog on tap.
