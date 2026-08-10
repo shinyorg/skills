@@ -7,7 +7,7 @@ Two packages, same shape:
 | Package | Use when |
 |---|---|
 | **`Shiny.Maui.Controls.Desktop`** (`Shiny.Maui.Controls.Desktop.OnScreenKeyboard` namespace) | .NET MAUI desktop apps. Bundled with [Tray Icon](./tray-icon.md) and [Docking](./docking.md) under the desktop-only TFM matrix |
-| **`Shiny.Blazor.Controls.Kiosk`** (`Shiny.Blazor.Controls.Kiosk.OnScreenKeyboard` namespace) | Blazor apps. Bundled with [Docking](./docking.md) under the kiosk-shaped Blazor add-on |
+| **`Shiny.Blazor.Controls`** (`Shiny.Blazor.Controls.OnScreenKeyboard` namespace) | Blazor apps — **no add-on package**, it would ship in the main Blazor package alongside [Docking](./docking.md) |
 
 Scope intentionally narrow: English US-QWERTY, dispatch into the host app's own text fields, no IME / dead keys / language switching. The 80% case for kiosks, not a replacement for the OS on-screen keyboard.
 
@@ -59,14 +59,12 @@ public class MyPageViewModel(IOnScreenKeyboard keyboard)
 
 ## Setup (Blazor)
 
-```bash
-dotnet add package Shiny.Blazor.Controls.Kiosk
-```
+No extra package — it would ship in `Shiny.Blazor.Controls`.
 
 `Program.cs`:
 
 ```csharp
-using Shiny.Blazor.Controls.Kiosk.OnScreenKeyboard;
+using Shiny.Blazor.Controls.OnScreenKeyboard;
 
 builder.Services.AddShinyOnScreenKeyboard(opts =>
 {
@@ -80,7 +78,7 @@ builder.Services.AddShinyOnScreenKeyboard(opts =>
 `_Imports.razor`:
 
 ```razor
-@using Shiny.Blazor.Controls.Kiosk.OnScreenKeyboard
+@using Shiny.Blazor.Controls.OnScreenKeyboard
 ```
 
 Place once at the root layout (typically `MainLayout.razor`):
