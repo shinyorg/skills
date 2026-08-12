@@ -4,6 +4,8 @@ Declarative keyframe animation for .NET MAUI — the CSS `@keyframes` model in X
 
 **MAUI only.** There is no Blazor counterpart — the web already has `@keyframes` natively.
 
+**Every MAUI head.** Nothing in the package touches a platform SDK — the clock is an `IDispatcherTimer` and `KeyframeView` is a `GraphicsView` — so it ships a single `net10.0` target that iOS, Android, Windows, MacCatalyst, macOS AppKit and Linux GTK4 heads all consume. Never gate keyframe code behind a platform check.
+
 ## Packages
 
 | Package | What it is | Depends on |
@@ -190,7 +192,11 @@ scene.Animation = TimelineBuilder
 
 Layers: `RectangleLayer` (`CornerRadius`), `EllipseLayer`, `PathLayer` (`Data`, `WindingMode`), `TextLayer`, `ImageLayer`, all sharing `Fill`/`Stroke`/`StrokeWidth`/dash properties from `ShapeLayer`.
 
-Layer animation extensions on `TimelineBuilder`: `AnimateOpacity`, `AnimateRotation`, `AnimateSpin`, `AnimatePosition`, `AnimateScale`, `AnimateSize`, `AnimateFill`, `AnimateStroke`, `AnimateStrokeWidth`, `AnimateStrokeDashOffset`, `AnimatePath`, `AnimateCornerRadius`, `AnimateTextColor`, `AnimateVisibility`.
+Layer animation extensions on `TimelineBuilder`: `AnimateOpacity`, `AnimateRotation`, `AnimateSpin`, `AnimatePosition`, `AnimatePositionX`, `AnimatePositionY`, `AnimateScale`, `AnimateScaleX`, `AnimateScaleY`, `AnimateSize`, `AnimateFill`, `AnimateStroke`, `AnimateStrokeWidth`, `AnimateStrokeDashOffset`, `AnimatePath`, `AnimateTrimStart`, `AnimateTrimEnd`, `AnimateCornerRadius`, `AnimateTextColor`, `AnimateVisibility`.
+
+**Trim paths.** `PathLayer.TrimStart` / `TrimEnd` are fractions of the path's own measured length, so animating `AnimateTrimEnd` from 0 to 1 draws a stroke on. Trim applies to the stroke only — the fill always uses the whole path, matching Lottie. Prefer this to `AnimateStrokeDashOffset` for a reveal: `Microsoft.Maui.Graphics` specifies the dash offset in multiples of the stroke width, so a dash-based reveal changes shape whenever the stroke width does.
+
+**Per-axis tracks.** `AnimatePositionX`/`Y` and `AnimateScaleX`/`Y` read the axis they do not own straight off the layer, so an X track and a Y track compose instead of the last one evaluated winning. Use them when the two axes have genuinely different curves; `AnimatePosition`/`AnimateScale` are still simpler when they move together.
 
 ## Offscreen export (optional package)
 
