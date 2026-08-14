@@ -182,7 +182,24 @@ Public members for driving a panel from code via `@ref`: `SetStateAsync(PanelSta
 - **Scroll regions.** The panel body, the toolbar rail and `AppLayoutContent` each scroll independently. The shell header/footer and a panel's `HeaderContent`/`FooterContent` never scroll. This is the point of the control — do not wrap the whole shell in a scrolling `<div>`.
 - **Compacting** is measured against the **shell**, not the window, so an `AppLayout` nested in a card compacts when the card gets narrow. Below `CollapseBelow` an expanded panel drops to `CollapsedState`; expanding it while compact floats it over the content as a drawer with a scrim (click the scrim to dismiss). Widening back past the breakpoint restores the state it had before compacting. Compaction changes are **not** persisted — they are a response to the viewport, not a user preference.
 - **Borders** resolve through CSS variables (`--shiny-layout-border-width` / `--shiny-layout-border-color`) set on the shell, so a layout-level default reaches every region and theme tokens still apply. Per-region values override; `Border="false"` removes that edge.
-- **A `Hidden` panel keeps its element** (so the width animates) but is marked `inert` + `aria-hidden`, so nothing inside it is focusable or announced.
+- **A `Hidden` panel keeps its element** (so the width animates) but is marked `inert` + `aria-hidden`, so nothing inside it is focusable or announced. It also drops its divider — a zero-width panel that still painted a border would leave a 1px sliver flush against the neighbouring region's border and read as one 2px line.
+- **Aligning header buttons with the rail.** A header button that only has the header's padding to position it will not line up with the icons in a `Toolbar` rail below it. Put it in a slot exactly `ToolbarSize` wide and centre it there:
+
+  ```razor
+  <AppLayoutHeader Height="52" Padding="0" style="display:flex;align-items:center;">
+      <div style="flex:0 0 auto;width:52px;display:flex;justify-content:center;">
+          <button style="width:36px;height:36px;padding:0;" @onclick="ToggleNavAsync">☰</button>
+      </div>
+      <strong>Workspace</strong>
+  </AppLayoutHeader>
+  ```
+
+  Drive the slot width and the panel's `ToolbarSize` from one constant so they cannot drift apart.
+- **Putting a `ShinyToolbar` / `ShinyTabBar` in a region.** Both self-position by default and have to be told not to, because the shell's grid already pins them:
+  - `ShinyToolbar` defaults to `Sticky="true"` (`position: sticky`) — pass `Sticky="false"` inside an `AppLayoutHeader` or a panel's `HeaderContent`.
+  - `ShinyTabBar` defaults to `Fixed="true"` (`position: fixed`) — pass `Fixed="false"` inside an `AppLayoutFooter`, or it drops out of the grid's flow, leaves the footer row 0px tall and floats over the content.
+
+  Colour them from theme tokens (`BackgroundColor="var(--shiny-color-surface)"`, `TextColor="var(--shiny-color-on-surface)"`) rather than literals, or the bar stays on a light palette when the app switches to dark. Prefer `surface` over the `surface-container-*` tones for an app bar — the container tones are a flat grey that reads as unfinished chrome.
 - **Resizing** is done in JS (`app-layout.js`) writing `element.style.width` directly during the drag, and only telling .NET the final value on pointer-up — so a drag never round-trips through the renderer. An `is-resizing` class kills the width transition while dragging.
 
 ### Gotchas when editing this control

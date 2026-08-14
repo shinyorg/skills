@@ -40,9 +40,15 @@ And one of two ways to get **children**:
 ### Selection
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `SelectionMode` | `TreeSelectionMode` | `Single` | `None` / `Single` / `Multiple` |
+| `SelectionMode` | `TreeSelectionMode` | `Single` | `None` / `Single` / `Multiple`. Changing it clears the current selection |
+| `ShowSelectionCheckBoxes` | `bool` | `true` | Render a checkbox on every row while in `Multiple` mode |
+| `CheckBoxColor` | `Color?` | `null` (Primary token) | Tint of the multi-select checkbox |
 | `SelectedItem` | `object?` | `null` | Two-way bindable for `Single` mode |
 | `SelectedItems` | `IList<object>?` | `null` | Two-way bindable for `Multiple` mode |
+
+`SelectionMode="Multiple"` puts a checkbox on each row. The checkbox is a visual mirror of the row's
+selection — the row tap toggles it (on MAUI the box is `InputTransparent` so a native checkbox can't
+swallow the touch and double-toggle), and rows failing `CanSelectSelector` render a dimmed/disabled box.
 
 ### Icons
 | Property | Type | Default | Description |
@@ -82,11 +88,16 @@ And one of two ways to get **children**:
 
 ### Public Methods
 ```csharp
-Tree.ExpandAll();                  // sync; skips branches that need ChildrenLoader
+Tree.ExpandAll();                  // sync; materializes via ChildrenSelector, skipping only
+                                   // the branches that need ChildrenLoader
 await Tree.ExpandAllAsync();       // awaits ChildrenLoader for every node
+Tree.ExpandAll(maxDepth: 8);       // both cap at depth 32 by default (cycle guard)
 Tree.CollapseAll();
 Tree.Expand(item);
 Tree.Collapse(item);
+Tree.SelectAll();                  // Multiple mode; every loaded node, collapsed branches included
+Tree.DeselectAll();                // any mode; clears SelectedItem + SelectedItems
+Tree.SetBranchSelected(item, true);// check/uncheck an item and its loaded descendants
 Tree.Refresh(item);                // drops cached children for this node
 await Tree.ReloadAsync();          // re-runs RootLoader (or rebinds ItemsSource)
 var node = Tree.FindNode(item);    // locate the wrapper node for any source item
@@ -173,9 +184,20 @@ Use both together to distinguish "this is a file" (no chevron) from "this folder
 <shiny:TreeView SelectionMode="Single"
                 SelectedItem="{Binding Selected, Mode=TwoWay}" />
 
-<!-- Multi -->
+<!-- Multi — every row gets a checkbox -->
 <shiny:TreeView SelectionMode="Multiple"
                 SelectedItems="{Binding Selected}" />
+
+<!-- Multi, highlight only (no checkboxes) -->
+<shiny:TreeView SelectionMode="Multiple"
+                ShowSelectionCheckBoxes="False"
+                SelectedItems="{Binding Selected}" />
+```
+
+```csharp
+Tree.SelectAll();                      // check everything selectable + loaded
+Tree.SetBranchSelected(folder, true);  // check a folder and its loaded descendants
+Tree.DeselectAll();                    // clear (works in Single mode too)
 ```
 
 `SelectedItem` is two-way bindable — setting it from the VM selects the corresponding node. `CanSelectSelector` prevents specific rows from firing selection (e.g. category headers, locked items). The row still renders, it just won't highlight or fire `ItemSelected`.
@@ -284,8 +306,11 @@ Drops onto descendants of the source are rejected automatically (no cycles).
 ```csharp
 await tree.ExpandAsync(item);
 await tree.CollapseAsync(item);
-await tree.ExpandAllAsync();
+await tree.ExpandAllAsync();            // optional maxDepth (default 32) guards cyclic/endless trees
 tree.CollapseAll();
+await tree.SelectAllAsync();            // Multiple mode; collapsed-but-loaded branches included
+await tree.DeselectAllAsync();          // any mode
+await tree.SetBranchSelectedAsync(item, true);
 await tree.RefreshAsync(item);
 await tree.ReloadAsync();        // rebuilds from data, preserving expansion/selection for items that still exist
 var node = tree.FindNode(item);
