@@ -238,7 +238,7 @@ A *transient* failure (no exception of this type) → `MessageStatus.Failed` + r
 | `MessageTemplate` | `DataTemplate?` | `null` | Single template for all message content (MAUI only) |
 | `MessageTemplateSelector` | `DataTemplateSelector?` | `null` | Per-type template selector (MAUI only) |
 | `UseFeedback` | `bool` | `true` | Haptic feedback on interactions (MAUI only) |
-| `AdjustForKeyboard` | `bool` | `true` | iOS-only keyboard padding. **Set `False` when ChatView is hosted inside a FloatingPanel** (otherwise keyboard handling fights itself and the Entry drops keystrokes). (MAUI only) |
+| `AdjustForKeyboard` | `bool` | `true` | iOS-only keyboard padding. **Leave it on inside a FloatingPanel** — once `ExpandOnInputFocus` has taken the panel to its top detent, this padding is the only thing lifting the composer clear of the keyboard. The panel already guards against the competing height animation that used to drop keystrokes. (MAUI only) |
 
 ## Methods (MAUI only)
 
@@ -414,6 +414,8 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
 - Raise `MessageReceived` for inbound messages and echoes of the sender's own messages; raise `MessageUpdated` with the right `MessageChangeKind` for edits/reactions/receipts; the control updates by `MessageId`.
 - `GetMessagesAsync` is cursor-based — return `HasMore=false` when there's no more history. Messages within a page must be chronological ascending.
 - For reactions, expose `PermittedEmojis` (or `null` for the default set); the control toggles via `ReactToMessageAsync(id, emoji, add)`.
-- Set `IsInputBarVisible = false` for read-only chats. Set `AdjustForKeyboard = false` when hosting inside a FloatingPanel.
+- Set `IsInputBarVisible = false` for read-only chats. Leave `AdjustForKeyboard` at its default inside a FloatingPanel — see the property table.
+- When hosting a ChatView in a `FloatingPanel`, set `IsContentScrollEnabled="False"` on the panel and give the ChatView **no** `HeightRequest`: the chat owns its own scrolling and should fill whatever detent the panel is at. A fixed height either overflows the panel (hiding the composer) or forces `FitContent="True"`, which collapses the panel to a single non-draggable detent.
+- On Blazor, put the `ChatView` in a wrapper with `height: 100%` inside `<SheetContent>`; the sheet sizes its body to the visible detent band, so the chat fills it and its input bar stays on screen.
 - Don't hand-build a composer. `ChatView` already hosts a `ChatEntryView`/`ChatEntry`; set the pass-through properties, or supply your own composer via `InputBar` / `InputTemplate`. Never wire a composer to `IChatSession` directly — `ChatView` owns that.
 - For app-specific verbs (MAUI), add `ChatInputAction`/`ChatBubbleAction` — don't try to recreate the removed tool classes.

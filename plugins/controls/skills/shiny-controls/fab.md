@@ -141,6 +141,7 @@ Events: `Clicked`.
 - Bind `IsOpen` TwoWay when the ViewModel needs to drive the menu state; otherwise omit it and let taps control it
 - Keep `FabMenuItem` icons monochrome/filled for best visual contrast against the colored chips
 - Leave `LabelBackgroundColor` / `TextColor` / `BorderColor` unset so the pill picks up the theme (surface-container-high body, on-surface label, outline-variant hairline); set only `FabBackgroundColor` per item to tint its chip
+- On an item that has `Text` but no `Icon` there is no chip to tint, so `FabBackgroundColor` silently does nothing — give the item an `Icon` or drop the colour rather than leaving a setting that never renders
 - Keep every item's `Size` the same so the pills read as one column
 - Use `Icon` on every item when possible; `Text` is optional but strongly recommended for accessibility
 
