@@ -1,0 +1,15 @@
+{
+  "name": "shiny",
+  "version": "2.0",
+  "description": "Every Shiny library for .NET in one plugin — cross-platform mobile client libraries (Bluetooth LE client & peripheral hosting, GPS tracking, geofencing, background jobs, local & push notifications, HTTP background transfers, bidirectional JSON data sync, OBD-II diagnostics, music library, health data, contacts, calendar, speech-to-text/text-to-speech, AI conversation, embedded HTTP server, core hosting/DI), .NET MAUI components (Shell navigation with source-generated routes), shared MAUI & Blazor UI controls (TableView, FloatingPanel, ChatView, ImageViewer/ImageEditor, scheduler, Markdown, barcodes, and more), Mediator/CQRS with middleware and source generators, AOT-friendly data libraries (DocumentDb schema-free JSON store, Spatial geospatial database, Firestore), .NET Aspire integrations (Orleans ADO.NET hosting, Gluetun VPN routing, tunnelling), and source generators & utilities (attribute-driven DI, key/value stores, .resx localization generator, modular MAUI/ASP.NET Core hosting, server-side push dispatch)",
+  "author": {
+    "name": "Allan Ritchie",
+    "email": "allan@shinysoft.biz",
+    "url": "https://shinylib.net"
+  },
+  "homepage": "https://shinylib.net/",
+  "repository": "https://github.com/shinyorg/skills",
+  "license": "MIT",
+  "keywords": ["dotnet", "maui", "blazor", "aspnetcore", "aspire", "ios", "android", "windows", "macos", "linux", "cross-platform", "mobile", "aot", "bluetooth", "ble", "ble-hosting", "gps", "geofence", "locations", "jobs", "notifications", "push", "fcm", "apns", "web-push", "wns", "azure-notification-hubs", "firebase", "firestore", "http-transfers", "data-sync", "outbox", "inbox", "obd", "music", "health", "healthkit", "health-connect", "speech", "tts", "stt", "ai-conversation", "wake-word", "contacts", "contactstore", "calendarstore", "http-server", "http2", "http3", "websockets", "sse", "grpc", "grpc-web", "webdav", "mcp", "openapi", "tunnelling", "shell", "navigation", "controls", "tableview", "floatingpanel", "chatview", "imageviewer", "imageeditor", "securitypin", "signaturepad", "fab", "scheduler", "calendar", "markdown", "mermaid", "barcodes", "qrcode", "haptics", "xaml", "razor", "mvvm", "mediator", "cqrs", "middleware", "source-generator", "documentdb", "spatial", "geospatial", "rtree", "sqlite", "litedb", "cosmosdb", "indexeddb", "postgresql", "orleans", "gluetun", "vpn", "di", "dependency-injection", "stores", "localization", "resx", "hosting"],
+  "skills": "./skills/"
+}

@@ -1,20 +1,94 @@
 # Shiny AI Skills
 
-AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, GPS, geofencing, background jobs, push notifications, HTTP transfers, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, contact store, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
+AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, GPS, geofencing, background jobs, push notifications, HTTP transfers, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
 
-## Plugins & Skills
+## The `shiny` Plugin
 
-This repository is organized into **plugins**, each containing one or more **skills**. A plugin groups related skills together (e.g. all mobile client libraries, all UI controls). Each skill is a self-contained `SKILL.md` file with trigger conditions, code generation rules, best practices, and optional API reference docs. Install only the plugins relevant to your project.
+Everything ships as **one plugin** — `shiny`. Install it once and every Shiny skill becomes available; the agent loads only the skill relevant to what you're building, so there is no cost to having them all installed.
 
-| Plugin | Description | Skills |
-|--------|-------------|--------|
-| `shiny-client` | Cross-platform mobile libraries for .NET MAUI, iOS, and Android — Bluetooth LE (client & peripheral hosting, including L2CAP channels), GPS tracking with motion activity recognition, geofencing (native + GPS-direct), background jobs (native iOS/Android schedulers plus in-process jobs for plain .NET, Linux, macOS, and Blazor WASM), local & push notifications (APNs/FCM/Firebase Messaging/Azure), HTTP background transfers across iOS, Android, Windows, Linux, macOS, and Blazor WASM (Service Worker Background Sync, with Azure Blob Storage uploads), reliable bidirectional JSON data sync over HTTP with outbox/inbox and background scheduling, OBD-II vehicle diagnostics (ELM327/OBDLink auto-detection, custom commands, pluggable transports), music library access (ShazamKit identification, custom playlists, play counts, synced lyrics, Apple Music streaming), health data (HealthKit/Health Connect) with read/write and real-time observation, speech-to-text, text-to-speech, audio capture and playback, AI conversation service (wake word detection, acknowledgement modes, persistent message store, AI chat history), device contact store with CRUD, LINQ queries, paging, and permissions, and core infrastructure with DI, lifecycle hooks, and native hosting | `shiny-core`, `shiny-bluetoothle`, `shiny-ble-hosting`, `shiny-contactstore`, `shiny-data-sync`, `shiny-firebase`, `shiny-health`, `shiny-http-transfers`, `shiny-jobs`, `shiny-locations`, `shiny-music`, `shiny-notifications`, `shiny-obd`, `shiny-push`, `shiny-speech`, `shiny-aiconversation` |
-| `shiny-maui` | .NET MAUI application components — Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, and pluggable dialogs | `shiny-maui-shell` |
-| `shiny-controls` | Shiny Controls — shared .NET MAUI and Blazor UI components including TableView, FloatingPanel/OverlayHost, ShinyDurationPicker, FrostedGlassView, Toast service, ChatView, ImageViewer/ImageEditor, AutoCompleteEntry, CountryPicker, AddressEntry, PillView, SecurityPin, SignaturePad, Fab/FabMenu, scheduler/calendar views, TextEntry, Slider, ProgressBar, overlays, Markdown/Mermaid rendering, TextToSpeechButton, and feedback/haptics | `shiny-controls` |
-| `shiny-mediator` | Mediator/CQRS pattern for .NET — request/response handlers, commands, events, streams (EventStream/WaitForSingleEvent/Subscribe), middleware pipelines (cache, resilient, sample, throttle, validate, main thread, timer refresh), source-generated HTTP client proxies, OpenAPI client generation, SSE endpoint auto-generation, AI tools integration via Microsoft.Extensions.AI, and project scaffolding with code generation | `shiny-mediator` |
-| `shiny-data` | Lightweight AOT-compatible data libraries — DocumentDB schema-free JSON document store (SQLite, LiteDB, CosmosDB, IndexedDB for Blazor WASM, MySQL, SQL Server, PostgreSQL) with LINQ queries, spatial/geo queries, batch operations, SQLCipher encryption, hot backup, diff tracking (JsonPatchDocument), and AI tool exposure; Spatial geospatial database with SQLite R*Tree indexing, custom geometry algorithms, geofencing package, and pre-built US/Canada geographic databases | `shiny-documentdb`, `shiny-spatial` |
-| `shiny-aspire` | Shiny .NET Aspire integrations — Orleans ADO.NET hosting with selective schema provisioning (clustering, persistence, reminders) and Gluetun VPN container routing with WireGuard/OpenVPN, HTTP proxy, Shadowsocks, and firewall subnet controls | `shiny-aspire-orleans` |
-| `shiny-extensions` | Source generators and cross-platform utilities — attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, modular ASP.NET Core web hosting with IWebModule, and server-side push notification dispatch (APNs, FCM HTTP v1, Web Push VAPID/RFC 8291, WNS) with provider-agnostic core, Shiny.DocumentDb persistence, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing | `localizegen`, `shiny-di`, `shiny-extensions-push`, `shiny-maui-hosting`, `shiny-stores`, `shiny-web-hosting` |
+```bash
+# Claude Code
+claude plugin marketplace add shinyorg/skills
+claude plugin install shiny@shiny
+
+# GitHub Copilot CLI
+copilot plugin marketplace add https://github.com/shinyorg/skills
+copilot plugin install shiny@shiny
+```
+
+## Skills
+
+Each skill is a self-contained `SKILL.md` with trigger conditions, code generation rules, best practices, and optional API reference docs.
+
+### Client — cross-platform libraries for iOS, Android, Windows, macOS, Linux, and Web
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-core` | Hosting, DI, key-value stores, lifecycle hooks, platform abstractions |
+| `shiny-bluetoothle` | BLE scanning, connecting, GATT operations, managed scanner |
+| `shiny-ble-hosting` | BLE peripheral GATT server, advertising, L2CAP CoC channels |
+| `shiny-jobs` | Background job scheduling — native iOS/Android schedulers plus in-process jobs |
+| `shiny-locations` | GPS tracking, geofencing, motion activity recognition |
+| `shiny-notifications` | Local notification scheduling, channels, badges, interactive actions |
+| `shiny-push` | Push notifications — native FCM/APNs and Azure Notification Hubs |
+| `shiny-firebase` | Firebase Cloud Messaging for iOS and Android |
+| `shiny-http-transfers` | Background uploads and downloads with progress tracking |
+| `shiny-data-sync` | Bidirectional JSON sync over HTTP with background outbox/inbox |
+| `shiny-httpserver` | Embedded HTTP/1.1, HTTP/2 & HTTP/3 server where ASP.NET Core cannot run |
+| `shiny-discovery` | Local network discovery — mDNS/DNS-SD, SSDP/UPnP, WS-Discovery |
+| `shiny-obd` | OBD-II commands, adapter auto-detection, BLE/WiFi/serial transports |
+| `shiny-music` | Music library permissions, querying, playback, lyrics, album art |
+| `shiny-health` | HealthKit / Health Connect queries, writes, real-time observers |
+| `shiny-contactstore` | Contact CRUD, fluent async query builder, permissions |
+| `shiny-calendarstore` | Calendar & event CRUD, fluent async query builder, permissions |
+| `shiny-speech` | Speech-to-text, text-to-speech, audio capture and playback |
+| `shiny-aiconversation` | Chat client, wake word, STT/TTS, persistent message store |
+
+### MAUI
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-maui-shell` | Pages, ViewModels, navigation, source-generated routes |
+
+### Controls — shared .NET MAUI and Blazor UI
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-controls` | TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, CameraView, MediaElement, scheduler, Markdown, barcodes, motion icons, and more |
+
+### Mediator
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-mediator` | Handlers, contracts, middleware, HTTP extension, OpenAPI generation |
+
+### Data
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-documentdb` | Schema-free JSON document store — queries, CRUD, indexes, AOT configuration |
+| `shiny-firestore-mobile` | On-device native Firestore provider with offline persistence and snapshot listeners |
+| `shiny-spatial` | Spatial queries, geometry types, R\*Tree indexing |
+
+### Aspire
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-aspire-orleans` | Orleans ADO.NET hosting, Gluetun VPN container routing, tunnelling |
+
+### Extensions — source generators and utilities
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-di` | Attribute-driven service registration, keyed services, categories |
+| `shiny-stores` | Cross-platform key/value stores, persistent service binding |
+| `shiny-reflector` | AOT-compliant source-generated property access, JSON, assembly info |
+| `shiny-serialization` | Centralized AOT-safe JSON serializer with source-generated contexts |
+| `shiny-extensions-push` | Server-side push dispatch — APNs, FCM, Web Push, WNS |
+| `localizegen` | Strongly-typed localization from .resx files |
+| `shiny-maui-hosting` | Modular `IMauiModule` configuration, lifecycle hooks |
+| `shiny-web-hosting` | Modular `IWebModule` configuration for ASP.NET Core |
+| `shiny-blazor-hosting` | `IAppSupport` for Blazor WASM — version, viewport, culture/time-zone events |
 
 ## Installation
 
@@ -29,7 +103,7 @@ All skills in this repository are hosted on [GitHub](https://github.com/shinyorg
   plugin/
     marketplace.json            # Copilot marketplace manifest
 plugins/
-  <plugin-name>/
+  shiny/
     .claude-plugin/
       plugin.json               # Claude plugin manifest
     .github/
@@ -43,9 +117,13 @@ plugins/
 
 ### Key Files
 
-- **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each pointing to the same plugin directories.
-- **`.claude-plugin/plugin.json`** and **`.github/plugin/plugin.json`** — Per-plugin manifests containing name, version, description, keywords, and the relative path to the plugin's skills directory.
+- **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each declaring the single `shiny` plugin.
+- **`plugins/shiny/.claude-plugin/plugin.json`** and **`plugins/shiny/.github/plugin/plugin.json`** — The plugin manifests containing name, version, description, keywords, and the relative path to the skills directory. Keep the two files identical.
 - **`SKILL.md`** — The skill itself: YAML front matter with portable Agent Skills metadata (`name`, `description`, `auto_invoke`, `triggers`, and optional `when_to_use`), followed by usage guidance, code generation instructions, and best practices. Keep `triggers` and `auto_invoke: true` in front matter for GitHub Copilot CLI discovery, and keep the prose sections for Claude-friendly guidance. Supporting docs should live in the skill's `reference/` directory so both Claude and Copilot load them consistently.
+
+### Adding a Skill
+
+Skills are **synced in from their owning library repo** by a `sync-skills.yml` GitHub Action — do not hand-edit `SKILL.md` here. Each source repo keeps its skills under `skills/<skill-name>/` and its workflow copies them to `plugins/shiny/skills/<skill-name>/` in this repo via a pull request. To add a new skill, add it to the source repo and let the workflow open the PR, then add a row to the tables above.
 
 ## License
 

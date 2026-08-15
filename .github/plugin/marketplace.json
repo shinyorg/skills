@@ -5,51 +5,15 @@
     "email": "allan@shinysoft.biz"
   },
   "metadata": {
-    "description": "Shiny plugins and agent skills for Claude Code and GitHub Copilot CLI",
-    "version": "1.13.0"
+    "description": "Shiny agent skills for Claude Code and GitHub Copilot CLI",
+    "version": "2.0"
   },
   "plugins": [
     {
-      "name": "shiny-client",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-client",
-      "description": "Cross-platform mobile libraries for .NET MAUI, iOS, and Android \u2014 Bluetooth LE (client & peripheral hosting), GPS tracking, geofencing (native + GPS-direct), background jobs, local & push notifications (APNs/FCM/Firebase Messaging/Azure), HTTP background transfers (with Azure Blob Storage uploads), reliable bidirectional JSON data sync over HTTP with outbox/inbox and background scheduling, OBD-II vehicle diagnostics (ELM327/OBDLink auto-detection, custom commands, pluggable transports), music library access (ShazamKit identification, custom playlists, play counts, synced lyrics, Apple Music streaming), health data (HealthKit/Health Connect) with read/write and real-time observation, speech-to-text, text-to-speech, audio capture and playback, AI conversation service (wake word detection, acknowledgement modes, persistent message store, AI chat history), device contact store with CRUD, LINQ queries, paging, and permissions, an embedded HTTP/1.1, HTTP/2 & HTTP/3 server that runs where ASP.NET Core cannot (routing, middleware, source-generated typed endpoints, reflection-free JSON, XML/MessagePack/protobuf content negotiation, WebSockets, SSE, OpenAPI, TLS, gRPC and gRPC-Web, WebDAV, tunnelling and Model Context Protocol hosting), and core infrastructure with DI, lifecycle hooks, and native hosting"
-    },
-    {
-      "name": "shiny-maui",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-maui",
-      "description": ".NET MAUI application components \u2014 Shell navigation with source-generated routes, deep linking, page/ViewModel registration, AI-driven navigation via Microsoft.Extensions.AI, multi-segment navigation builder, and pluggable dialogs"
-    },
-    {
-      "name": "shiny-controls",
-      "version": "1.13.0",
-      "source": "./plugins/controls",
-      "description": "Shiny Controls \u2014 shared .NET MAUI and Blazor UI components including TableView, FloatingPanel/OverlayHost, ShinyDurationPicker, FrostedGlassView, Toast service, ChatView, ImageViewer/ImageEditor, AutoCompleteEntry, CountryPicker, AddressEntry, PillView, SecurityPin, SignaturePad, Fab/FabMenu, scheduler/calendar views, TextEntry, Slider, ProgressBar, overlays, Markdown/Mermaid rendering, TextToSpeechButton, and feedback/haptics"
-    },
-    {
-      "name": "shiny-mediator",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-mediator",
-      "description": "Mediator/CQRS pattern for .NET \u2014 request/response handlers, commands, events, streams (EventStream/WaitForSingleEvent/Subscribe), middleware pipelines (cache, resilient, sample, throttle, validate, main thread, timer refresh), source-generated HTTP client proxies, OpenAPI client generation, SSE endpoint auto-generation, AI tools integration via Microsoft.Extensions.AI, and project scaffolding with code generation"
-    },
-    {
-      "name": "shiny-data",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-data",
-      "description": "Lightweight AOT-compatible data libraries \u2014 DocumentDB schema-free JSON document store (SQLite, LiteDB, CosmosDB, IndexedDB for Blazor WASM, MySQL, SQL Server, PostgreSQL) with LINQ queries, spatial/geo queries, batch operations, SQLCipher encryption, hot backup, diff tracking (JsonPatchDocument), and AI tool exposure; Spatial geospatial database with SQLite R*Tree indexing, custom geometry algorithms, geofencing package, and pre-built US/Canada geographic databases"
-    },
-    {
-      "name": "shiny-aspire",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-aspire",
-      "description": "Shiny .NET Aspire integrations \u2014 Orleans ADO.NET hosting with selective schema provisioning (clustering, persistence, reminders) and Gluetun VPN container routing with WireGuard/OpenVPN, HTTP proxy, Shadowsocks, and firewall subnet controls"
-    },
-    {
-      "name": "shiny-extensions",
-      "version": "1.13.0",
-      "source": "./plugins/shiny-extensions",
-      "description": "Source generators and cross-platform utilities \u2014 attribute-driven DI registration with keyed services, persistent key/value stores (mobile/desktop/Blazor WASM with session storage), strongly-typed .resx localization generator with format-method generation, modular MAUI hosting with IMauiModule and full lifecycle hooks, modular ASP.NET Core web hosting with IWebModule, and server-side push notification dispatch (APNs, FCM HTTP v1, Web Push VAPID/RFC 8291, WNS) with provider-agnostic core, Shiny.DocumentDb persistence, topics, interceptors, dead-token pruning, multi-app keyed registration, and System.Diagnostics.Metrics + tracing"
+      "name": "shiny",
+      "version": "2.0",
+      "source": "./plugins/shiny",
+      "description": "Every Shiny library for .NET in one plugin — cross-platform mobile client libraries (Bluetooth LE client & peripheral hosting, GPS tracking, geofencing, background jobs, local & push notifications, HTTP background transfers, bidirectional JSON data sync, OBD-II diagnostics, music library, health data, contacts, calendar, speech-to-text/text-to-speech, AI conversation, embedded HTTP server, core hosting/DI), .NET MAUI components (Shell navigation with source-generated routes), shared MAUI & Blazor UI controls (TableView, FloatingPanel, ChatView, ImageViewer/ImageEditor, scheduler, Markdown, barcodes, and more), Mediator/CQRS with middleware and source generators, AOT-friendly data libraries (DocumentDb schema-free JSON store, Spatial geospatial database, Firestore), .NET Aspire integrations (Orleans ADO.NET hosting, Gluetun VPN routing, tunnelling), and source generators & utilities (attribute-driven DI, key/value stores, .resx localization generator, modular MAUI/ASP.NET Core hosting, server-side push dispatch)"
     }
   ]
 }
