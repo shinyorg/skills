@@ -195,6 +195,16 @@ there is no way for the user to dismiss it.
 `KeyboardAccessoryView` properties: `BarHeight` (44), `BarBackgroundColor`, `BarBorderColor`,
 `ItemSpacing` (4), `CurrentOwner` (the field being served, read-only).
 
+`Items` lays out as one Auto column per item, so more items than fit the bar get squeezed rather than
+scrolled. When there are many — a formatting toolbar, say — use `BarContent` with your own layout
+(typically a horizontal `ScrollView` plus a pinned `KeyboardDismissItem`). Any `KeyboardAccessoryItem`
+nested inside `BarContent` is wired to the focused field exactly like one in `Items`.
+
+The bar is not only for single-line entries: it serves any `InputView`, which is how
+[MarkdownEditor](./markdown.md) puts its formatting toolbar on the keyboard. On a multi-line editor a
+`KeyboardDismissItem` is close to mandatory — the return key inserts a newline, so nothing else puts
+the keyboard away.
+
 `KeyboardAccessoryPreset`: `None` (default), `Done`, `Navigation`, `NavigationAndDone`.
 
 **Platform matrix — this is a deliberately platform-only feature:**

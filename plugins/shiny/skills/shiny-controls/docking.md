@@ -29,11 +29,12 @@ builder
     .AddDockPanel<OutputPanel>("output");
 ```
 
-Each call to `AddDockPanel<TView>("id", displayName: …, icon: …)`:
+Each call to `AddDockPanel<TView>("id", displayName: …, icon: …, canClose: …)`:
 
 1. Registers `TView` as a transient service in DI.
 2. Registers an `IDockableContentFactory` keyed to the stable string ID you supply.
 3. Optionally sets the tab `displayName` (defaults to the panel ID) and an `icon` (emoji / unicode glyph) for the tab and collapsed edge bars. A panel view that implements `IDockableContent` overrides both per-instance.
+4. Optionally sets `canClose: false` for a panel the surface cannot function without — a file explorer's folder tree, an editor's document area. That hides the tab's close button **and** makes `HidePanelAsync` refuse the panel, so a stray call cannot strand a layout the user has no way to rebuild. Defaults to `true`.
 
 Persisted dock layouts reference panels by that ID — so you can rename the C# class without breaking saved layouts, and unknown IDs in a stored layout get parked in a "missing panels" tray rather than silently dropped.
 
@@ -102,6 +103,21 @@ Any razor page:
 Component parameters: `InitialLayout` (`DockRoot?`), `IsLocked` (`bool`), `LayoutStore` (`IDockLayoutStore?` — loaded at startup, auto-saved with debounce on every layout change), and `BackgroundColor` (CSS color override). The component implements `IDockHost` — capture it with `@ref` to call `ShowPanelAsync` / `ResetLayoutAsync` / `Snapshot` and subscribe to `Events` (e.g. in `OnAfterRender`).
 
 Each panel is a regular Razor component (`ComponentBase` subclass). Blazor docking supports in-app floating; popping panels out into separate browser windows is not supported (Blazor runtime instances cannot share component instances across windows).
+
+### Panels the user must not close
+
+```csharp
+builder.Services
+    .AddShinyDocking()
+    // the tree is how you navigate; without it the explorer is a listing of nowhere
+    .AddDockPanel<FolderTreePanel>("explorer-tree", displayName: "Folders", icon: "📁", canClose: false)
+    .AddDockPanel<FileListPanel>("explorer-files", displayName: "Files", icon: "📄", canClose: false)
+    // an output pane is a convenience - closing it costs nothing
+    .AddDockPanel<OutputPanel>("output");
+```
+
+Prefer this to hiding the close button with CSS: the flag is enforced by the host, so
+`HidePanelAsync` and any future close path honour it too.
 
 ### Defining an initial layout
 
