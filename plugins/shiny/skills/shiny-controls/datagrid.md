@@ -35,8 +35,8 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
     <Columns>
         <PropertyColumn Property="x => x.FirstName" Title="First"
                         Width="25%" MinWidth="80px" MaxWidth="260px" />
-        <PropertyColumn Property="x => x.Age" Format="N0" />
-        <PropertyColumn Property="x => x.Salary" Format="C0">
+        <PropertyColumn Property="x => x.Age" StringFormat="N0" />
+        <PropertyColumn Property="x => x.Salary" DisplayAs="DataGridColumnFormat.Currency" Decimals="0">
             <FooterTemplate>Total: @people.Sum(p => p.Salary).ToString("C0")</FooterTemplate>
         </PropertyColumn>
         <TemplateColumn Title="Status" Sortable="false" Filterable="false" Resizable="false">
@@ -55,7 +55,7 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 </DataGrid>
 ```
 
-- **Columns**: `PropertyColumn<TItem,TProperty>` (`Property="x => x.Name"`, `Format`, derives Title) and
+- **Columns**: `PropertyColumn<TItem,TProperty>` (`Property="x => x.Name"`, `StringFormat`, derives Title) and
   `TemplateColumn<TItem>` (`CellTemplate`/`EditTemplate`/`HeaderTemplate`/`FooterTemplate` with
   `context.Item`). Per-column flags: `Sortable`, `Filterable`, `Groupable`, `Editable`, `Hidden`,
   `Width` (any CSS length, including `"25%"`), `MinWidth`, `MaxWidth`, `Resizable`,
@@ -130,7 +130,8 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
                           MinWidth="90" MaxWidth="260" />
     <shiny:DataGridColumn Title="Age" PropertyName="Age" Width="Auto" />
     <shiny:DataGridColumn Title="Department" PropertyName="Department" WidthPercent="30" />
-    <shiny:DataGridColumn Title="Salary" PropertyName="Salary" StringFormat="{}{0:C0}" Width="*">
+    <shiny:DataGridColumn Title="Salary" PropertyName="Salary"
+                          DisplayAs="Currency" Decimals="0" Width="*">
         <shiny:DataGridColumn.Aggregate>
             <shiny:DataGridAggregateDefinition Type="Sum" Format="C0" />
         </shiny:DataGridColumn.Aggregate>
@@ -145,6 +146,7 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 ```
 
 - **Columns**: `DataGridColumn` (`PropertyName`, `Width` as `GridLength` star/auto/abs, `StringFormat`,
+  the formatting properties below,
   `CellTemplate`/`HeaderTemplate`/`EditTemplate`/`FooterTemplate`, `Sortable`/`Filterable`/`Groupable`/
   `Editable`/`Resizable`/`IsVisible`, `WidthPercent`, `MinWidth`/`MaxWidth`, `Frozen`, `Aggregate`).
   `DataGridTemplateColumn` for custom-only cells.
@@ -176,6 +178,58 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
     <shiny:DataGridColumn Title="Account" PropertyName="Name" Width="2*" />
     <shiny:DataGridColumn Title="Budget" PropertyName="Budget" StringFormat="{}{0:C0}" Width="1.2*" />
 </shiny:TreeDataGrid>
+```
+
+## Column formatting (both hosts)
+
+Reach for these **before** a `CellTemplate`/`DataGridTemplateColumn` - a template gives up sorting,
+filtering and inline editing, and these do not.
+
+| Property | What it does |
+| --- | --- |
+| `DisplayAs` | Preset: `Currency`, `Percent`, `Number`, `Date`, `Time`, `DateTime`, `FileSize`, `Boolean`, `Enum`, `Text`, `None` |
+| `Decimals` | Places for `Number`/`Currency`/`Percent`/`FileSize`; `null` = culture default |
+| `StringFormat` | Raw .NET format string; **wins over** `DisplayAs`. Blazor's `Format` is a still-working alias |
+| `NullText` | Shown for a null or empty value (prefix/suffix are not applied to it) |
+| `Prefix` / `Suffix` | Wrap a real value, e.g. `Suffix=" kg"` |
+| `TrueText` / `FalseText` | Override the `Boolean` preset's glyphs |
+| `Culture` | `CultureInfo` for this column; `null` = `CurrentCulture` |
+| `TextFormatter` | `Func<value, string?>` - full control without a template. Prefix/suffix/`NullText` still apply |
+| `Alignment` / `HeaderAlignment` | `Auto` (quantities right, rest left), `Start`, `Center`, `End`. Header follows `Alignment` by default |
+| `Wrap` / `MaxLines` | Wrap instead of truncating; cap the height |
+| `CellStyle` | `Func<item, DataGridCellStyle?>` - per-cell colour/weight from the row |
+
+Rules that matter:
+
+- **`Percent` multiplies by 100** (that is what .NET's `"P"` does): `0.15` renders `15%`.
+- **`Enum`** uses the member's `[Description]`, else its name split on PascalCase (`InProgress` -> `In Progress`).
+- **One code path.** The cell, the quick-filter search index and the group header all format through the
+  same method, so they cannot disagree about what a value reads as.
+- **`CellStyle` is evaluated when a row binds**, not when a property on the item changes.
+- On **MAUI** `TextFormatter`, `CellStyle` and `Culture` are `BindableProperty`s, so `{Binding}` from a
+  view model works; the grid pushes its `BindingContext` down to its columns for exactly that reason.
+- On **Blazor** `DataGridCellStyle` colours are CSS strings, so a theme token
+  (`"var(--shiny-color-error)"`) is as valid as a hex; `CssClass` there is **not** scoped to the grid's
+  isolated stylesheet - declare it in app CSS.
+
+```razor
+@* Blazor *@
+<PropertyColumn Property="x => x.Balance" DisplayAs="DataGridColumnFormat.Currency" Decimals="0"
+                NullText="—"
+                CellStyle="@(a => a.Balance < 0
+                    ? new DataGridCellStyle { TextColor = "var(--shiny-color-error)", Bold = true }
+                    : null)" />
+<PropertyColumn Property="x => x.State" DisplayAs="DataGridColumnFormat.Enum" />
+<PropertyColumn Property="x => x.Notes" Wrap="true" MaxLines="2" />
+```
+
+```xml
+<!-- MAUI -->
+<shiny:DataGridColumn Title="Balance" PropertyName="Balance"
+                      DisplayAs="Currency" Decimals="0" NullText="—"
+                      CellStyle="{Binding BalanceStyle}" />
+<shiny:DataGridColumn Title="On" PropertyName="Active" DisplayAs="Boolean" Alignment="Center" />
+<shiny:DataGridColumn Title="Notes" PropertyName="Notes" Wrap="True" MaxLines="2" />
 ```
 
 ## Behavior notes & platform nuances
