@@ -60,6 +60,8 @@ A markdown editor with formatting toolbar, live preview toggle, and customizable
 | `IsPreviewVisible` | `bool` | `false` | TwoWay | Show/hide the preview pane |
 | `ToolbarBackgroundColor` | `Color?` | `null` | OneWay | Toolbar background color |
 | `EditorBackgroundColor` | `Color?` | `null` | OneWay | Editor text area background color |
+| `ShowToolbarInKeyboard` | `bool` | `true` | OneWay | Repeat `ToolbarItems` on the soft keyboard's accessory bar (iOS/Android) |
+| `Accessory` | `KeyboardAccessoryView?` | `null` | OneWay | Your own accessory bar, instead of the generated one |
 
 ### MarkdownEditor Events
 
@@ -71,9 +73,34 @@ A markdown editor with formatting toolbar, live preview toggle, and customizable
 ### MarkdownEditor Features
 
 - **Formatting toolbar**: Buttons for bold, italic, headings, lists, code, links, etc.
+- **Toolbar on the keyboard**: the same items as icons on the soft keyboard's accessory bar (iOS/Android)
 - **Live preview**: Toggle between edit and preview modes with eye/pencil icon button
 - **Auto-growing editor**: Editor height grows as you type
 - **Custom toolbar**: Replace default toolbar items with a custom set
+
+### Keyboard accessory bar (iOS + Android)
+
+`ShowToolbarInKeyboard` is **on by default**. Whatever is in `ToolbarItems` is repeated as icons on a
+`KeyboardAccessoryView` docked to the top of the soft keyboard while the editor has focus — a
+horizontally scrolling row, grouped with the same separators as the toolbar, plus a pinned **Done**.
+The Done matters: this is a multi-line editor, so the return key inserts a newline and there is
+otherwise no way to dismiss the keyboard.
+
+```xml
+<!-- default: the enabled toolbar items appear on the keyboard -->
+<md:MarkdownEditor Markdown="{Binding Notes, Mode=TwoWay}" />
+
+<!-- toolbar above the editor only -->
+<md:MarkdownEditor Markdown="{Binding Notes, Mode=TwoWay}"
+                   ShowToolbarInKeyboard="False" />
+```
+
+Set `ToolbarItems` and the accessory bar follows it — the two never drift apart. Set `Accessory` to
+supply a bar of your own and `ShowToolbarInKeyboard` is ignored.
+
+Windows, macOS, Linux and Blazor have no soft keyboard to decorate: the properties compile and do
+nothing there. Do **not** generate a hand-rolled "toolbar above the keyboard" for this — the accessory
+bar is the supported way.
 
 ## MarkdownTheme
 

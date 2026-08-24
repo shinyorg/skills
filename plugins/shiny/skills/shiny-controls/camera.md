@@ -119,6 +119,14 @@ await this.Camera.StartVideoRecordingAsync(new VideoRecordingOptions
 });
 CameraVideo overlaid = await this.Camera.StopVideoRecordingAsync();
 
+// Apple writes movie fragments every 10s on BOTH recording paths — the raw one (AVCaptureMovieFileOutput's
+// own default) and the burn-in one — so a recording the process never gets to finish is still playable up to
+// the last fragment. That matters for long captures: a crash, a force-quit or a battery pull would otherwise
+// leave a file with no moov atom that nothing will decode, however many minutes went into it.
+// Android has NO equivalent: CameraX's Recorder muxes through MediaMuxer, which cannot write fragmented MP4,
+// so an unfinished recording there is lost. If a hard kill mid-capture is a real risk on Android, record in
+// segments — a run of short StartVideoRecordingAsync/StopVideoRecordingAsync calls — rather than one long one.
+
 // Recording quality is a SESSION setting, not a per-recording one — set it before/independently of a
 // recording, not inside VideoRecordingOptions. Default is High (1080p) on every platform.
 this.Camera.VideoQuality = VideoQuality.Medium;   // 720p
@@ -130,6 +138,18 @@ this.Camera.VideoBitrate = 8_000_000;             // null = platform default for
 // interrupts the capture session (which would stop video too). Set false only when a clean audio track
 // matters more than their playback.
 this.Camera.MixWithOtherAudio = false;            // default true
+
+// Orientation is also a SESSION setting, and it covers the preview, stills, recorded video AND the frames
+// an analyzer sees — on Apple they all hang off connections on one session, so they cannot disagree.
+// Default is Device: the camera follows the display as it rotates.
+this.Camera.Orientation = CameraOrientation.Device;
+
+// Pin it when several recordings have to agree with each other — segmented continuous capture, where each
+// segment is its own StartVideoRecordingAsync call. Left on Device, a device rotated between segments gives
+// you files that disagree, and a later concat/trim takes its transform from the first track and renders the
+// rest sideways. The landscape members are named for where the device's TOP EDGE points, deliberately:
+// every platform's LandscapeLeft/LandscapeRight pair means something different from the others'.
+this.Camera.Orientation = CameraOrientation.LandscapeTopLeft;
 
 // Flip lens
 this.Camera.Facing = this.Camera.Facing == CameraFacing.Back ? CameraFacing.Front : CameraFacing.Back;
@@ -221,6 +241,36 @@ if it had none (so, e.g., Android can record video again).
 ```
 
 `IsEnabled` (run or not) is distinct from `ShowBoundingBox` (run, but draw nothing).
+
+### Rate-limiting an analyzer — override `WantsFrame`, never `AnalyzeAsync`
+
+An analyzer that only needs a few passes a second must declare that by overriding **`WantsFrame()`**, which
+the pipeline asks on the capture thread **before the platform builds a frame at all**:
+
+```csharp
+public override bool WantsFrame() => timeProvider.GetUtcNow() >= this.nextPassAt;
+
+public override async ValueTask<IReadOnlyList<OverlayBox>?> AnalyzeAsync(CameraFrame frame, CancellationToken ct)
+{
+    this.nextPassAt = timeProvider.GetUtcNow() + Cadence;
+    ...
+}
+```
+
+⚠️ **Do not generate the throttle as an early return from `AnalyzeAsync`.** By then the frame exists, and on
+Apple building one can mean a full-frame pixel copy — 8.3 MB at 1080p, on the Large Object Heap. An analyzer
+that runs five passes a second but bails out of the other twenty-five was paying for thirty frames a second
+and discarding 25 of them. `WantsFrame` is what turns that into five.
+
+It must be cheap and must not block or throw — it runs on the capture callback, ahead of the encoder. Read a
+cached deadline, not a setting. (Default is `true`: every frame.)
+
+### Ambient light and other whole-frame statistics
+
+For a consumer that wants a *number* rather than an image — an exposure or ambient-light average — use
+**`CameraFrame.SampleLuminance(destination, columns, rows)`**, which fills an evenly spaced grid by reading
+only those pixels off the native buffer. `GetLuminance()` materializes the entire plane (a 2 MB array at
+1080p, converted pixel by pixel), so reading a 32×32 grid out of it pays two million reads for a thousand.
 
 > **Picking among several detectors at runtime:** build the analyzer instances once, keep their `OnDetected`
 > handlers wired, and assign the chosen one to `Camera.Analyzer` from a picker (see the sample's `CameraPage`).
@@ -731,6 +781,7 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 | `VideoBitrate` | `int?` | `null` | Target encoding bitrate in bits/sec; `null` = platform default for the resolution |
 | `VideoFrameRate` | `int?` | `null` | Target capture frame rate; `null` = platform default. Clamped to what the device's active format supports |
 | `MixWithOtherAudio` | `bool` | `true` | **Apple only.** Recording audio shares the device's audio session, leaving other apps' playback running — and stops their playback from interrupting the capture. Read when a recording with `IncludeAudio` starts |
+| `Orientation` | `CameraOrientation` | `Device` | How preview, stills, video **and analyzer frames** are oriented: `Device` (follow the display) / `Portrait` / `PortraitUpsideDown` / `LandscapeTopLeft` / `LandscapeTopRight`. Session-level; a change is **deferred while recording**. Ignored on macOS/Windows |
 | `IsRecording` | `bool` (get) | `false` | Recording in progress |
 | `Overlays` | `IReadOnlyList<OverlayBox>` | empty | Latest overlay boxes (read-only) |
 | `ScanWindow` | `RectF?` (get) | `null` | The active analyzer's scan window (read-only mirror) |
@@ -761,6 +812,43 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Analyzer geometry maps cleanly into the recorded frame.** `OverlayBox` / `RecognizedText.BoundingBox` are normalized upright coordinates and `IVideoOverlayRenderer` draws in encoded-frame pixel space, so drawing a detection into the recording is `box.X * context.Width`, `box.Y * context.Height`. That is only correct because the analyzed frame and the encoded frame share a field of view: on iOS/macOS they are literally the same sample buffer, and on Android the handler binds a shared **`ViewPort`** whenever `ImageAnalysis` and `VideoCapture` are bound together (without it CameraX sizes analysis 4:3 and the recorder 16:9, and a box would sit visibly off the thing it is boxing). The ViewPort is applied *only* in that combined case, so no existing single-use-case setup has its recorded field of view moved.
 - **Android: video + analyzer together works, but costs `ImageCapture`** — `Preview + VideoCapture + ImageAnalysis` is a guaranteed CameraX combination at LIMITED hardware level, so recording while an analyzer runs is supported (a dash cam reading signs or plates off its own feed). A *fourth* use case needs LEVEL_3, which most phones are not, so `ImageCapture` is dropped for the duration of a recording that has an enabled analyzer attached — `CapturePhotoAsync` throws a message saying exactly that, and photo capture returns automatically when the recording stops. Outside a recording, nothing changes: analyzer + `ImageCapture` bind together as before.
 - **Burn-in video overlay ≠ live overlay** — the `CameraOverlayView` / `CameraOverlayDrawable` only paint the on-screen preview; nothing they draw reaches the saved file. To composite into the *recording*, set `VideoRecordingOptions.Overlay` (`IVideoOverlayRenderer` / `DelegateVideoOverlay` / `DrawableVideoOverlay`). `DrawOverlay` runs **off the UI thread** once per encoded frame — read UI state via a volatile/immutable snapshot, never touch UI objects — and draws in **frame pixel space** (`ctx.Width`/`Height`), origin top-left, front camera already un-mirrored. Supported on iOS / Mac Catalyst / macOS / Android; **Windows throws `PlatformNotSupportedException`** for now (record without the overlay, or use the on-preview overlay). Omitting `Overlay` keeps the fast native recorder.
+
+- **An overlay that caches its own output should say so.** Implement `ICompositedVideoOverlayRenderer` alongside `IVideoOverlayRenderer` and return `VideoOverlayLayer`s from `GetLayers(context)` — each is an `IImage`, the `RectF` it lands on in frame pixels, and a `Version` that changes when (and only when) the image's contents change. A HUD, watermark or telemetry panel typically repaints once or twice a second while being drawn onto thirty frames, and this is what lets the platform stop redrawing it: on Apple the recorder then composites with Core Image on the GPU and **never maps the capture buffer into CPU memory at all**, which is a fixed per-frame cost that does not scale down with how little of the frame the overlay covers. On Android the recording surface is already hardware-composited, so it changes the draw calls but not the cost.
+  - ⚠️ **`null` and empty are different answers.** `null` means "draw me the ordinary way this frame" and falls back to `DrawOverlay`; an **empty list** means "there is genuinely nothing to draw" and leaves the frame untouched. Returning empty when you meant null produces a recording with no overlay on it and no error anywhere.
+  - ⚠️ **A `Version` that never moves burns the first frame into the whole recording** — the platform caches its own representation of the layer against it. Derive it from whatever already tells the renderer it must repaint.
+  - Layers are **borrowed**: the images must stay alive and unmodified until the next `GetLayers` call.
+  - Bottom-most first; the platform composites in the order given.
+  - Any `IDrawEffect` in `CameraView.Effects` is arbitrary canvas code, so a chain containing one keeps the ordinary draw path.
+  - **Pair it with `CaptureFormat = CameraCaptureFormat.Yuv420` on Apple** — see the next bullet. Layers are what make that format worth asking for.
+
+- **Apple: the capture pixel format is a per-frame cost you can stop paying.** `CameraView.CaptureFormat` defaults to `Bgra32`, which is not what the camera produces — the sensor delivers biplanar YCbCr, so BGRA means the capture pipeline colour-converts every frame for as long as the preview is up (idle, not recording, no analyzer — it does not matter), and the hardware encoder converts it back to YUV to write the file. Set `CameraCaptureFormat.Yuv420` to ask for the native format; a device that does not list it silently keeps BGRA.
+  - ⚠️ **Only opt in when the overlay is layer-composited and there are no draw effects.** A `CGBitmapContext` cannot be built over a biplanar buffer, so anything drawing on the CPU makes the recorder convert to a scratch BGRA surface and back on every frame — worse than never leaving BGRA. `ICompositedVideoOverlayRenderer` never touches the CPU and is unaffected.
+  - `CameraFrame.Format` reports what the frame actually holds, and luminance gets **cheaper**: NV12's first plane already *is* luminance, so `SampleLuminance` reads one byte per sample instead of four plus arithmetic. `ToCGImage()` becomes a GPU conversion, paid only on frames an analyzer actually takes.
+  - Android (CameraX) and Windows pick their own formats; the property is ignored there.
+
+- **Frames are only delivered while something wants them.** An attached analyzer, a live effect chain, or a burn-in recording — any one is enough, and with none of the three the sample-buffer delegate is detached entirely on Apple. This is a layer below `IFrameAnalyzer.WantsFrame()`, which decides whether a *delivered* frame is worth wrapping. Nothing to do for it; it matters because a plain preview now costs nothing on the video queue.
+
+```csharp
+sealed class HudOverlay : ICompositedVideoOverlayRenderer
+{
+    IImage? panel;          // re-rendered a couple of times a second, not per frame
+    long version;
+
+    public void DrawOverlay(ICanvas canvas, RectF frame, VideoOverlayContext ctx)
+        => canvas.DrawImage(this.panel!, 32, 32, this.panel!.Width, this.panel.Height);
+
+    public IReadOnlyList<VideoOverlayLayer>? GetLayers(VideoOverlayContext ctx)
+        => this.panel is null
+            ? null   // nothing cached yet — let the platform call DrawOverlay
+            : [new VideoOverlayLayer(this.panel, new RectF(32, 32, this.panel.Width, this.panel.Height), this.version)];
+
+    void Repaint(IImage rendered)
+    {
+        this.panel = rendered;
+        this.version++;   // ⚠️ without this the platform keeps compositing the old image
+    }
+}
+```
 - **Effect coverage differs by platform and surface** — check `CameraView.GetEffectSupport(effect)` and grey the control out rather than shipping one that silently does nothing. Specifics: **Apple** applies everything everywhere, including into recorded video. **Android** applies colour effects to the preview from API 31 and to photos on every API level; spatial *shaders* need API 33 (Blur only needs 31, since it maps to `RenderEffect.CreateBlurEffect`), and below that the preview is unfiltered while the photo still comes back filtered via a managed CPU pass. Recorded video on Android gets **draw effects only** — the preview's `RenderEffect` lives on `PreviewView`, not on the `VideoCapture` use case, so pixel effects do not reach the file. **Windows** has no live-preview effect hook at all (`StillOnly`). The Android preview renders in `PreviewView` *Compatible* (TextureView) mode so the effect can be applied — *Performance* mode (SurfaceView) ignores it.
 - **Effect order is meaningful and preserved** — `[Comic, Mono]` is not `[Mono, Comic]`. Consecutive *colour* effects are collapsed into a single matrix for speed, but a spatial effect between them stops the fold, so nothing is silently reordered.
 - **Draw effects run off the UI thread, once per frame, on three surfaces** — read mutable state through a volatile field or an immutable snapshot, never touch UI objects, and expect to be called concurrently for the preview and an in-progress recording. `FaceMaskEffect` keeps per-surface smoothing state for exactly this reason.
@@ -777,6 +865,10 @@ Blazor mirrors the MAUI single-analyzer shape: assign a typed **`Analyzer`** (to
 - **Video quality lives on `CameraView`, not `VideoRecordingOptions`** — a common wrong guess. Both AVFoundation (session preset) and CameraX (`QualitySelector` on the `Recorder`) fix the capture resolution when the session is configured, so it cannot be a per-recording argument without reconfiguring the camera every time recording starts. Set `VideoQuality` / `VideoBitrate` / `VideoFrameRate` once, or bind them to a setting; a change while running reconfigures the session and is **ignored mid-recording** (it would truncate the file being written) — it lands on the next recording instead. On Apple the preset sizes the *whole* session, so dropping it also shrinks what the preview and any frame analyzer see.
 - **iOS takes the camera away without telling you — the handler now notices.** AVFoundation suspends a capture session on a phone call, another app claiming the device, a second foreground app in Split View, or system thermal/power pressure. Nothing is raised by the framework: the preview layer holds its last frame and a running recording simply stops receiving any, so a `AVAssetWriter`-backed clip ends at the moment of the interruption while the app carries on looking healthy. `CameraView.CameraError` now fires with the reason, and the session is restarted on `AVCaptureSessionInterruptionEnded` (and on a `MediaServicesWereReset` runtime error) as long as `IsActive` is still `true`. Backgrounding is deliberately not reported — it raises the same notification on every app switch and is ordinary lifecycle — but it still resumes through the same path. **For unattended recording, handle `CameraError`**: it is the only signal that footage stopped.
 - **Recording no longer evicts the user's audio on iOS, and their audio no longer kills the recording.** An `AVCaptureSession` configures and activates the app's shared `AVAudioSession` by default, and never with `MixWithOthers` — so starting a recording interrupted whatever was playing (music over CarPlay/Bluetooth, a podcast, a nav app), and anything starting playback afterwards interrupted the *capture session*, which stops **video** as well as audio. The handler now turns that automatic configuration off and sets `PlayAndRecord` + `MixWithOthers` itself, and only when `IncludeAudio` is set — a video-only recording touches the audio session not at all. Set `CameraView.MixWithOtherAudio = false` for the old exclusive behaviour, which is right only when a clean audio track beats the user's playback (the mic hears the speakers, and nothing removes that afterwards). `AllowBluetooth` (HFP) is deliberately never requested: it would drag a car or headset link into mono call quality mid-song; `AllowBluetoothA2DP` is output-only and costs nothing.
+- **The camera follows the device now, and that is a behaviour change.** Every `AVCaptureConnection` defaults to portrait and only the frame-delivery one was ever oriented, so on Apple a landscape-held device previewed sideways, recorded sideways through the native movie path, and wrote portrait EXIF onto stills; on Android the target rotation was whatever the display happened to be at the moment the use cases were built, so launching already in landscape produced rotated files with nothing in the code saying so. `CameraView.Orientation` now defaults to `Device` and drives all of it. An app that relied on always-portrait output must set `Orientation = CameraOrientation.Portrait` explicitly.
+- **Orientation covers the analyzer too, and that is not a leak — it is the point.** On Apple the video data output that feeds `Analyzer` is the same connection the burn-in recorder reads, so a recording cannot be oriented independently of what the analyzer sees. For a landscape-mounted device "upright" genuinely *is* landscape, and the analyzer should be looking at the same scene the file gets. What this does mean is that a **normalized `ScanWindow` is orientation-dependent**: a rect calibrated against a portrait frame lands somewhere else entirely on a landscape one, so an app that supports both needs a calibration per orientation rather than one shared set of percentages.
+- **A change is deferred while recording, so pin it for segmented capture.** Re-orienting a connection transposes the pixel buffer, and an encoder is configured with fixed dimensions off its first frame — feeding it transposed buffers does not rotate the file, it corrupts it. The pending value is applied when the recording finishes. It follows that a caller doing *segmented* continuous capture (each segment its own `StartVideoRecordingAsync`) must pin an explicit `CameraOrientation` rather than leaving `Device`, or a rotation between segments yields files that disagree — and the usual way that surfaces is a later concat or trim taking its transform from the first track and rendering every other one sideways.
+- **`LandscapeLeft` means the opposite thing on different platforms, which is why this enum does not use it.** `UIInterfaceOrientationLandscapeLeft` is `UIDeviceOrientationLandscapeRight` (Apple's own headers note it), and `AVCaptureVideoOrientation` follows the *interface* convention while most code reading a rotation holds a *device* one. `CameraOrientation.LandscapeTopLeft`/`LandscapeTopRight` name where the device's **top edge** physically points, and the handlers own the mapping. The explicit members assume a portrait-natural device on Android — true of every phone, not of every tablet; `Device` reads the display rotation and has no such assumption.
 - **`Highest` is not free** — it resolves to 4K on modern hardware, which for a continuously-recording app means storage filling fast and a hot device. If size or thermals matter, drop `VideoFrameRate` before you drop resolution: halving the frame rate roughly halves encode work and costs far less perceptually on a mostly-static scene.
 
 ## When to Use What

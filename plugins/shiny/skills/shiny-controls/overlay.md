@@ -183,3 +183,19 @@ The Blazor `Overlay` wraps child content and overlays when `IsShown` is true. Cu
 - Both support two-way binding on `IsShown` for MVVM/state management
 - Backdrop tap dismisses the overlay on MAUI (same as FloatingPanel behavior)
 - The blur effect uses `FrostedGlassView` on MAUI (native UIVisualEffectView on iOS, RenderEffect on Android 12+) and CSS `backdrop-filter` on Blazor
+
+## Placement and the edge glow
+
+`Overlay` centres its content, which is right for a dialog and wrong for a prompt bar. `ContentAlignment` (`Start` / `Center` / `End`) and `ContentMargin` move it — that is how the [quick entry](./quick-entry.md) popup sits in the upper third of the page while sharing this control's backdrop, blur and show/hide worker rather than reimplementing them.
+
+`ShowEdgeGlow` rims the page with the animated Siri-style colour wash for as long as the overlay is up, sequenced with its own show and hide. It sits behind the content and in front of the backdrop, and is click-through. `GlowOptions` (a `ScreenGlowOptions`) tunes thickness, palette, speed, pulse and intensity; leave it null for the defaults.
+
+```xml
+<shiny:Overlay IsShown="{Binding IsAsking}"
+               ContentAlignment="Start"
+               ContentMargin="0,120,0,0"
+               ShowEdgeGlow="True"
+               BlurRadius="18" />
+```
+
+A template that returns the **same** view instance each time is supported, which is how you host one long-lived view rather than rebuilding it on every show.

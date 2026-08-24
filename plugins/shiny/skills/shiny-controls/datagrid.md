@@ -8,8 +8,9 @@ behaves the same on iOS/Android/Windows/Mac.
 Feature surface (both hosts): typed columns (`PropertyColumn` + `TemplateColumn`), sorting (single +
 multi), column **filtering** (menu / row / toolbar quick-search), **grouping** with expandable groups,
 footer & group **aggregates**, single/multi **selection** with checkboxes, inline **editing**
-(cell + form), **paging**, **virtualization**, column **resize / reorder**, sticky header, loading +
-empty states, a `ServerData` delegate, and density/striped/bordered/hover styling. Colors follow the
+(cell + form), **detail ("breakdown") rows**, a **tree/hierarchy mode** (`TreeDataGrid`) with lazy child
+loading, **paging**, **virtualization**, column **resize / reorder**, **frozen columns** and a
+frozen (sticky) header, loading + empty states, a `ServerData` delegate, and density/striped/bordered/hover styling. Colors follow the
 theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI).
 
 ## Blazor
@@ -26,16 +27,19 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
           EditMode="DataGridEditMode.Form"
           Dense="true" Striped="true" Hover="true" Bordered="true"
           FixedHeader="true" Height="420px"
+          FrozenColumns="1" FrozenEndColumns="1"
           ColumnResizeMode="DataGridColumnResizeMode.Column"
+          MinColumnWidth="60" MaxColumnWidth="420"
           DragDropColumnReordering="true"
           CommittedItemChanges="OnSaved">
     <Columns>
-        <PropertyColumn Property="x => x.FirstName" Title="First" />
+        <PropertyColumn Property="x => x.FirstName" Title="First"
+                        Width="25%" MinWidth="80px" MaxWidth="260px" />
         <PropertyColumn Property="x => x.Age" Format="N0" />
         <PropertyColumn Property="x => x.Salary" Format="C0">
             <FooterTemplate>Total: @people.Sum(p => p.Salary).ToString("C0")</FooterTemplate>
         </PropertyColumn>
-        <TemplateColumn Title="Status" Sortable="false" Filterable="false">
+        <TemplateColumn Title="Status" Sortable="false" Filterable="false" Resizable="false">
             <CellTemplate>
                 <Pill Text="@(context.Item.Active ? "Active" : "Inactive")"
                       Type="@(context.Item.Active ? PillType.Success : PillType.Caution)" />
@@ -54,14 +58,51 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 - **Columns**: `PropertyColumn<TItem,TProperty>` (`Property="x => x.Name"`, `Format`, derives Title) and
   `TemplateColumn<TItem>` (`CellTemplate`/`EditTemplate`/`HeaderTemplate`/`FooterTemplate` with
   `context.Item`). Per-column flags: `Sortable`, `Filterable`, `Groupable`, `Editable`, `Hidden`,
-  `Width`, `Resizable`, `StickyLeft`/`StickyRight`, `Aggregate`.
+  `Width` (any CSS length, including `"25%"`), `MinWidth`, `MaxWidth`, `Resizable`,
+  `Frozen` (`DataGridFrozen.Start`/`End`; `StickyLeft`/`StickyRight` are legacy aliases), `Aggregate`.
 - **Grid params**: `Items`, `ServerData` (`Func<GridState, Task<GridData<TItem>>>`), `SelectionMode`,
   `SelectedItem(s)`, `SortMode`, `FilterMode`, `QuickFilter`, `Groupable`, `Virtualize`, `EditMode`,
   `EditTrigger`, `ReadOnly`, `RowsPerPage`, `FixedHeader`, `Height`, `Dense`, `Striped`, `Bordered`,
   `Hover`, `Outlined`, `Loading`, `RowClick`, `StartedEditingItem`/`CommittedItemChanges`/
-  `CanceledEditingItem`, `ColumnResizeMode`, `DragDropColumnReordering`, `ToolbarContent`,
+  `CanceledEditingItem`, `ColumnResizeMode`, `MinColumnWidth`/`MaxColumnWidth`, `ColumnResized`,
+  `DragDropColumnReordering`, `ColumnReordered`, `ToolbarContent`,
   `NoRecordsText`/`NoRecordsContent`, `LoadingContent`.
 - **Paging**: put `<DataGridPager TItem="..." />` in `<PagerContent>`.
+- **Detail rows**: `<RowDetailTemplate>` (context is the item) adds a caret column at the leading edge.
+  Grid params: `ExpandMode`, `ExpandOnRowClick`, `IsRowExpandable`, `ExpandedItems`(+`Changed`),
+  `RowExpanded`/`RowCollapsed`. Methods: `ExpandRowAsync`/`CollapseRowAsync`/`ToggleExpandAsync`/
+  `ExpandAllAsync`/`CollapseAllAsync`/`IsRowExpanded`/`InvalidateChildren`/`InvalidateRowDetail`.
+- **Async detail**: `RowDetailLoader` (`Func<TItem, Task>`) + optional `<RowDetailLoadingTemplate>`,
+  `RowDetailLoadFailed`. Read-only `IsBusy` (+ `IsBusyChanged`) and `IsRowBusy(item)`.
+- **Tree mode**: `ChildrenSelector` (+ `ChildrenLoader`, `HasChildrenSelector`, `TreeIndentSize`,
+  `ChildrenLoadFailed`) on `DataGrid` — or use `TreeDataGrid`, the same component under a clearer name.
+
+```razor
+<DataGrid TItem="Order" Items="orders" RowDetailLoader="LoadLinesAsync" IsBusyChanged="b => busy = b">
+    <Columns>…</Columns>
+    <RowDetailTemplate>
+        @foreach (var line in lines[context.Id]) { <div>@line.Sku</div> }
+    </RowDetailTemplate>
+    <RowDetailLoadingTemplate><span class="shiny-dg-busy"></span> Loading…</RowDetailLoadingTemplate>
+</DataGrid>
+@code {
+    Dictionary<int, List<Line>> lines = new();
+    async Task LoadLinesAsync(Order o) => lines[o.Id] = await api.GetLinesAsync(o.Id);
+}
+```
+
+```razor
+<TreeDataGrid TItem="CostNode" Items="accounts"
+              ChildrenSelector="n => n.Lazy ? null : n.Children"
+              ChildrenLoader="LoadChildrenAsync"
+              HasChildrenSelector="n => n.Lazy || n.Children.Count > 0"
+              TreeIndentSize="18">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Account" />
+        <PropertyColumn Property="x => x.Budget" Format="C0" />
+    </Columns>
+</TreeDataGrid>
+```
 
 ## MAUI
 
@@ -78,15 +119,24 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
                 EditMode="Form"
                 AllowColumnResize="True"
                 AllowColumnReorder="True"
+                DragDropColumnReordering="True"
+                HorizontalScroll="True"
+                DefaultColumnWidth="140"
+                MinColumnWidth="70"
+                MaxColumnWidth="400"
+                FrozenColumns="1"
                 Striped="True" Bordered="True">
-    <shiny:DataGridColumn Title="First" PropertyName="FirstName" Width="*" />
+    <shiny:DataGridColumn Title="First" PropertyName="FirstName" Width="*"
+                          MinWidth="90" MaxWidth="260" />
     <shiny:DataGridColumn Title="Age" PropertyName="Age" Width="Auto" />
+    <shiny:DataGridColumn Title="Department" PropertyName="Department" WidthPercent="30" />
     <shiny:DataGridColumn Title="Salary" PropertyName="Salary" StringFormat="{}{0:C0}" Width="*">
         <shiny:DataGridColumn.Aggregate>
             <shiny:DataGridAggregateDefinition Type="Sum" Format="C0" />
         </shiny:DataGridColumn.Aggregate>
     </shiny:DataGridColumn>
-    <shiny:DataGridTemplateColumn Title="Status" Width="Auto" Editable="False">
+    <shiny:DataGridTemplateColumn Title="Status" Width="110" Editable="False"
+                                  Resizable="False" Frozen="End">
         <shiny:DataGridTemplateColumn.CellTemplate>
             <DataTemplate><shiny:PillView Text="{Binding StatusText}" /></DataTemplate>
         </shiny:DataGridTemplateColumn.CellTemplate>
@@ -96,13 +146,37 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 
 - **Columns**: `DataGridColumn` (`PropertyName`, `Width` as `GridLength` star/auto/abs, `StringFormat`,
   `CellTemplate`/`HeaderTemplate`/`EditTemplate`/`FooterTemplate`, `Sortable`/`Filterable`/`Groupable`/
-  `Editable`/`Resizable`/`IsVisible`, `Aggregate`). `DataGridTemplateColumn` for custom-only cells.
+  `Editable`/`Resizable`/`IsVisible`, `WidthPercent`, `MinWidth`/`MaxWidth`, `Frozen`, `Aggregate`).
+  `DataGridTemplateColumn` for custom-only cells.
   Cell templates bind to the data item directly (e.g. `{Binding StatusText}`).
 - **Grid params**: `ItemsSource`, `ServerData`, `SelectionMode`, `SelectedItem`/`SelectedItems`,
   `SortMode`, `FilterMode`, `Groupable`, `PageSize` (0 = no paging), `EditMode`, `EditTrigger`,
-  `ReadOnly`, `AllowColumnResize`, `AllowColumnReorder`, `Dense`, `Striped`, `Bordered`,
+  `ReadOnly`, `AllowColumnResize`, `AllowColumnReorder`, `DragDropColumnReordering`, `ColumnReordered`,
+  `HorizontalScroll`, `DefaultColumnWidth`,
+  `MinColumnWidth`/`MaxColumnWidth`, `FrozenColumns`/`FrozenEndColumns`, `Dense`, `Striped`, `Bordered`,
   `ShowColumnHeaders`, `IsLoading`, `EmptyText`, `RowHeight`, `SelectionChanged`/`SelectionChangedCommand`,
   `StartedEditingItem`/`CommittedItemChanges`/`CanceledEditingItem` events.
+- **Detail rows**: `RowDetailTemplate` (a `DataTemplate` whose BindingContext is the row's item) adds a
+  caret column at the leading edge. Also `ExpandMode`, `ExpandOnRowTap`, `IsRowExpandable`,
+  `ExpandedItems`, `RowExpanded`/`RowCollapsed` events, and `ExpandRow`/`CollapseRow`/`ToggleRow`/
+  `ExpandAll`/`CollapseAll`/`IsRowExpanded`/`InvalidateChildren`/`InvalidateRowDetail`.
+- **Async detail**: `RowDetailLoader` (`Func<object, Task>`, a BindableProperty) + optional
+  `RowDetailLoadingTemplate`, `RowDetailLoadFailed`. Read-only bindable `IsBusy` (+ `IsBusyChanged`
+  event) and `IsRowBusy(item)`.
+- **Tree mode**: `ChildrenSelector` (+ `ChildrenLoader`, `HasChildrenSelector`, `TreeIndentSize`,
+  `ChildrenLoadFailed`) — or use `shiny:TreeDataGrid`, the same control under a clearer name. All three
+  selectors are `BindableProperty`s, so a XAML page can bind them straight to a view model.
+
+```xml
+<shiny:TreeDataGrid ItemsSource="{Binding Accounts}"
+                    ChildrenSelector="{Binding ChildrenSelector}"
+                    ChildrenLoader="{Binding ChildrenLoader}"
+                    HasChildrenSelector="{Binding HasChildrenSelector}"
+                    TreeIndentSize="18">
+    <shiny:DataGridColumn Title="Account" PropertyName="Name" Width="2*" />
+    <shiny:DataGridColumn Title="Budget" PropertyName="Budget" StringFormat="{}{0:C0}" Width="1.2*" />
+</shiny:TreeDataGrid>
+```
 
 ## Behavior notes & platform nuances
 
@@ -113,10 +187,88 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
 - **Editing**: Blazor `Cell` edits one cell on click (commit on blur/Enter, cancel on Escape); `Form`
   edits the whole row with Save/Cancel. MAUI uses **inline-row editing** (editors for editable columns +
   a Save/Cancel bar) for both modes — the touch-friendly model.
-- **Reorder**: Blazor uses native HTML drag-and-drop on headers (`DragDropColumnReordering`); MAUI uses
-  ‹ › reorder arrows on headers (`AllowColumnReorder`).
+- **Column widths**: Blazor takes any CSS length on `Width` — `"160px"`, `"12rem"`, `"25%"`. MAUI takes a
+  `GridLength` (`"*"`, `"2*"`, `"Auto"`, `"160"`) plus **`WidthPercent`** (1-100), which wins over `Width`
+  when set. Outside `HorizontalScroll` a MAUI percentage resolves to a star of the same factor — a star
+  factor *is* a percentage, since the Grid divides the available width in the ratio of the factors — and
+  under `HorizontalScroll` it resolves against the scroller's own width, so percentages summing past 100
+  are what make the grid scroll. Prefer percentages when the same layout has to read the same on both
+  hosts.
+- **Reorder**: both hosts have **drag-and-drop on headers via `DragDropColumnReordering`, off by
+  default** — drag a header onto another and a marker shows the edge it will land on; dropping to the
+  right of a column puts it *after* that column. MAUI additionally offers ‹ › reorder arrows under the
+  separate `AllowColumnReorder` (the accessible, no-drag path to the same thing; a grid can enable
+  either, both, or neither). Each drop raises `ColumnReordered`, which is what you persist to restore a
+  user's column layout. Blazor keeps the order on the grid (`ResetColumnOrder()` clears it); MAUI moves
+  the column in `Columns` itself.
+  - ⚠️ On MAUI under `HorizontalScroll`, enabling drag reorder claims sideways gestures that start on a
+    header, so the grid is scrolled by dragging a row instead.
+- **Column resizing**: switch it on per grid (Blazor `ColumnResizeMode`, MAUI `AllowColumnResize="True"`),
+  then drag the right edge of a header. Any column can opt out with `Resizable="false"` — it keeps its
+  width and offers no handle.
+  - **Bounds**: `MinWidth` / `MaxWidth` per column, falling back to the grid's
+    `MinColumnWidth` (48 by default) / `MaxColumnWidth` (unbounded by default). Set at least a
+    `MinWidth` on any column a user can drag, or they can squeeze it down to the floor and lose the
+    header text. A `MaxWidth` below the `MinWidth` loses — the floor wins, so a bad pair still leaves a
+    usable column.
+  - The grid-level pair bounds the **drag**, not the layout: a `Width="40"` icon column stays 40 wide
+    even though dragging it would stop at 48. Only a column's own `MinWidth`/`MaxWidth` bound the
+    declared width as well.
+  - **Blazor** takes CSS strings (`MinWidth="80px"`). A pixel value also clamps the drag; any other unit
+    (`%`, `em`) is emitted as CSS but leaves the drag on the grid-level default, because a drag works in
+    pixels. `ColumnResizeMode.Column` lets the grid grow; `Container` takes the difference out of the
+    next resizable column so the total holds. `ColumnResized` reports the final width (persist it to
+    restore widths on the next visit); `ResetColumnWidths()` drops back to the declared widths.
+  - **MAUI** takes doubles (`MinWidth="90"`); `0` means "fall back to the grid". A star column outside
+    `HorizontalScroll` stays a star and is not clamped — MAUI's `Grid` has no bounded star, so clamping
+    would silently turn it absolute.
 - **Virtualization**: Blazor opt-in via `Virtualize` (uses `<Virtualize>`, best with `FixedHeader`+`Height`,
   not combined with paging/grouping); MAUI gets it free from `CollectionView`.
+- **Frozen header**: Blazor needs `FixedHeader="true"` **and** `Height` (the header sticks against the
+  scroller, and without a capped height nothing scrolls). MAUI's header is always frozen — it sits in
+  its own row above the `CollectionView`.
+- **Frozen columns**: pin a contiguous run at each edge, either per-column (`Frozen="Start"` / `"End"`)
+  or by count on the grid (`FrozenColumns` / `FrozenEndColumns`, which also pins the multi-select
+  checkbox column). Only a leading/trailing run can be pinned; a `Frozen` column in the middle is
+  ignored. Frozen cells paint an opaque background and sit above the scrolling ones.
+  - **MAUI requires `HorizontalScroll="True"`** — without sideways scrolling there is nothing to pin
+    against, so `Frozen` is a no-op. `HorizontalScroll` puts header, rows and footer in one scroller;
+    star widths cannot survive its unbounded measure, so each one resolves to
+    `DefaultColumnWidth` (150 by default) x its star factor.
+  - Blazor needs no extra flag - the table scrolls sideways whenever the columns are wider than the
+    grid. A declared non-percentage `Width` is emitted as `width` **and** `min-width`, because a table
+    cell's `width` alone is only a suggestion: without it the browser compresses the columns to fit
+    and nothing ever overflows (so nothing scrolls, and pinning has nothing to pin against). Use a `%`
+    width when you *want* a column to shrink with the container. Give frozen columns an explicit px `Width` and the offsets are right on the first paint;
+    otherwise a small JS module measures them after render.
+- **Detail (breakdown) rows**: setting `RowDetailTemplate` adds a caret column at the leading edge and
+  renders the template in a full-width row under whichever rows are expanded. `ExpandMode="Single"`
+  keeps only one open. The detail content is pinned to the leading edge while the columns scroll
+  sideways (MAUI translates the pane; Blazor uses `position: sticky`), so a breakdown never slides out
+  of view. Expansion is keyed on the *data item*, so it survives sorting, filtering and paging.
+- **Async loading**: both loaders put a **spinner in place of that row's caret** while they run — the
+  caret is the button, so the progress goes on it. `RowDetailLoader` fetches whatever the breakdown
+  needs the first time a row opens; the detail row shows `RowDetailLoadingTemplate` (default: a
+  spinner) meanwhile, and `RowDetailTemplate` is **not built until the load completes**, so it can
+  assume its data arrived. The loader returns **no value** — fill an observable property on the item
+  (or a lookup keyed by it) and let the template bind to it, which keeps the template's context the
+  item rather than a wrapper. Each item loads once; `InvalidateRowDetail(item)` refetches (immediately
+  if that row is open). A throw collapses the row and raises `RowDetailLoadFailed`.
+  - **`IsBusy`** is true while *any* children or detail load is in flight — a read-only bindable on
+    MAUI, a property plus `IsBusyChanged` on Blazor. Bind a page-level indicator to it; per-row
+    spinners are drawn either way. It is **not** `IsLoading`/`Loading`, which you set yourself to
+    cover the grid while its own data loads. `IsRowBusy(item)` is the per-row form.
+- **Tree mode**: hand the grid a `ChildrenSelector` and the first visible column grows an indent and a
+  caret — no extra column. `ChildrenLoader` fetches a level on first expand (the caret becomes a
+  spinner meanwhile) and caches it; **the selector gets first refusal**, so the loader only runs for items the
+  selector returns `null` for and a tree can mix in-memory branches with fetched ones. Give
+  `HasChildrenSelector` if you want leaves to render caret-free before anything is loaded.
+  - Sorting and filtering apply **per level**, so children stay under their parent, and a row is kept
+    when a *descendant* matches the filter — otherwise the match would be unreachable.
+  - Paging pages the **roots**; footer aggregates are computed over the roots too.
+  - Tree and `Groupable` are mutually exclusive — **grouping wins**.
+  - `ExpandAll` opens every already-loaded level; it does not fetch, since a lazy tree's depth is
+    unbounded.
 - **AOT/trimming**: MAUI string-path value access uses reflection (annotated). For full trim/NativeAOT,
   set a column's `ValueGetter`/`ValueSetter`/`Comparer` to avoid reflection.
 
@@ -128,6 +280,11 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
   toggles.
 - Blazor paging needs `<PagerContent><DataGridPager TItem="..."/></PagerContent>`; MAUI paging is just
   `PageSize`.
+- Reach for a **detail row** when the extra information is *about* the row (a breakdown, a chart, a form)
+  and for **tree mode** when the extra rows are more of the same thing one level down. They compose —
+  a tree row can also have a detail row — but pick the one that matches the data before using both.
+- `TreeDataGrid` and `DataGrid` are the same type; prefer `TreeDataGrid` when the grid is hierarchical so
+  the markup says so.
 - Leave colors unset to inherit the theme; the grid is light/dark aware.
 - **Budget columns to the width you actually have.** Header titles ellipsize and clip to their column
   (they no longer spill into the next one), but a phone-width grid only has room for roughly **3–4

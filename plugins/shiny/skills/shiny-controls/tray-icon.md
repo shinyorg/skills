@@ -147,7 +147,7 @@ When a hotkey can't be parsed or registered (unknown key name, modifier-only str
 
 | Member | Description |
 |---|---|
-| `SetIcon(Func<Stream>)` | Set the icon from a stream factory. PNG or ICO bytes both work. Use a factory (not a Stream directly) so the host can re-read for DPI/theme changes |
+| `SetIcon(Func<Stream>)` | Set the icon from a stream factory. PNG or ICO bytes both work; macOS scales the image to the menu bar's own height, so a full-size app icon is a fine source. Use a factory (not a Stream directly) so the host can re-read for DPI/theme changes |
 | `Tooltip` | Hover tooltip (Windows / macOS) or accessible description (Linux) |
 | `Title` | Optional text label shown beside or instead of the icon. macOS / Linux only — ignored on Windows |
 | `Badge` | Optional string shown as a red pill composited on the icon (Windows) or beside the icon (macOS / Linux). Set to `null` to clear |

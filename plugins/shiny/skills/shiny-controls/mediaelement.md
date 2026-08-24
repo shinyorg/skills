@@ -161,6 +161,7 @@ itself.
 | `Position` | TimeSpan | 0 | two-way; read back every `PositionUpdateInterval`, assigning it seeks |
 | `Duration` | TimeSpan | 0 | read-only; zero until opened, and for live streams |
 | `CurrentState` | `MediaElementState` | None | None / Opening / Buffering / Playing / Paused / Stopped / Failed |
+| `VideoSize` | `Size` | 0 x 0 | MAUI only — read-only pixel size of the video track; zero for audio-only. Blazor splits it into `VideoWidth`/`VideoHeight` ints |
 | `BufferedProgress` | double | 0 | 0..1; the scrubber's secondary track |
 | `Aspect` | `MediaAspect` | AspectFit | AspectFit / AspectFill / Fill |
 | `KeepScreenOn` | bool | false | inhibit display sleep while playing |
@@ -171,11 +172,36 @@ itself.
 | `Capabilities` | `MediaPlaybackCapabilities` | None | read-only |
 | `Poster` | string | null | Blazor only |
 
-**Events (MAUI):** `StateChanged`, `MediaOpened`, `MediaEnded`, `MediaFailed`, `PositionChanged`,
-`SeekCompleted`, `FullScreenChanged`, `PictureInPictureChanged`.
+**Events (MAUI):** `StateChanged`, `MediaOpened`, `VideoSizeChanged`, `MediaEnded`, `MediaFailed`,
+`PositionChanged`, `SeekCompleted`, `FullScreenChanged`, `PictureInPictureChanged`.
 **Blazor:** the same as `On*` `EventCallback` parameters (`OnStateChanged`, `OnMediaOpened`,
-`OnMediaEnded`, `OnMediaFailed`, `OnPositionChanged`, `OnFullScreenChanged`,
+`OnVideoSizeChanged`, `OnMediaEnded`, `OnMediaFailed`, `OnPositionChanged`, `OnFullScreenChanged`,
 `OnPictureInPictureChanged`), plus `@bind-IsMuted`.
+
+---
+
+## Sizing the player to the video
+
+`VideoSize` is what a layout that must fit its source reads — a portrait clip in a fixed landscape box is
+fitted to the box's *height* and drawn as a narrow sliver down the middle.
+
+```xml
+<media:MediaElement x:Name="Player" Source="{Binding Clip}" Aspect="AspectFit" />
+```
+
+```csharp
+this.Player.VideoSizeChanged += (_, size) =>
+{
+    if (size.Height > 0)
+        this.Player.HeightRequest = this.Player.Width * (size.Height / size.Width);
+};
+```
+
+⚠️ **Never read `VideoSize` once inside `MediaOpened` and stop there.** Android reports the size from a
+separate player callback that routinely lands *after* the media is open, so the read-at-open version of this
+code reports `0 x 0` on Android for perfectly ordinary video. Bind the property or handle
+`VideoSizeChanged` — which also covers an adaptive stream changing rendition mid-playback. Generate the
+event/binding form, not the one-shot read.
 
 ---
 

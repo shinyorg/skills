@@ -373,6 +373,14 @@ All cells inherit these properties:
 | `UseDragSort` | `bool` | `false` |
 | `ItemsSource` | `IEnumerable?` | `null` |
 | `ItemTemplate` | `DataTemplate?` | `null` |
+
+`IsVisible` is live and safe to bind — a section that flips re-renders the table, and a hidden section
+draws nothing at all: no header, no cells, and **no section separator on either side of it**. Binding
+it to a feature flag or a mode switch is the intended use.
+
+> Note the difference from a **cell's** `IsVisible`, which a section reads when it renders and never
+> again. A cell whose visibility is set after the section is built may never appear; a section's can
+> change whenever you like.
 | `TemplateStartIndex` | `int` | `0` |
 
 ## Dynamic Cells with ItemTemplate
