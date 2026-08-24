@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Shiny agent skills for Claude Code and GitHub Copilot CLI",
-    "version": "2.0"
+    "version": "2.1"
   },
   "plugins": [
     {
       "name": "shiny",
-      "version": "2.0",
+      "version": "2.1",
       "source": "./plugins/shiny",
-      "description": "Every Shiny library for .NET in one plugin — cross-platform mobile client libraries (Bluetooth LE client & peripheral hosting, GPS tracking, geofencing, background jobs, local & push notifications, HTTP background transfers, bidirectional JSON data sync, OBD-II diagnostics, music library, health data, contacts, calendar, speech-to-text/text-to-speech, AI conversation, embedded HTTP server, core hosting/DI), .NET MAUI components (Shell navigation with source-generated routes), shared MAUI & Blazor UI controls (TableView, FloatingPanel, ChatView, ImageViewer/ImageEditor, scheduler, Markdown, barcodes, and more), Mediator/CQRS with middleware and source generators, AOT-friendly data libraries (DocumentDb schema-free JSON store, Spatial geospatial database, Firestore), .NET Aspire integrations (Orleans ADO.NET hosting, Gluetun VPN routing, tunnelling), and source generators & utilities (attribute-driven DI, key/value stores, .resx localization generator, modular MAUI/ASP.NET Core hosting, server-side push dispatch)"
+      "description": "Every Shiny library for .NET in one plugin — cross-platform mobile & device client libraries (Bluetooth LE client & peripheral hosting, GPS tracking, geofencing, background jobs, local & push notifications, HTTP background transfers, bidirectional JSON data sync, OBD-II diagnostics over BLE/WiFi/serial, music library, health data, contacts, calendar, Wi-Fi scanning/connect/hotspot, local network discovery (mDNS/DNS-SD, SSDP/UPnP, WS-Discovery), speech-to-text/text-to-speech, AI conversation with wake word, core hosting/DI), an embedded AOT-clean HTTP/1.1, HTTP/2 & HTTP/3 server that runs where ASP.NET Core cannot, .NET MAUI components (Shell navigation with source-generated routes, MAUI hosting modules, device/app info & store lookups), shared MAUI & Blazor UI controls (TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, scheduler, Markdown, barcodes & QR codes, and more), Mediator/CQRS with middleware and source generators, AOT-friendly data libraries (DocumentDb schema-free JSON store across SQLite, LiteDB, CosmosDB, MongoDB, DynamoDB, Redis, RavenDB, Firestore, DuckDB, IndexedDB and the major SQL engines, Spatial geospatial database, on-device native Firestore for iOS/Android), .NET Aspire integrations (Orleans ADO.NET hosting, Gluetun VPN routing, tunnelling), and source generators & utilities (attribute-driven DI, key/value stores, AOT-safe JSON serialization, reflector property access & assembly info, .resx localization generator, modular MAUI/Blazor/ASP.NET Core hosting, server-side push dispatch for APNs/FCM/Web Push/WNS)"
     }
   ]
 }
