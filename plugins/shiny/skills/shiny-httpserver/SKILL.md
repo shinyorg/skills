@@ -1,6 +1,6 @@
 ---
 name: shiny-httpserver
-description: Generate code using Shiny.Net.HttpServer — a dependency-light, AOT/trim-clean HTTP/1.1, HTTP/2 & HTTP/3 server that runs anywhere .NET runs, including .NET MAUI, where ASP.NET Core cannot. Covers routing, middleware, source-generated typed endpoints, results and JSON, content negotiation with XML/MessagePack/protobuf formatters in both directions, static files and Blazor WASM, uploads/downloads, WebSockets, SSE, sessions, OpenAPI, authentication (Basic/API key/cookie/JWT), authorization, CORS, rate limiting, IP filtering, TLS and self-signed certificates, tunnelling (relay, SSH, quick tunnels, Azure Relay), serving a directory over WebDAV, serving gRPC and gRPC-Web, and hosting an MCP server.
+description: Generate code using Shiny.Net.HttpServer — a dependency-light, AOT/trim-clean HTTP/1.1, HTTP/2 & HTTP/3 server that runs anywhere .NET runs, including .NET MAUI, where ASP.NET Core cannot. Covers routing, middleware, source-generated typed endpoints, results and JSON, content negotiation with XML/MessagePack/protobuf formatters in both directions, static files and Blazor WASM, uploads/downloads, WebSockets, SSE, sessions, OpenAPI, authentication (Basic/API key/cookie/JWT), authorization, CORS, rate limiting, IP filtering, TLS and self-signed certificates, tunnelling (relay, SSH, quick tunnels, Azure Relay, and supervised cloudflared/ngrok/tailscale agents), serving a directory over WebDAV, serving gRPC and gRPC-Web, hosting an MCP server with RFC 9728 OAuth discovery, health checks, OpenTelemetry-shaped metrics and tracing, W3C access logs, request timeouts, output caching and conditional requests, request decompression, antiforgery and browser security headers, reverse-proxy routes, mDNS/Bonjour advertising and discovery, MAUI lifecycle (background/foreground, Android foreground service, network rebinding), and an in-memory test harness.
 auto_invoke: true
 triggers:
 - Shiny.Net.HttpServer
@@ -9,12 +9,19 @@ triggers:
 - http server in MAUI
 - web server on device
 - HttpServerOptions
-- HttpServerBuilder
+- ShinyHttpServerBuilder
+- AddShinyHttpServer
 - AddHttpServer
 - MapGet
 - MapPost
 - OnRequest
 - IHttpMiddleware
+- IResponseBodyControl
+- request logging
+- traffic recorder
+- capture request body
+- capture response body
+- read body twice
 - RequestDelegate
 - HttpContext
 - RouteAttribute
@@ -52,6 +59,71 @@ triggers:
 - FileDownloadResult
 - ReadMultipartAsync
 - AcceptWebSocketAsync
+- AcceptTrackedWebSocketAsync
+- IWebSocketRegistry
+- WebSocketRegistry
+- permessage-deflate
+- AddHealthChecks
+- MapHealthChecks
+- IHealthCheck
+- HealthCheckResult
+- UseTelemetry
+- UseW3CLogging
+- AddW3CLogging
+- W3CLoggerOptions
+- W3CLoggingFields
+- IW3CLogWriter
+- access log
+- w3c log
+- HttpServerTelemetry
+- HttpServerMetrics
+- traceparent
+- OpenTelemetry
+- UseRequestDecompression
+- UseRequestTimeouts
+- RequestTimeout
+- DisableRequestTimeout
+- UseOutputCache
+- CacheOutput
+- OutputCache
+- IOutputCacheStore
+- CheckPreconditions
+- TryCompleteConditionalAsync
+- SetETag
+- EntityTag
+- UseSecurityHeaders
+- UseHttpsRedirection
+- Hsts
+- AddAntiforgery
+- UseAntiforgery
+- IAntiforgery
+- ValidateAntiforgery
+- MapProxy
+- ProxyOptions
+- AddHttpServerAdvertisement
+- IHttpServerAdvertiser
+- AddHttpServerLocator
+- IHttpServerLocator
+- mDNS
+- Bonjour
+- DNS-SD
+- service discovery
+- AddHttpServerLifecycle
+- BackgroundServerMode
+- HttpServerForegroundService
+- LocalNetworkAccess
+- RebindOnNetworkChange
+- NetworkAddressesChanged
+- LocalAddresses
+- TestHttpServer
+- CreateInMemoryClient
+- InMemoryConnectionHandler
+- ITunnelAgent
+- CloudflareTunnel
+- NgrokTunnel
+- TailscaleFunnel
+- AddMcpProtectedResource
+- MapMcpProtectedResource
 - SendEventsAsync
 - ServerSentEvents
 - UseSessions
@@ -94,6 +166,16 @@ triggers:
 - MapDocumentCollection
 - DocumentEndpoints
 - DocumentResourceBuilder
+- Shiny.Net.HttpServer.CommandLine
+- shinyhttpserver
+- serve a directory from the command line
+- file manager in a browser
+- mount a folder as a drive
+- QR code in the terminal
+- open a served directory on a phone
+- share a folder over the internet
+- --tunnel
+- --tunnel-token
 - Shiny.Net.HttpServer.WebDav
 - MapWebDav
 - WebDavOptions
@@ -164,7 +246,14 @@ Invoke this skill when the user wants to:
 - Add authentication, authorization, CORS, rate limiting or IP filtering to that server
 - Make a device-local server reachable from the internet through a tunnel
 - Serve gRPC or gRPC-Web from an app that cannot run ASP.NET Core
-- Host a Model Context Protocol server inside a non-ASP.NET app
+- Host a Model Context Protocol server inside a non-ASP.NET app, including one a remote client must
+  authenticate to
+- Find or be found by another device on the same network without anyone typing an IP address
+- Keep an embedded server working as a phone is backgrounded, resumed, or moved between networks
+- Report health, metrics or traces from an embedded server
+- Cache responses, honour conditional requests, bound how long a handler may take, or forward a
+  route to another server
+- Test endpoints without binding a port
 
 **Do not** use this skill for ASP.NET Core / Kestrel / minimal APIs. Those are a different library
 with similar-looking names.
@@ -193,7 +282,36 @@ dotnet add package Shiny.Net.HttpServer.Mediator         # Shiny.Mediator handle
 dotnet add package Shiny.Net.HttpServer.DocumentDb       # Shiny.DocumentDb types as REST resources
 dotnet add package Shiny.Net.HttpServer.WebDav           # a directory as a WebDAV mount (RFC 4918)
 dotnet add package Shiny.Net.HttpServer.Grpc             # gRPC + gRPC-Web services
+dotnet add package Shiny.Net.HttpServer.Discovery        # mDNS/Bonjour advertise + browse
+dotnet add package Shiny.Net.HttpServer.Mobile           # mobile lifecycle (multi-targets android/ios/maccatalyst)
+dotnet add package Shiny.Net.HttpServer.Testing          # in-memory HttpClient for tests
+dotnet add package Shiny.Net.HttpServer.Tunnels          # cloudflared / ngrok / tailscale agents (desktop + CLI only)
+
+dotnet tool install -g Shiny.Net.HttpServer.CommandLine  # `shinyhttpserver`, not a library reference
 ```
+
+`Shiny.Net.HttpServer.CommandLine` is a .NET tool, not something an app references: it serves a
+directory over HTTP from a terminal (`shinyhttpserver [path] -m read|create|update|delete|all
+-u user:password`). Reach for it when the ask is "serve this folder", not "add a server to my app".
+It mounts the directory over **WebDAV**, so one address is both a browser file manager (browse,
+upload, rename, delete — whatever `-m` allows) and a drive Finder, Explorer or a Linux file manager
+can mount. Scripting it is WebDAV: `GET`/`PUT`/`DELETE` as usual, `MKCOL` for a directory, `MOVE`
+for a rename, and `PROPFIND` with `Depth: 1` for a machine-readable listing — a `GET` on a directory
+returns the manager's HTML, not JSON. `-m` is enforced before the handler runs, across `MKCOL`,
+`COPY` and `MOVE` as well as `PUT`; a `MOVE` is judged by where it lands, and renaming needs
+`update` **and** `delete`.
+It listens on every interface by default and ends its banner with a scannable QR code of the LAN
+address plus the URL in full, so "get this folder onto my phone" is the tool answer, not code —
+`-a localhost` keeps it to the machine, `--no-qr` drops the code. Basic auth (`-u`) over plain HTTP
+refuses to start on a non-loopback address, which the default now is: pair it with `--https`.
+
+`--tunnel` is the answer to "share this folder with someone not on my network": it opens a
+`QuickTunnel` to pinggy.io and the QR code carries the public HTTPS address instead of the LAN one.
+Because the tunnel feeds `HttpServer.ServeAsync` directly, `--tunnel -a localhost` binds nothing on
+the LAN and is reachable only through the tunnel — and a tunnelled connection counts as encrypted
+transport, so `-u` works over it without `--https` or `--allow-insecure-auth`. Anonymous tunnels stop
+after 60 minutes; `--tunnel-token <token>` lifts that and implies `--tunnel`. Always say that the
+address is public when you suggest it.
 
 ## The four tiers — the spine of this library
 
@@ -221,19 +339,36 @@ await server.RunAsync();
 
 // (b) The builder — a console app or service that wants DI
 var builder = HttpServer.CreateBuilder();
-builder.Configure(o => o.Port = 8080);
-builder.Services.AddSingleton<IWidgetStore, WidgetStore>();
+builder.Options.Port = 8080;
+builder.AddAuthentication().AddJwtBearer(o => o.SigningKey = key);   // server features: on the builder
+builder.Services.AddSingleton<IWidgetStore, WidgetStore>();          // your own: on Services
 var app = builder.Build();
 app.MapMyAppEndpoints();
 await app.RunAsync();
 
-// (c) An existing container — MAUI, generic host
-builder.Services.AddHttpServer(
-    o => { o.Address = IPAddress.Any; o.Port = 0; },
-    server => server.MapMyAppEndpoints(),
+// (c) An existing container — MAUI, generic host. Same builder, same calls.
+services.AddShinyHttpServer(
+    http =>
+    {
+        http.Options.Address = IPAddress.Any;
+        http.Options.Port = 0;
+
+        http.AddAuthentication().AddBasic<CredentialStore>(o => o.Realm = "Device");
+        http.Configure(server => server.MapMyAppEndpoints());
+    },
     autoStart: false     // for an app with a "share" toggle
 );
 ```
+
+**Every registration in this library is an extension on `ShinyHttpServerBuilder`, not on
+`IServiceCollection`** — `AddAuthentication`, `AddCors`, `AddRateLimiter`, `AddHealthChecks`,
+`AddOutputCache`, `AddSessions`, the tunnels, discovery, the mobile lifecycle. Generate
+`builder.AddX(...)`, never `builder.Services.AddX(...)`, for anything this library owns;
+`builder.Services` is for the app's own registrations. The one exception is
+`services.AddHttpServerLocator()`, which is the client half of mDNS and has no server to hang off.
+
+`http.Configure(server => ...)` is where routes and middleware go in shape (c) — it runs when the
+server is first resolved, so it can pull things out of the container.
 
 `autoStart: false` + `server.StartAsync()` from the UI is the right shape for MAUI. `Port = 0` lets
 the OS pick; read it back from `server.ListenUrl`.
@@ -374,7 +509,7 @@ build. Register a formatter instead. Formats plug into content negotiation, whic
 (configuration) and applies to all four tiers above it:
 
 ```csharp
-builder.Services.AddContentNegotiation(o =>
+builder.AddContentNegotiation(o =>
 {
     o.NegotiateByDefault = true;   // Results.Ok(value) honours Accept; off by default
     o.AddXml();                    // application/xml, text/xml
@@ -449,18 +584,55 @@ populated.
 ### Ordering — generate this order
 
 ```csharp
+app.UseTelemetry();             // outermost: everything below it is time the client waited
+app.UseW3CLogging();            // same reason — the line should describe the whole exchange
 app.UseCors();                  // preflights carry no credentials
 app.UseRateLimiter();           // before routing: a throttled request should cost nothing
 app.UseIpFilter();
+app.UseSecurityHeaders();       // applied as the response starts, so it covers static files and errors
 app.UseResponseCompression();
+app.UseRequestDecompression();  // before anything that reads a body
 app.UseAuthentication();        // before routing
 app.UseAuthorization();         // after routing (registers itself as after-routing)
+app.UseAntiforgery();           // after authentication — checks a request that would have succeeded
+app.UseRequestTimeouts();       // after routing: the timeout is a property of the endpoint
+app.UseOutputCache();           // after routing, so a hit still pays for auth above it
 app.UseSessions();
 app.UseStaticFiles("./wwwroot");
 ```
 
+`UseSecurityHeaders`, `UseRequestDecompression`, `UseTelemetry` and `UseRateLimiter` are ordinary
+middleware; `UseAuthorization`, `UseAntiforgery`, `UseRequestTimeouts` and `UseOutputCache` register
+themselves **after routing**, because each reads endpoint metadata.
+
+### Seeing the bodies (request logging, traffic recording, audit)
+
+Both directions have a seam; use them rather than trying to read a body twice off the wire.
+
+```csharp
+// inbound: read once, hand the handler a rewound copy (also drops any BodyReader handed out)
+var buffered = new MemoryStream();
+await ctx.Request.Body.CopyToAsync(buffered, ctx.RequestAborted);
+buffered.Position = 0;
+ctx.Request.Body = buffered;
+
+// outbound: wrap the control the response is bound to, then bind the wrapper
+var tee = new TeeBodyControl(ctx.Response.BodyControl, capture);   // : IResponseBodyControl
+ctx.Response.Bind(tee);
+try     { await next(ctx); }
+finally { await tee.FlushAsync(); }        // see gotcha below
+```
+
+A wrapper must forward `StartAsync`/`CompleteAsync` to the control it wrapped, and should build its
+`Writer` over its own `Stream` (not over `inner.Writer`) so both write paths meet in one place. This
+is the same seam `UseResponseCompression()` inserts itself through. On a device, decide from the
+content type whether a body is worth keeping at all and cap what you store.
+
 **Critical gotchas:**
 
+- **Flush what a body-control wrapper buffered before the pipeline unwinds.** The connection
+  completes its own producer, not whatever the response ended up bound to, so bytes left in a
+  wrapper's `PipeWriter` never reach the wire.
 - The pipeline is composed **once**, at first serve. Registering middleware after the server starts
   throws; `RestartAsync` does not recompose it. Routes *can* change at any time.
 - Headers flush on the first body write. To add a header around a handler, use
@@ -473,13 +645,13 @@ app.UseStaticFiles("./wwwroot");
 ## Security
 
 ```csharp
-builder.Services.AddAuthentication()
+builder.AddAuthentication()
     .AddJwtBearer(o => { o.Issuer = "app"; o.Audience = "app"; o.SigningKey = key; });
     // or .AddBasic(o => o.AddUser("ada", pw, "admin")) / .AddBasic<UserStore>()
     // or .AddApiKey(o => o.AddKey(key, "ci", "deploy"))
     // or .AddCookie(o => { o.Protector = new TicketProtector(k); o.LoginPath = "/login"; })
 
-builder.Services.AddAuthorization(o =>
+builder.AddAuthorization(o =>
 {
     o.AddPolicy("admin", p => p.RequireRole("admin"));
     // o.SetFallbackPolicy(p => p.RequireAuthenticatedUser());   // deny by default
@@ -510,6 +682,8 @@ app.MapFileBrowser("/files", o => o.RootPath = FileSystem.AppDataDirectory).Requ
 
 - Unknown file extensions are **not served** by default. Add `ContentTypeOverrides[".x"]` rather than
   turning on `ServeUnknownFileTypes`.
+- `MapFileBrowser("/", …)` mounts the browser on the whole site — the shape a "serve this directory"
+  CLI wants. Literals still beat its catch-all, so routes mapped alongside it keep answering.
 - Uploads: `await foreach (var part in ctx.Request.ReadMultipartAsync(ct))` and
   `part.SafeFileName()` (never `part.FileName` — traversal). `ReadFormAsync` buffers; use it only for
   small fields.
@@ -519,8 +693,9 @@ app.MapFileBrowser("/files", o => o.RootPath = FileSystem.AppDataDirectory).Requ
 
 `MapFileBrowser` is a JSON API you drive with curl or your own client. `MapWebDav` speaks the
 protocol the operating system already has a client for, so the folder mounts as a drive with no
-client code at all. Reach for it whenever the user says *mount*, *Finder*, *Explorer*, *map a
-network drive*, or *WebDAV*; reach for the file browser when they want an API.
+client code at all — and its browser `GET` is a working file manager. Reach for it whenever the user
+says *mount*, *Finder*, *Explorer*, *map a network drive*, *WebDAV*, or wants a **UI** over a
+directory; reach for the file browser when they want a JSON API to call from their own code.
 
 Tier 1: a mounted module of raw routes, twenty-two of them, mapped in one call.
 
@@ -543,9 +718,15 @@ app.MapWebDav("/dav", o =>
   small tree.
 - Dead properties (`PROPPATCH`) are held in memory. Assign `PropertyStore` to keep them across
   restarts.
-- A browser `GET` on a collection returns an HTML listing whose entries — and the link back to the
-  parent — are absolute, so the tree is walkable from a plain browser with or without a trailing
-  slash on the mount URL. `DirectoryBrowsing = false` turns it off.
+- A browser `GET` on a collection returns a **file manager**: listing with sizes and times,
+  breadcrumbs, drag-and-drop upload (`PUT`, folders walked and recreated), new folder (`MKCOL`),
+  rename (`MOVE`, `Overwrite: F`) and delete (`DELETE`), plus a download button per file. It offers
+  only what the options allow — read-only renders a listing with no buttons — and it is one
+  self-contained response with nothing fetched from outside. Entries and the link to the parent are
+  absolute, so the tree is walkable with or without a trailing slash on the mount URL.
+  `DirectoryBrowsing = false` turns the page off entirely (a browser `GET` then answers 405). This
+  is the same page `shinyhttpserver` serves — say "open the mount URL in a browser" when a user asks
+  for a UI over a directory; there is no other file-manager UI in this library.
 - The mount is excluded from the OpenAPI document — do not try to describe it.
 
 ## Realtime
@@ -572,15 +753,202 @@ app.MapGet("/events", ctx => ctx.SendEventsAsync(async stream =>
 }));
 ```
 
+### Talking to every socket at once
+
+A handler owns one socket and cannot reach the others. `IWebSocketRegistry` is the list, the groups
+and the dead-socket cleanup, so an app does not hand-roll all three.
+
+```csharp
+builder.AddWebSocketRegistry();
+
+app.MapGet("/ws", async ctx =>
+{
+    await using var tracked = await ctx.AcceptTrackedWebSocketAsync(cancellationToken: ctx.RequestAborted);
+    tracked.JoinGroup("kitchen");
+
+    while (await tracked.ReceiveAsync(ctx.RequestAborted) is { } message)
+        await registry.SendToGroupAsync("kitchen", message.Text, ctx.RequestAborted);
+});
+
+await registry.BroadcastAsync("the door unlocked");        // returns how many were reached
+await registry.SendToUserAsync("ada", "your build finished");
+```
+
+- A broadcast **never throws for a dead peer**: that socket is dropped from the registry and the
+  count comes back one lower. Sends run concurrently, so one stalled client does not hold up the rest.
+- Disposing the `TrackedWebSocket` untracks and closes it, so the registry needs no cleanup pass.
+
+### Compression and keepalive (defaults, worth knowing)
+
+- **permessage-deflate is on** when the client offers it, with no context takeover in either
+  direction — each message compresses on its own, so a socket costs no persistent zlib window.
+  `EnablePerMessageDeflate = false` turns it off; `CompressionThreshold` (256 bytes) is the floor
+  below which deflate makes a message bigger.
+- **Keepalive pings every 30s**, socket torn down after 2 unanswered. This is what notices a phone
+  that lost signal — a dropped mobile connection goes quiet rather than closing. Set
+  `KeepAliveInterval = null` to switch it off (do that in tests that assert on frames).
+
+## Timeouts, caching and conditional requests
+
+```csharp
+builder.AddRequestTimeouts(o =>
+{
+    o.DefaultPolicy = new RequestTimeoutPolicy(TimeSpan.FromSeconds(30));
+    o.AddPolicy("reports", TimeSpan.FromMinutes(2));
+});
+builder.AddOutputCache(o => o.AddPolicy("lists", new OutputCachePolicy(TimeSpan.FromSeconds(30))
+{
+    VaryByHeaders = ["Accept"]
+}));
+
+app.UseRequestTimeouts();
+app.UseOutputCache();
+
+app.MapGet("/report", Handler).WithRequestTimeout(TimeSpan.FromSeconds(10));
+app.MapGet("/stream", Handler).DisableRequestTimeout();     // SSE, downloads, upgrades
+app.MapGet("/list",   Handler).CacheOutput(TimeSpan.FromSeconds(10));
+app.MapGet("/live",   Handler).NoOutputCache();
+```
+
+Tier 3 spells the same things as attributes: `[RequestTimeout(2000)]`, `[RequestTimeout("reports")]`,
+`[DisableRequestTimeout]`, `[OutputCache(Seconds = 30)]`, `[OutputCache("lists")]`, `[NoOutputCache]`.
+
+- A timeout is **delivered as cancellation** on `ctx.RequestAborted`. A handler that ignores its
+  token still runs to completion — it just does so after the client has been answered. Pass the token
+  into the slow thing.
+- Output caching stores **GET/HEAD 200s only**, never a response with `Set-Cookie`, and skips
+  authenticated callers unless the policy says otherwise (`AllowAuthenticated`) — a cache keyed on
+  the URL cannot tell two users apart. A streamed response (one that called `StartAsync`) is passed
+  through untouched.
+- On a device the win is **battery, not bandwidth**: the expensive part is the database read or the
+  sensor poll behind the endpoint.
+
+Conditional requests for handlers that are not serving a file:
+
+```csharp
+app.MapGet("/items/{id}", async ctx =>
+{
+    var item = await store.GetAsync(ctx.Request.RouteValues["id"]!, ctx.RequestAborted);
+
+    // Writes ETag/Last-Modified, answers 304 or 412 itself, and returns true when it did.
+    if (await ctx.TryCompleteConditionalAsync(EntityTag.FromContent(item.Version), item.Updated))
+        return;
+
+    await ctx.Response.WriteJsonAsync(item, AppJson.Default.Item, ctx.RequestAborted);
+});
+```
+
+`CheckPreconditions` is the same evaluation without writing anything; `SetETag`, `SetLastModified`,
+`SetCacheControl` and `SetNoStore` are the response-side helpers. A 304 saves the serialisation as
+well as the bytes.
+
+## Diagnostics — health checks and telemetry
+
+```csharp
+builder.AddHealthChecks()
+    .AddServerCheck()                                    // is the listener actually up
+    .AddCheck("database", async ct => await db.CanConnectAsync(ct)
+        ? HealthCheckResult.Healthy()
+        : HealthCheckResult.Unhealthy("no connection"), "ready")
+    .AddCheck<SyncHealthCheck>("sync", tags: ["ready"]);  // resolved from the container
+
+app.MapHealthChecks();                                   // /health
+app.MapHealthChecks("/health/live", "live");             // filtered by tag
+app.MapHealthChecks("/health/ready", "ready");
+```
+
+- Checks run **concurrently**, each with a timeout (5s default). A probe that hangs is worse than one
+  that answers Unhealthy.
+- Healthy and Degraded both answer **200**; Unhealthy answers **503**. Degraded means "serving, with
+  a caveat", and a load balancer that pulls the instance over it turns a caveat into an outage.
+- The report is written with `Utf8JsonWriter`, so no `JsonSerializerContext` is needed for it.
+- `IncludeDetails = false` for an endpoint reachable through a tunnel — the entry list is a free
+  inventory of the app's dependencies.
+
+```csharp
+app.UseTelemetry();          // one Activity + one duration measurement per request
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(t => t.AddSource(HttpServerTelemetry.ActivitySourceName))
+    .WithMetrics(m => m.AddMeter(HttpServerTelemetry.MeterName));
+```
+
+- Instruments follow the OpenTelemetry HTTP semantic conventions — `http.server.request.duration`,
+  `http.server.active_requests`, `http.server.active_connections` — so an ASP.NET dashboard reads
+  this server without being told about it.
+- The span is renamed to `GET /users/{id}` once routing has chosen an endpoint, never the raw path.
+- `ContinueIncomingTrace` is on by default and should be **turned off for a tunnelled server**: a
+  caller who picks the trace id can graft spans onto someone else's trace.
+- `RecordUrl` is off: paths carry identifiers and query strings carry secrets.
+
+### W3C access logs
+
+```csharp
+app.UseW3CLogging(o =>
+{
+    o.LogDirectory = FileSystem.AppDataDirectory;      // must be writable — the default is not, in MAUI
+    o.Fields = W3CLoggingFields.Default | W3CLoggingFields.Route;
+    o.ShouldLog = ctx => ctx.Request.Path != "/health";
+});
+```
+
+One line per request in the format IIS writes, which every log analyser reads. Suggest it when the
+ask is "a log I can look at later" and there is nowhere to ship telemetry to — a device, an
+appliance, a customer's machine.
+
+- The line is queued, never written on the request path. A full queue **drops** lines, counts them,
+  and writes `#Remark: N line(s) dropped` into the file — a slow disk must not become a slow server.
+- Files roll at `FileSizeLimit` and are pruned to `RetainedFileCountLimit`. There is no unbounded
+  setting on purpose.
+- `W3CLoggingFields.Default` excludes `Cookie`. Do not add it without a reason — a log file gets
+  copied around and that header is a session token.
+- `x-route` and `x-connection-id` are extensions (the `x-` prefix is the format's own rule) and are
+  what make the log useful for finding a slow *endpoint* rather than a slow URL.
+- `IW3CLogWriter` is the seam for sending lines somewhere other than a file.
+
+## Antiforgery, security headers and HTTPS redirect
+
+```csharp
+builder.AddAntiforgery();
+app.UseAntiforgery();
+app.UseSecurityHeaders(o => o.ContentSecurityPolicy = SecurityHeaderOptions.SelfOnlyContentSecurityPolicy);
+app.UseHttpsRedirection();          // port taken from the first TLS endpoint
+
+// issue the pair to the page, then echo the request token back in X-CSRF-TOKEN
+var tokens = ctx.GetRequiredService<IAntiforgery>().GetTokens(ctx);
+```
+
+- The check applies to unsafe methods **only when the request carries cookies**. CSRF is an attack on
+  ambient credentials; a caller holding a bearer token attaches it deliberately and an attacker's
+  page cannot. `[ValidateAntiforgery]` / `.ValidateAntiforgery()` forces the check anyway;
+  `[DisableAntiforgery]` / `.DisableAntiforgery()` exempts a webhook.
+- **This matters for the file browser and WebDAV UI**: putting either behind cookie authentication
+  without antiforgery is a delete button any page on the internet can press.
+- The token is read from a header, not a form field — reading a form would consume the body. For a
+  posted form, read the form yourself and call `ValidateToken(ctx, form["__RequestVerificationToken"])`.
+- **HSTS is off by default and should stay off** for a LAN or loopback server: a browser remembers it
+  for the whole host, and a device that serves plain HTTP tomorrow is locked out of itself.
+
+## Proxying to another server
+
+```csharp
+app.MapProxy("/api/{*path}", "https://api.example.com");
+app.MapProxy("/printer/{*path}", "http://192.168.1.50", o => o.RewriteHost = false);
+```
+
+Bodies stream both ways, `X-Forwarded-*` describe the original caller, an unreachable upstream is a
+**502** and one that will not answer is a **504**. A protocol upgrade is not forwarded — a WebSocket
+through this route will not work.
+
 ## Tunnelling
 
 ```csharp
 // Zero-account public HTTPS from a phone — pinggy by default, nothing to configure
-builder.Services.AddQuickTunnel();
+builder.AddQuickTunnel();
 // then, from a button: await tunnel.StartAsync();
 
 // A host you own
-builder.Services.AddSshTunnel(o =>
+builder.AddSshTunnel(o =>
 {
     o.Host = "tunnel.example.com"; o.Username = "tunnel"; o.PrivateKeyPath = keyPath;
     o.RemoteBindAddress = "0.0.0.0"; o.RemotePort = 8080;
@@ -612,8 +980,22 @@ await app.RunTunnelAsync(provider, logger, ct);
   before announcing your address.
 - Always put authentication in front of anything exposed by a tunnel.
 - `AzureRelay` is deliberately **not** AOT-clean; do not suggest it for a trimmed/AOT app.
-- There is no ngrok/Cloudflare provider by design — they need an agent process, impossible on
-  iOS/Android.
+- `Shiny.Net.HttpServer.Tunnels` supervises the vendor agents — `cloudflared`, `ngrok`,
+  `tailscale` — for hosts that can start a process. **Not on a phone:** iOS forbids it outright, so
+  on mobile the answer is still the SSH provider or the relay.
+
+  ```csharp
+  await server.StartAsync();                       // an agent forwards to a bound port
+  await using var tunnel = new CloudflareTunnel(new CloudflareTunnelOptions());
+  var url = await tunnel.StartAsync(server);       // reads the port off the server
+
+  // or with a host: registered after AddHttpServer, so the port exists when the agent starts
+  builder.AddCloudflareTunnel();          // AddNgrokTunnel() / AddTailscaleFunnel()
+  ```
+
+  A missing binary throws `TunnelAgentException` naming what to install; an agent that dies during
+  startup fails immediately rather than waiting out the timeout. A token-less Cloudflare tunnel is a
+  quick tunnel — new hostname every run.
 
 ## gRPC and gRPC-Web
 
@@ -693,6 +1075,27 @@ app.MapMcp();          // POST/GET/DELETE/OPTIONS on /mcp
   overloads — they scan at runtime and are `RequiresUnreferencedCode`.
 - `AllowedOrigins` is empty by default and should stay that way unless a browser client needs it.
 
+### A remote MCP server a client must authenticate to
+
+An MCP client that meets a bare 401 has no idea where to log in. RFC 9728 is the protocol's answer:
+the challenge names a metadata document, and the document names the authorization server.
+
+```csharp
+builder.AddMcpProtectedResource(o =>
+{
+    o.AuthorizationServers.Add("https://login.example.com");
+    o.ScopesSupported.Add("mcp:tools");
+    o.Resource = "https://device.example.com/mcp";     // omit to derive it from the request host
+});
+
+app.MapMcp().RequireAuthorization();
+app.MapMcpProtectedResource();      // /.well-known/oauth-protected-resource[/mcp]
+```
+
+The 401 then carries `WWW-Authenticate: Bearer resource_metadata="…"`. Validating the token itself is
+still `AddJwtBearer(...)`, and its audience should be the same `Resource` published here. Leave
+`Resource` null for a tunnelled server whose public address is new every run.
+
 ## Shiny.Mediator
 
 `Shiny.Net.HttpServer.Mediator` publishes mediator handlers as endpoints. Same shape as
@@ -768,13 +1171,115 @@ app.MapDocuments<Order>("/orders", o =>
 
 ## MAUI specifics
 
+### The manifest entries, which fail silently when missing
+
 - iOS: `NSLocalNetworkUsageDescription` in `Info.plist` — without it the app is denied silently.
+  Add every browsed service type to `NSBonjourServices` as well if you use discovery.
 - Mac Catalyst: `com.apple.security.network.server` entitlement — without it the bind is refused.
-- Android: `android.permission.INTERNET`.
-- iOS suspends the app in the background; the server stops answering.
-- Prefer plain HTTP on the LAN; terminate TLS at a tunnel. A self-signed certificate needs per-device
-  trust (`ServerCertificate.Create()` / `CreateOrLoad(path)`, plus
-  `CertificatePinning.CreateHandler(cert)` for the app's own `HttpClient`).
+- Android: `android.permission.INTERNET`; plus `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_DATA_SYNC` and (API 33+) `POST_NOTIFICATIONS` for background serving.
+
+`LocalNetworkAccess.Check()` (in `Shiny.Net.HttpServer.Mobile`) reads the bundle and reports which are
+missing, because none of these produce an error you could diagnose from.
+
+### Lifecycle — the server has to follow the app and the network
+
+```csharp
+services.AddShinyHttpServer(
+    http =>
+    {
+        http.Options.Address = IPAddress.Any;
+
+        http.AddHttpServerLifecycle(o =>
+        {
+            o.BackgroundMode = BackgroundServerMode.Stop;      // or KeepAlive
+            o.RestartOnConnectivityChange = true;              // default
+        });
+    },
+    autoStart: false
+);
+```
+
+Needs a Shiny host (`UseShiny()` in `MauiProgram`) — that is what delivers the platform callbacks.
+
+- **iOS suspends the app within seconds of backgrounding**, and no background mode legitimately keeps
+  a listener answering. `Stop` makes that visible: `IsRunning` goes false, the UI can say so, and
+  clients get a refused connection instead of a hang.
+- **Android `KeepAlive` starts a foreground service** with a permanent notification, which is the
+  only supported way to hold a socket open in the background. That notification is the deal.
+- **iOS `KeepAlive` restores the server on resume** instead. It cannot keep the listener open, so it
+  does the other useful thing: the server is left running as the app goes away (a few seconds is
+  often enough to finish the request in flight) and is *restarted* when the app comes back. This
+  matters because the suspension takes the socket while `IsRunning` goes on saying `true`, so an app
+  that only re-checked `IsRunning` would find nothing wrong and serve nothing — and calling
+  `StartAsync()` yourself would not help either, since it is idempotent and agrees with the stale
+  state. `RestartAsync()` is what fixes it, and this does it for you.
+- **This is not `AlwaysStartOnForeground`.** A server that was off when the user left stays off; only
+  one that was running is put back. Set `AlwaysStartOnForeground = true` if you want it on at every
+  resume regardless — that overrides a toggle the user switched off, so make it a deliberate choice.
+- **Both platforms follow the server, not just the app's transitions.** On Android, stopping the
+  server while the app is backgrounded takes the notification down with it and starting it brings
+  the service up, so Android does not reclaim the process and kill the listener; on iOS the same
+  transitions decide whether the resume restores it. Nothing to call — the package tracks
+  `HttpServer.StateChanged` — so an app whose server is a toggle does not need its own bookkeeping.
+- A phone's address changes when it moves. The lifecycle package rebinds on connectivity changes;
+  the core has the same thing without Shiny.Core via `options.RebindOnNetworkChange`, and raises
+  `server.NetworkAddressesChanged` either way so a QR code or advertisement can be refreshed.
+  Binding to `IPAddress.Any` survives an address change; binding to a specific address does not.
+
+### Discovery — the other half of hosting on a phone
+
+Binding a port solves being reachable. It does not solve being *found*: the address is assigned by
+whatever network the device joined and changes when it moves. That leaves a QR code, typing an IP, or
+mDNS.
+
+```csharp
+// the device that serves — inside AddShinyHttpServer / on the builder
+http.AddHttpServerAdvertisement(o =>
+{
+    o.ServiceType = "_myapp._tcp";        // a private type: browsing _http._tcp finds printers too
+    o.TxtRecords["role"] = "controller";
+});
+
+// the device that looks
+builder.Services.AddHttpServerLocator();
+
+var found = await locator.FindFirstAsync("_myapp._tcp", TimeSpan.FromSeconds(5));
+using var client = new HttpClient { BaseAddress = found!.BaseAddress };
+
+// or bind a list to it
+await foreach (var change in locator.WatchAsync("_myapp._tcp", ct)) { … }
+```
+
+The advertisement follows the server — published when it starts, withdrawn (with a goodbye packet)
+when it stops, re-announced when the device changes network. Read the final instance name back from
+`IHttpServerAdvertiser.Publication`: the responder renames a service whose name is already taken.
+
+### TLS on a device
+
+Prefer plain HTTP on the LAN; terminate TLS at a tunnel. A self-signed certificate needs per-device
+trust (`ServerCertificate.Create()` / `CreateOrLoad(path)`, plus
+`CertificatePinning.CreateHandler(cert)` for the app's own `HttpClient`).
+
+## Testing endpoints
+
+```csharp
+await using var app = TestHttpServer.Create(
+    server => server.MapMyAppEndpoints(),
+    builder => builder.Services.AddSingleton<IClock>(new FrozenClock(…))
+);
+
+Assert.Equal("pong", await app.Client.GetStringAsync("/ping"));
+```
+
+No port, no listener, nothing to leak when a test fails half way through — but the real parser,
+router, middleware and response framing, because only the socket is replaced. `app.CreateClient()`
+gives a second caller with its own connection and cookies; `TestHttpServer.Create(..., useHttp2:
+true)` speaks HTTP/2 by prior knowledge. `server.CreateInMemoryClient()` does the same for a server
+built elsewhere.
+
+Use a **real socket** instead when the thing under test is the socket: TLS, connection limits, or
+anything about how the OS frames bytes.
 
 ## Build diagnostics (source generator)
 
@@ -791,6 +1296,11 @@ app.MapDocuments<Order>("/orders", o =>
 | SWS009 | **Warning** — template captures a token no parameter receives |
 | SWS010 | `IHttpEndpoint` without a single `Handle`/`HandleAsync` |
 | SWS011 | `IHttpEndpoint` without a verb attribute on the class |
+
+The generator also emits metadata for `[RequestTimeout]`, `[DisableRequestTimeout]`, `[OutputCache]`,
+`[NoOutputCache]`, `[ValidateAntiforgery]` and `[DisableAntiforgery]`, exactly as it does for
+`[Authorize]`, `[EnableCors]`, `[EnableRateLimiting]` and `[RequireIpFilter]` — a method's attribute
+replaces the class's, and a `Disable` anywhere wins.
 
 ## Best Practices
 
@@ -811,4 +1321,12 @@ app.MapDocuments<Order>("/orders", o =>
 7. **Pass `CancellationToken`** (or `ctx.RequestAborted`) into everything async.
 8. **Never capture `HttpContext`** past the handler — contexts are pooled.
 9. **Loopback by default** — only bind `IPAddress.Any` when the user asked for network access.
-10. **A tunnel is the public internet.** Authentication and rate limiting first, always.
+10. **A tunnel is the public internet.** Authentication and rate limiting first, always — and turn
+    off `ContinueIncomingTrace` and health-check details there too.
+11. **On a device, assume the address changes.** Bind `IPAddress.Any`, or turn on rebinding; publish
+    the server over mDNS rather than asking anyone to type an IP.
+12. **A request timeout is cancellation, not a kill.** Pass `ctx.RequestAborted` into the slow work
+    or the timeout only changes what the client sees.
+13. **Never cache a response for an authenticated caller** without adding the identity to the key.
+14. **Prefer the in-memory harness for endpoint tests**, and a real socket for anything about the
+    socket.
