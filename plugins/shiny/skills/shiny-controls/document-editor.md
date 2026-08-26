@@ -58,6 +58,26 @@ Scoped CSS bites here too: a rule written in one component's `.razor.css` cannot
 rendered by a **different** component, so shared toolbar buttons are styled from the row that owns them
 with `::deep`.
 
+## Selecting what to format
+
+Drag to select, **double-click for a word**, **triple-click for a paragraph**. On the controller these
+are `SelectWordAt(position)` and `SelectParagraphAt(position)`, with `WordRangeAt(position)` if you
+want the span without moving the selection; the word rule itself is `Text.WordBoundaries`, shared with
+the slide editor so a double-click means the same thing in both.
+
+Both hosts read the click count differently and it is worth knowing which: Blazor takes it from the
+**click** event's `detail`, because `pointerdown` reports 0 and `mousedown` never fires at all — the
+editor prevents pointerdown's default to keep focus on its hidden input. MAUI has no click count in
+SkiaSharp's touch events, so `DocumentEditor` times consecutive presses itself.
+
+## Formatting with nothing selected
+
+`SetFontFamily`, `SetFontSize`, `SetTextColor`, `SetHighlight` and the Bold/Italic/Underline/Strike
+toggles all work with a bare caret: the change is held and applied to the next `InsertText`, which is
+what Word does. `CaretFormat` reflects it immediately so a toolbar can show it, the insert and the
+format land as **one** undo step, and moving the caret off the spot abandons the choice. There is no
+API for this — it is what the existing methods already do.
+
 ## Driving it
 
 Everything lives on the shared controller, identical on both hosts:
@@ -249,8 +269,6 @@ underlined.
 
 ## Not implemented
 
-- **Formatting with an empty selection changes only `CaretFormat`, not the document.** Word applies it
-  to whatever is typed next; that needs a pending-format concept the editor does not have yet.
 - Editing a table's *structure* once inserted — adding or removing rows and columns, merging cells.
   Typing in its cells works.
 - **Floating (anchored) drawings.** They are read, and drawn in the text flow at the point they are
