@@ -6,8 +6,9 @@ composite** (a `Grid` header over a virtualized `CollectionView` — no native h
 behaves the same on iOS/Android/Windows/Mac.
 
 Feature surface (both hosts): typed columns (`PropertyColumn` + `TemplateColumn`), sorting (single +
-multi), column **filtering** (menu / row / toolbar quick-search), **grouping** with expandable groups,
-footer & group **aggregates**, single/multi **selection** with checkboxes, inline **editing**
+multi), column **filtering** (menu / row / toolbar quick-search), **multi-level grouping** with
+expandable groups, **summary (total) rows** under the grid and inside every group,
+single/multi **selection** with checkboxes, inline **editing**
 (cell + form), **detail ("breakdown") rows**, a **tree/hierarchy mode** (`TreeDataGrid`) with lazy child
 loading, **paging**, **virtualization**, column **resize / reorder**, **frozen columns** and a
 frozen (sticky) header, loading + empty states, a `ServerData` delegate, **highlighting** of rows/columns/cells, and density/striped/bordered/hover styling. Colors follow the
@@ -179,6 +180,75 @@ theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI
     <shiny:DataGridColumn Title="Budget" PropertyName="Budget" StringFormat="{}{0:C0}" Width="1.2*" />
 </shiny:TreeDataGrid>
 ```
+
+## Grouping & summary rows (both hosts)
+
+`GroupBy` is a list of columns, **outermost first**, and grouping is on whenever it has an entry.
+`Groupable` is a *separate* switch that only adds the ⊞ button so the user can add/remove a level - it
+never gates a grouping you declared. Paging is skipped while grouped.
+
+`SummaryRows` holds any number of rows; each cell points at a column and either **aggregates** it
+(`Sum`/`Count`/`Average`/`Min`/`Max`/`Custom`) or **fills the slot with a label** (`Text="Total"`).
+Columns with no cell stay blank - that is what puts the word in one column and the number in the next.
+The same rows render under the grid **and** inside every group (`Scope="Grid"`/`"Group"` narrows one),
+and `GroupSummaryPlacement` decides whether a group's rows sit under its rows (`Footer`, the default -
+collapses with them), under its title (`Header` - stays visible when collapsed), `Both`, or `None`.
+
+An aggregate with no `StringFormat` wears its column's own formatting (a currency column totals as
+currency); a `Count` is always a plain number. The older per-column `Aggregate`/`FooterTemplate` still
+works and yields the one footer row it always did.
+
+```razor
+@* Blazor *@
+<DataGrid TItem="Sale" Items="sales" @bind-GroupBy="groupBy" Groupable="true"
+          GroupSummaryPlacement="DataGridGroupSummaryPlacement.Footer"
+          GroupsInitiallyExpanded="true" GroupSortDirection="DataGridSortDirection.Ascending">
+    <Columns>
+        <PropertyColumn Property="x => x.Department" />
+        <PropertyColumn Property="x => x.Rep" />
+        <PropertyColumn Property="x => x.Revenue" DisplayAs="DataGridColumnFormat.Currency" Decimals="0" />
+    </Columns>
+    <SummaryRows>
+        <SummaryRow>
+            <SummaryCell Column="Rep" Text="Total" Alignment="DataGridCellAlignment.End" />
+            <SummaryCell Column="Revenue" Aggregate="DataGridAggregateType.Sum" />
+        </SummaryRow>
+        <SummaryRow Scope="DataGridSummaryScope.Grid">
+            <SummaryCell Column="Rep" Text="Average" Bold="false" />
+            <SummaryCell Column="Revenue" Aggregate="DataGridAggregateType.Average" Bold="false" />
+        </SummaryRow>
+    </SummaryRows>
+</DataGrid>
+@code { IReadOnlyList<string> groupBy = ["Department", "Region"]; }
+```
+
+```xml
+<!-- MAUI - GroupBy takes a binding or inline <x:String> children -->
+<shiny:DataGrid ItemsSource="{Binding Sales}" Groupable="True"
+                GroupBy="{Binding GroupColumns}"
+                GroupSummaryPlacement="Footer">
+    <shiny:DataGrid.SummaryRows>
+        <shiny:DataGridSummaryRow>
+            <shiny:DataGridSummaryCell Column="Rep" Text="Total" Alignment="End" />
+            <shiny:DataGridSummaryCell Column="Revenue" Aggregate="Sum" />
+        </shiny:DataGridSummaryRow>
+    </shiny:DataGrid.SummaryRows>
+
+    <shiny:DataGridColumn Title="Department" PropertyName="Department" Width="*" />
+    <shiny:DataGridColumn Title="Rep" PropertyName="Rep" Width="*" />
+    <shiny:DataGridColumn Title="Revenue" PropertyName="Revenue"
+                          DisplayAs="Currency" Decimals="0" Width="*" />
+</shiny:DataGrid>
+```
+
+- **Summary cell**: `Column` (property name or Title), `Text`, `Aggregate`, `StringFormat`, `Alignment`
+  (`Auto` follows the column), `Bold`, `CustomAggregate`, and `CellTemplate` (MAUI - context is a
+  `DataGridSummaryContext`) / child content (Blazor - `SummaryContext<T>`). `Text` wins over `Aggregate`.
+- **Group API**: `ExpandAllGroups()`/`CollapseAllGroups()`, MAUI `Groups` + `ToggleGroup(header)` and
+  `ClearGrouping()`, Blazor `ClearGroupingAsync()`. Collapse state is keyed on the group *path*, so the
+  same key under two parents stays independent.
+- **Group header**: `GroupHeaderTemplate` - MAUI context is `DataGridGroupHeader`, Blazor
+  `DataGridGroupInfo<T>` (`Key`, `KeyText`, `Title`, `Count`, `Level`, `Items`, `IsExpanded`).
 
 ## Column formatting (both hosts)
 

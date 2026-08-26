@@ -2,6 +2,10 @@
 
 A progress bar control with gradient fill and a Vista-style shimmer pulse that sweeps left-to-right. Available on both MAUI and Blazor.
 
+The fill **slides** to each new value rather than snapping, and it does so in both directions - a value that drops drains back at the same rate it filled, instead of the fill-only easing most progress bars ship, which makes a downward correction read as a glitch. Only a value change animates: a width change driven by layout (the control being measured, `TrackHeight` changing, leaving indeterminate mode) snaps, because animating those makes the bar visibly reflow every time its container resizes.
+
+For the thin line that runs across the **top or bottom of the window** rather than filling a slot in your layout, use [ProgressLine](progressline.md) - a sibling control that shares this one's drawing but docks itself to a page edge.
+
 ## MAUI
 
 **Namespace**: `Shiny.Maui.Controls`
@@ -48,6 +52,9 @@ A progress bar control with gradient fill and a Vista-style shimmer pulse that s
 | TextColor | Color | White | Text color |
 | FontSize | double | 11 | Text font size |
 | IsIndeterminate | bool | false | Indeterminate mode |
+| AnimateProgress | bool | true | Slide the fill to each new value instead of snapping |
+| ProgressAnimationDuration | int | 250 | Slide length in ms; `0` snaps |
+| ProgressAnimationEasing | Easing | CubicOut | Curve the slide follows |
 
 ### Events
 
@@ -128,6 +135,9 @@ A progress bar control with gradient fill and a Vista-style shimmer pulse that s
 | PulseColor | string | "rgba(255,255,255,0.4)" | Shimmer color |
 | PulseLength | double | 0.4 | Shimmer width fraction (0.05–1.0) |
 | PulseSpeed | int | 800 | Sweep duration in ms |
+| AnimateProgress | bool | true | Slide the fill to each new value instead of snapping |
+| ProgressAnimationDuration | int | 250 | Slide length in ms; `0` snaps |
+| ProgressAnimationEasing | string | "cubic-bezier(0.33, 1, 0.68, 1)" | CSS timing function for the slide |
 | ShowText | bool | false | Show text overlay |
 | TextFormat | string | "{0:0}%" | Text format (receives %) |
 | TextColor | string | "#FFFFFF" | Text color |
@@ -171,3 +181,12 @@ The pulse is a Vista-style shimmer: a translucent gradient highlight (transparen
 - `PulseSpeed` controls how fast it sweeps: `500` = fast, `1200` = slow and smooth.
 - Triggered by `PulseOnValueChange="True"` (fires on every value update) or `PulseInterval` (fires on a timer).
 - Both triggers can be active simultaneously.
+
+## Fill Animation
+
+The fill transitions to each new value: a MAUI `Animation` driving the fill width, and a CSS `transition` on Blazor. Both are symmetric, so the bar drains as smoothly as it fills.
+
+- `AnimateProgress="False"` or `ProgressAnimationDuration="0"` snaps instead.
+- Blazor honours `prefers-reduced-motion: reduce` and drops the transition.
+- Indeterminate mode has no width transition on either host - the sweep owns width and transform, and a transition only fights it.
+- Retargeting mid-slide continues from where the bar actually is rather than jumping to the previous target.
