@@ -7,7 +7,7 @@ Two controls on both hosts, over the same packages as the viewers:
 | `SlideEditor` | the lone editing surface — canvas, selection, caret, typing. No chrome. |
 | `SlideEditorView` | `SlideEditor` plus an editing toolbar and a status line |
 
-Same two constraints as everything else in these packages: **MAUI needs `UseSkiaSharp()`**, **Blazor is
+Same two constraints as everything else in these packages: **MAUI needs `UseShinyOffice()`** (it registers SkiaSharp, plus the AppKit canvas on `net10.0-macos`), **Blazor is
 WASM-only**, and on Blazor the container needs an **explicit height**.
 
 ## Open a deck for editing
