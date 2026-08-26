@@ -106,9 +106,7 @@ plugins/
   shiny/
     .claude-plugin/
       plugin.json               # Claude plugin manifest
-    .github/
-      plugin/
-        plugin.json             # Copilot plugin manifest
+    plugin.json                 # Copilot plugin manifest (plugin root)
     skills/
       <skill-name>/
         SKILL.md                # Skill definition — YAML metadata + guidance
@@ -117,8 +115,8 @@ plugins/
 
 ### Key Files
 
-- **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each declaring the single `shiny` plugin.
-- **`plugins/shiny/.claude-plugin/plugin.json`** and **`plugins/shiny/.github/plugin/plugin.json`** — The plugin manifests containing name, version, description, keywords, and the relative path to the skills directory. Keep the two files identical.
+- **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each declaring the single `shiny` plugin. Copilot CLI accepts either location; both are included for explicit discoverability.
+- **`plugins/shiny/.claude-plugin/plugin.json`** (Claude Code) and **`plugins/shiny/plugin.json`** (GitHub Copilot CLI) — The plugin manifests containing name, version, description, keywords, and the relative path to the skills directory. Claude Code requires the manifest under `.claude-plugin/`; Copilot CLI requires it at the plugin root. Keep the two files identical.
 - **`SKILL.md`** — The skill itself: YAML front matter with portable Agent Skills metadata (`name`, `description`, `auto_invoke`, `triggers`, and optional `when_to_use`), followed by usage guidance, code generation instructions, and best practices. Keep `triggers` and `auto_invoke: true` in front matter for GitHub Copilot CLI discovery, and keep the prose sections for Claude-friendly guidance. Supporting docs should live in the skill's `reference/` directory so both Claude and Copilot load them consistently.
 
 ### Adding a Skill
