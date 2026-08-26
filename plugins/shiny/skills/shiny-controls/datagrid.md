@@ -10,7 +10,7 @@ multi), column **filtering** (menu / row / toolbar quick-search), **grouping** w
 footer & group **aggregates**, single/multi **selection** with checkboxes, inline **editing**
 (cell + form), **detail ("breakdown") rows**, a **tree/hierarchy mode** (`TreeDataGrid`) with lazy child
 loading, **paging**, **virtualization**, column **resize / reorder**, **frozen columns** and a
-frozen (sticky) header, loading + empty states, a `ServerData` delegate, and density/striped/bordered/hover styling. Colors follow the
+frozen (sticky) header, loading + empty states, a `ServerData` delegate, **highlighting** of rows/columns/cells, and density/striped/bordered/hover styling. Colors follow the
 theme tokens (`var(--shiny-color-*)` on Blazor, `ShinyThemeKeys.Color.*` on MAUI).
 
 ## Blazor
@@ -197,7 +197,8 @@ filtering and inline editing, and these do not.
 | `TextFormatter` | `Func<value, string?>` - full control without a template. Prefix/suffix/`NullText` still apply |
 | `Alignment` / `HeaderAlignment` | `Auto` (quantities right, rest left), `Start`, `Center`, `End`. Header follows `Alignment` by default |
 | `Wrap` / `MaxLines` | Wrap instead of truncating; cap the height |
-| `CellStyle` | `Func<item, DataGridCellStyle?>` - per-cell colour/weight from the row |
+| `CellStyle` | `Func<item, DataGridCellStyle?>` - per-cell colour/weight/fill/border from the row |
+| `Highlight` | `DataGridCellStyle` - the same paint applied to the **whole column**. See Highlighting below |
 
 Rules that matter:
 
@@ -231,6 +232,98 @@ Rules that matter:
 <shiny:DataGridColumn Title="On" PropertyName="Active" DisplayAs="Boolean" Alignment="Center" />
 <shiny:DataGridColumn Title="Notes" PropertyName="Notes" Wrap="True" MaxLines="2" />
 ```
+
+## Highlighting rows, columns & cells (both hosts)
+
+A **fill** that never obscures the text plus a **stroke** that traces the region, applied to whatever
+you name. One type does all of it: `DataGridHighlight` *is* a `DataGridCellStyle` with targeting
+members bolted on, so the paint properties are the same wherever you set them.
+
+**The scope is derived, not declared** - from which targeting members you set:
+
+| `Item`/`RowPredicate` | `Column` | Scope |
+| --- | --- | --- |
+| — | — | the whole grid |
+| set | — | that row (or every row the predicate matches) |
+| — | set | that column |
+| set | set | the one cell where they cross |
+
+```razor
+@* Blazor *@
+<DataGrid TItem="Person" Items="people" Highlights="rules"
+          RowHighlight="@(p => p.Overdue ? new DataGridCellStyle { Fill = "var(--shiny-color-error)" } : null)">
+    <Columns>
+        <PropertyColumn Property="x => x.Salary"
+                        Highlight="@(new DataGridCellStyle { Fill = "#fff3cd" })" />
+    </Columns>
+</DataGrid>
+@code {
+    DataGridHighlight<Person>[] rules =
+    [
+        new() { Column = nameof(Person.Salary), Fill = "gold" },
+        new() { RowPredicate = p => p.Overdue, BorderColor = "crimson", BorderStyle = DataGridBorderStyle.Dashed },
+        new() { Item = pinned, Column = "Notes", BorderColor = "teal", BorderStyle = DataGridBorderStyle.Solid }
+    ];
+}
+```
+
+```xml
+<!-- MAUI -->
+<shiny:DataGrid ItemsSource="{Binding People}"
+                Highlights="{Binding Highlights}"
+                RowHighlight="{Binding InactiveRowStyle}">
+    <shiny:DataGridColumn Title="Tenure" PropertyName="YearsOfService">
+        <shiny:DataGridColumn.Highlight>
+            <shiny:DataGridCellStyle Fill="LightSkyBlue" FillOpacity="0.35" />
+        </shiny:DataGridColumn.Highlight>
+    </shiny:DataGridColumn>
+</shiny:DataGrid>
+```
+
+### The paint
+
+| Property | What it does |
+| --- | --- |
+| `Fill` | A wash laid **behind the text** and over the row's stripe/selection. Blazor takes a CSS colour (a theme token works); MAUI takes a `Color` |
+| `FillOpacity` | 0-1, default **0.25**. `1` is a solid fill. This is what keeps dark text on a strong fill readable |
+| `BorderColor` | Stroke colour. Needs a `BorderStyle` to draw |
+| `BorderStyle` | `None` (default), `Solid`, `Dashed`, `Dotted`, `Double` |
+| `BorderWidth` | Blazor: any CSS length, default `"2px"`. MAUI: a `double`, default `2` |
+| `BorderEdges` | `Top`/`Right`/`Bottom`/`Left`/`All` flags. **Leave unset** and the grid derives them - see below |
+| `TextColor`, `Bold`/`FontAttributes` | The older per-cell members, unchanged |
+| `BackgroundColor` | Replaces the cell background outright, hiding the stripe/selection. `Fill` is what you usually want |
+
+Rules that matter:
+
+- **The fill is painted behind the text, always.** On Blazor it is emitted as a `background-image`
+  gradient rather than a `background-color`, so it layers *over* the row's stripe/selection tint and
+  over a frozen cell's opaque pane background instead of replacing either. On MAUI it is the cell's own
+  background colour, left translucent so the row composites through it.
+- **The stroke traces the perimeter of the region, not each cell in it.** A highlighted row draws a
+  line above and below every cell but only one leading and one trailing edge; a highlighted column
+  draws both flanks on every cell but caps only the first and last row. A cell is boxed on all four
+  sides. Set `BorderEdges` explicitly to override that.
+- **A block is the page, or one group when the grid is grouped** - so a column highlight is capped at a
+  group header rather than drawn straight through it.
+- **Precedence is widest-to-narrowest**: grid, then column, then row, then cell, and a column's own
+  `CellStyle` last of all. Within one scope, later entries in `Highlights` win, and a rule beats the
+  column's declared `Highlight`.
+- **Merging is per member *group*, not per member.** Fill, stroke and text each come wholesale from the
+  most specific style that speaks to them, so a cell rule that sets only a stroke keeps the column
+  rule's fill instead of inheriting half of each.
+- **Data cells only.** A column highlight does not tint that column's header, filter row or footer -
+  the highlight marks the data, and the header keeps reading as chrome.
+- `IsEnabled = false` leaves a rule in the collection and stops it painting.
+- **Evaluated when a row binds/renders**, not when a property on the item changes - same as `CellStyle`.
+  On MAUI, mutating a rule in place is not observed either: swap the rule, or call
+  `RefreshHighlights()`.
+- On **MAUI** `Highlights` defaults to an `ObservableCollection` the grid watches, and is a
+  `BindableProperty` so a view model can hand over its own. `DataGridHighlight` is a plain class, not a
+  `BindableObject`, so `{Binding}` on an individual rule property does not work - bind the collection
+  or the `RowHighlight` delegate instead.
+- On **MAUI** a grid that styles anything wraps each cell in a host so it can carry the paint, and adds
+  a drawing layer only to the cells that actually get a stroke. Grids that style nothing pay for none
+  of it.
 
 ## Behavior notes & platform nuances
 
@@ -340,6 +433,9 @@ Rules that matter:
 - `TreeDataGrid` and `DataGrid` are the same type; prefer `TreeDataGrid` when the grid is hierarchical so
   the markup says so.
 - Leave colors unset to inherit the theme; the grid is light/dark aware.
+- For highlighting, reach for `Highlights` when the rules are data- or user-driven and for
+  `RowHighlight`/`Column.Highlight` when there is exactly one static rule. Prefer `Fill` over
+  `BackgroundColor` - it keeps the striping and selection readable underneath.
 - **Budget columns to the width you actually have.** Header titles ellipsize and clip to their column
   (they no longer spill into the next one), but a phone-width grid only has room for roughly **3–4
   columns**, fewer once `AllowColumnResize`/`AllowColumnReorder`/`Groupable`/`FilterMode="Menu"` add

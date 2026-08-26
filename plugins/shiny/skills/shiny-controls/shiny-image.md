@@ -1,6 +1,6 @@
 # ShinyImage
 
-A remote image that always shows *something*: placeholder artwork, a loading ring, the image itself, or error artwork. On MAUI it loads through an `IImageService` that caches to memory and disk, caps how many downloads run at once, and collapses concurrent requests for the same URI into one. On Blazor it streams through `fetch` so the ring can report a real download percentage, falling back to a plain `<img>` when CORS blocks that.
+A remote image that always shows *something*: placeholder artwork, a loading ring, the image itself, or error artwork. On MAUI it loads through an `IImageService` that caches to memory and disk, caps how many downloads run at once, and collapses concurrent requests for the same URI into one, and it renders **SVG** as vectors rather than as a rasterized bitmap. On Blazor it streams through `fetch` so the ring can report a real download percentage, falling back to a plain `<img>` when CORS blocks that; SVG there is the browser's own `<img>` rendering and needs nothing extra.
 
 Use it anywhere a URL is bound to an image — avatars, product photos, feed images, thumbnail grids. For a full-screen zoomable viewer use `ImageViewer` instead; for editing use `ImageEditor`.
 
@@ -30,7 +30,7 @@ Null → the ring spins. Non-null → the ring fills and shows the percentage. G
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| Uri | string? | null | The image to load. `http`/`https` goes through `IImageService`; anything else is treated as a local file or bundled resource and loaded directly |
+| Uri | string? | null | The image to load. `http`/`https` goes through `IImageService`; `resource://Name` reads an embedded resource; `data:` is decoded inline; anything else is a file path or bundled asset. SVG is detected from the payload, not the extension |
 | Source | ImageSource? | null | An explicit source. Takes precedence over `Uri` and skips the service entirely — use it for embedded resources, font images or a stream you already hold |
 | PlaceholderImage | ImageSource? | null | Artwork shown before and during the load, behind the ring |
 | ErrorImage | ImageSource? | null | Artwork shown when the load fails. Ignored when `ErrorTemplate` is set |
@@ -45,6 +45,7 @@ Null → the ring spins. Non-null → the ring fills and shows the percentage. G
 | ShowProgressText | bool | true | Draw the percentage inside the ring. Never shown when indeterminate |
 | CacheEnabled | bool | true | Whether this image participates in the memory and disk caches |
 | CacheDuration | TimeSpan? | null | Overrides `ImageOptions.DiskCacheDuration` for this image |
+| SvgTintColor | Color? | null | What `currentColor` resolves to in an SVG. Null draws it black. Ignored by rasters and by artwork with its own colours |
 | State | ImageLoadState | None | Read-only: `None`, `Queued`, `Downloading`, `Loaded`, `Failed` |
 | Progress | ImageLoadProgress | — | Read-only live snapshot; also the `LoadingTemplate` binding context |
 | IsLoading | bool | false | Read-only: true while `Queued` or `Downloading` |
@@ -55,6 +56,34 @@ Null → the ring spins. Non-null → the ring fills and shows the percentage. G
 Events: `ImageLoaded` (`ImageLoadedEventArgs(Uri, Origin, ContentLength)`) and `ImageFailed` (`ImageFailedEventArgs(Uri, Error)`). Method: `ReloadAsync()` re-fetches, skipping both cache tiers.
 
 **These are named `ImageLoaded`/`ImageFailed`, not `Loaded`/`Failed`** — `VisualElement` already declares a `Loaded` event, and shadowing it would silently break anything relying on the base member. Never generate `Loaded="..."` expecting the image callback.
+
+### SVG
+
+SVG is drawn, not rasterized: one file is sharp at every size, and a single-colour icon is tinted per placement. Bind `Uri` exactly as for a raster — the control decides from the payload, so an endpoint that serves vectors from a URL that does not say so still works.
+
+```xml
+<!-- an embedded resource, tinted from the theme -->
+<shiny:ShinyImage Uri="resource://MyApp.Assets.logo.svg"
+                  SvgTintColor="{StaticResource Primary}"
+                  HeightRequest="48" />
+
+<!-- the same property for a file, a bundled asset, an inline data URI, or a URL -->
+<shiny:ShinyImage Uri="/var/mobile/.../chart.svg" />
+<shiny:ShinyImage Uri="art/logo.svg" />
+<shiny:ShinyImage Uri="https://cdn.example.com/logo.svg" />
+```
+
+**`resource://`** searches the app assembly, then the entry assembly, then everything loaded, matching the manifest resource name exactly and then by suffix — `resource://Assets.logo.svg` finds `MyApp.Assets.logo.svg`. Write `resource://MyLib/MyLib.Assets.logo.svg` to name the assembly outright. The name is taken verbatim, **not** parsed as a URI authority, because manifest resource names are case-sensitive.
+
+**Parsing is cached, not just the bytes.** `IImageService` already stops the same URL being downloaded twice, but turning bytes into geometry is an XML parse, a path-data parse per shape and a bounds measurement per shape — pure CPU on the UI thread, repeated per cell. Parsed documents are immutable and shared through an LRU `SvgCache` (`ImageOptions.SvgCacheEntryLimit`, default 32), so a hundred rows showing one icon parse it once. `SvgTintColor` resolves at draw time rather than being baked in, so placements that disagree about the colour still share a parse. `ReloadAsync()` drops the parse as well as the bytes.
+
+**`Aspect` wins over the file's `preserveAspectRatio` scaling**, so a vector and a raster in the same layout behave identically; the file's alignment (which corner the leftover space goes to) is still honoured.
+
+Supported: `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `text`, `g`, `use`, `symbol`, `defs`, `switch`, `clipPath`, linear and radial gradients, presentation attributes, the `style` attribute, and type/class/id rules inside `<style>` (how Illustrator, Figma and Sketch export shared appearance). `.svgz` is decompressed transparently.
+
+Not supported — skipped rather than approximated, so an unsupported element costs that element only: filters, masks, patterns, markers, embedded raster `<image>`, SMIL and CSS animation, and external references of any kind (an image file never becomes a fetch). Gradient **strokes** fall back to their first stop, because `ICanvas` fills with a paint but strokes with a colour.
+
+Do not generate `SvgTintColor` on artwork that declares its own colours — it only affects `currentColor`.
 
 ### Custom loading template
 
@@ -90,6 +119,7 @@ builder.UseShinyControls(cfg => cfg
         o.MaxMemoryCacheBytes    = 32 * 1024 * 1024;
         o.MaxMemoryItemBytes     = 2 * 1024 * 1024;   // larger images stay disk-only
         o.Timeout                = TimeSpan.FromSeconds(60);
+        o.SvgCacheEntryLimit     = 32;                // parsed SVG documents kept (0 disables)
     })
 );
 ```
