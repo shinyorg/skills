@@ -41,15 +41,22 @@ using var document = await WordDocument.OpenAsync("report.docx", editable: true)
 
 ## The toolbar is composed from what each host has
 
-This is deliberate and asymmetric, because the two hosts own different halves of the chrome:
+Both hosts now fill the same three slots with the same core controls — `FontPickerButton`,
+`FontSizePickerButton` and `ColorPickerButton` exist on MAUI *and* Blazor. What differs is only the bar
+around them:
 
-- **MAUI** has `FontPickerButton` / `FontSizePickerButton` but **no toolbar** — so `DocumentEditorView`
-  builds a scrolling row of MAUI primitives and drops those two pickers into it.
-- **Blazor** has `ShinyToolbar` but **no font picker** — so it composes `ShinyToolbar` and uses plain
-  `<select>` elements for family and size.
+- **MAUI** has **no toolbar control** — so `DocumentEditorView` builds a scrolling row of MAUI
+  primitives and drops the pickers into it. Do not emit `shiny:ShinyToolbar` in XAML.
+- **Blazor** composes `ShinyToolbar`, with the row inside it as its own flex container.
 
-The API and behaviour match on both; only the internals differ. Do not emit `shiny:ShinyToolbar` in
-XAML, and do not expect a `FontPicker` component in Blazor.
+That flex container is load-bearing, not styling. `ShinyToolbar` renders `ChildContent` into a plain
+block, so controls left inline align to the **text baseline** — which sits in a different place for a
+button, a select and a colour swatch, and shows up as toolbar items a pixel or three out of line. Any
+new Blazor toolbar built on `ShinyToolbar` should wrap its items the same way.
+
+Scoped CSS bites here too: a rule written in one component's `.razor.css` cannot style a button
+rendered by a **different** component, so shared toolbar buttons are styled from the row that owns them
+with `::deep`.
 
 ## Driving it
 
@@ -68,12 +75,96 @@ c.ToggleBold(); c.ToggleItalic(); c.ToggleUnderline(); c.ToggleStrikethrough();
 c.SetFontFamily("Cambria");
 c.SetFontSize(14);                   // points
 c.SetTextColor(new ArgbColor(255, 0xC0, 0, 0));
+c.SetHighlight(new ArgbColor(255, 255, 255, 0));   // null clears it
+c.ToggleHighlight(new ArgbColor(255, 255, 255, 0));
 c.SetAlignment(TextAlignment.Center);
 
 c.Undo(); c.Redo();
 c.CaretFormat;                       // what a toolbar should show as active
 c.Selection.Range;
 ```
+
+### Highlighting
+
+`w:highlight` takes a **name from a closed list**, not a colour, so a highlight is resolved to the
+nearest one Word can express. `HighlightPalette` is that list, and it is what a picker should offer:
+
+```csharp
+foreach (var swatch in HighlightPalette.Swatches)   // Name, DisplayName, Color
+    ...
+
+HighlightPalette.NameOf(color);      // the w:highlight value, or "none" for null
+HighlightPalette.ColorOf("yellow");  // the other way
+```
+
+Both toolbars already show a split highlight button over this palette — the same one on both hosts,
+and the same palette the slide editor uses (there `a:highlight` holds a real colour, so nothing is
+approximated).
+
+## Shapes, pictures and tables
+
+Everything the editor inserts is **inline** — a `wp:inline`, never a `wp:anchor`. The document view is
+a reflow engine with no float layer, so an object behaves like a very large character: it wraps with
+its line and moves as text is typed before it. There is no "behind text" or "square wrap".
+
+```csharp
+c.InsertShape(ShapeGeometry.Ellipse, width: 160, height: 120);
+c.InsertShape(ShapeGeometry.RightArrow, fill: accent, outline: null, text: "Next");
+
+c.InsertImage(bytes, "image/png", width: 240);        // height follows the ratio
+c.InsertTable(rows: 3, columns: 4);                    // a block, after the caret's paragraph
+```
+
+`ShapeGeometry` lives in `Shiny.Controls.Office.Shapes` and is **shared with the slide editor** — the
+same twenty presets, drawn by the same path builder.
+
+An inline object counts as exactly **one character** for every caret purpose: one arrow key steps over
+it, one backspace removes it, a selection that touches it takes all of it.
+
+### Selecting and resizing
+
+```csharp
+c.ObjectAt(x, y);                    // DocumentPosition?, viewport coordinates
+c.SelectObject(position);
+c.SelectedInline;                    // InlineImage or InlineShape
+c.SelectedObjectBounds();            // document coordinates
+c.SelectedObjectHandles();           // the eight ShapeHandle rects
+c.DeleteSelectedObject();
+
+// the drag, if you are driving the pointer yourself
+c.BeginObjectDrag(x, y);             // true when it took the gesture
+c.DragObject(x, y);
+c.EndObjectDrag();
+```
+
+Both `DocumentEditor` implementations already call these from their own pointer handling — a corner
+handle keeps the aspect ratio, an edge handle changes one dimension, and the whole drag collapses to a
+single undo step. An object cannot be dragged to a new *position*: it is in the text flow, and the
+caret is what moves it.
+
+## Dropping files in
+
+Dragging an image file onto the editor inserts it at the drop point. On by default:
+
+```razor
+<DocumentEditorView Document="document" AllowFileDrop="true" DropRejected="OnRejected" />
+```
+
+```xml
+<office:DocumentEditorView Document="{Binding Document}" />
+```
+
+```csharp
+Editor.DropRejected += (_, e) => Toast(e.Reason);    // MAUI
+```
+
+`DropRejected` fires for a file that is too large (32MB) or not an image OOXML can store —
+`ImageContentTypes.ByExtension` is the list, and SVG is deliberately not on it.
+
+Where it works: **Blazor** everywhere, and on MAUI **Windows**, **iOS/iPadOS** and **Mac Catalyst**.
+Android has no file drag from a file manager and the AppKit/GTK heads have no drop implementation
+behind `DropGestureRecognizer`; on those the toolbar's picture button is the gesture. The drop
+listener is attached to the canvas rather than the toolbar, so dropping onto Bold does nothing.
 
 Saving is the same as everywhere else — and an unedited document still saves byte-identical:
 
@@ -160,9 +251,13 @@ underlined.
 
 - **Formatting with an empty selection changes only `CaretFormat`, not the document.** Word applies it
   to whatever is typed next; that needs a pending-format concept the editor does not have yet.
-- Editing tables, images, lists (their *text* edits fine; structure does not).
+- Editing a table's *structure* once inserted — adding or removing rows and columns, merging cells.
+  Typing in its cells works.
+- **Floating (anchored) drawings.** They are read, and drawn in the text flow at the point they are
+  anchored from rather than at their real position; the unsupported note says so. Nothing inserts one.
+- A shape's own text is drawn but has no caret — pass it at insert time.
 - Cut/copy/paste through the clipboard, find and replace.
 - **Grammar** checking. Android reports grammar errors and they are deliberately ignored — only
   `LooksLikeTypo` is treated as an error, so the behaviour matches the other three platforms.
-- Inserting new paragraph styles, images or tables.
+- Inserting new paragraph styles.
 - Everything the viewer does not render is still not rendered — see `document-viewer.md`.
