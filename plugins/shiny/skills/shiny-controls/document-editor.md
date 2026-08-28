@@ -58,6 +58,42 @@ Scoped CSS bites here too: a rule written in one component's `.razor.css` cannot
 rendered by a **different** component, so shared toolbar buttons are styled from the row that owns them
 with `::deep`.
 
+## One icon set, no colour
+
+Every plain button on the Word and PowerPoint toolbars — both hosts — draws from **one shared icon
+set**: `OfficeIcons` in `Shiny.Controls.Office.Shared`, monochrome stroked artwork on a 24x24 grid at
+one weight. MAUI paints it onto a `GraphicsView`; Blazor writes it out as inline SVG stroked in
+`currentColor`. There is one definition of each mark, so the two hosts cannot drift.
+
+**Do not put a glyph, a letter or an emoji on a toolbar button.** Emoji are painted in colour by the
+font, at its own size and weight — they cannot be tinted, do not dim with a disabled button and look
+different on every platform. Geometric unicode has the milder form of the same problem, plus tofu on
+Android fonts that lack the character. If a new toolbar button needs a mark, add it to `OfficeIcon`
+and `OfficeIcons.Shapes`.
+
+The geometry is **commands, not an SVG path string**, on purpose. MAUI's `PathBuilder` has real gaps
+parsing `d` attributes — implicit line-tos become move-tos, run-together decimals truncate — so
+artwork authored as a path string can look perfect in a browser and draw a stump on a device with
+nothing thrown. Neither host parses anything here.
+
+The pickers are the **deliberate exception**: font, font size, text colour and the highlight swatch
+have to show what they are currently set to, which is the one thing a monochrome icon cannot do. The
+highlight split button keeps the shared `A`-over-a-bar artwork and tints only the bar.
+
+## Icon-only buttons get a tooltip on desktop and web
+
+Every button on these bars is icon only, so each is wrapped in Shiny's own `Tooltip` naming what it
+does — the browser's `title` is slow to appear, cannot be themed and is unreachable from a keyboard.
+
+- **Blazor**: on by default. `ShowToolbarTooltips="false"` falls back to the native `title`.
+- **MAUI**: on for **desktop only** — Windows, Mac Catalyst, macOS and the GTK/plain-.NET head. Off on
+  iOS and Android, because the tooltip opens on hover and there is no hover on a touch screen; a
+  long-press tooltip would compete with the tap the button exists for. Override either way with
+  `ShowToolbarTooltips`.
+
+Both hosts always set an accessible name on the button (`aria-label` / `SemanticProperties.Description`)
+whatever the tooltip setting is — a tooltip is not what a screen reader reads.
+
 ## Selecting what to format
 
 Drag to select, **double-click for a word**, **triple-click for a paragraph**. On the controller these
@@ -104,6 +140,34 @@ c.CaretFormat;                       // what a toolbar should show as active
 c.Selection.Range;
 ```
 
+### Page margins
+
+The document's own margins, set for the whole document and undoable in one step:
+
+```csharp
+c.PageMargins;                                    // what it is set to now, in pixels at 96dpi
+c.SetPageMargins(PageMargins.Narrow);             // Normal / Narrow / Moderate / Wide
+c.SetPageMargins(PageMargins.FromInches(1, 1.25, 1, 1.25));   // left, top, right, bottom
+c.SetPageMargins(left: 96, top: 96, right: 96, bottom: 96);   // pixels, keeps header/footer distances
+```
+
+`PageMargins` also carries `Header` and `Footer` — the distance from the page edge to the header and
+footer, which sit **inside** the top and bottom margins rather than adding to them. `PageSetup.Margins`
+reads them off an open document, `PageSetup.WithMargins` writes them back onto a copy.
+
+`PageMarginPresets.All` is the gallery both toolbars offer (name, description, margins). Use it rather
+than a list of your own — it is the one place the two hosts agree on what "Moderate" means.
+
+**Both toolbars carry a page-margins button** — an action sheet on MAUI, a popover on Blazor, and the
+preset the document already matches is marked.
+
+Two things to know:
+
+- Only `DocumentPageLayout.Print` can show it. A reflowed column has no paper, so it insets content by
+  a cosmetic gutter instead. The change is still written and still saved — same as a page break.
+- Margins are the **last section's**, matching how the geometry is read. Multi-section documents are
+  not modelled.
+
 ### Highlighting
 
 `w:highlight` takes a **name from a closed list**, not a colour, so a highlight is resolved to the
@@ -120,6 +184,21 @@ HighlightPalette.ColorOf("yellow");  // the other way
 Both toolbars already show a split highlight button over this palette — the same one on both hosts,
 and the same palette the slide editor uses (there `a:highlight` holds a real colour, so nothing is
 approximated).
+
+### Numbered lists
+
+A list number is **not** stored on the paragraph that carries it — it is a function of every numbered
+paragraph before it, so it is worked out in a pass over the whole block list after every edit. Two
+consequences worth knowing:
+
+- Formatting, typing in or undoing an edit inside a list item leaves its number alone. (This was not
+  true before: the number was resolved once at read time from running counters that were then never
+  rewound, so re-reading an edited paragraph handed it the number after the document's last one, and
+  every further edit pushed it one higher.)
+- Splitting an item, deleting one, or dropping a block in renumbers the rest of that list on its own.
+
+`ListLabel.Text` is what to draw; `ListLabel.Numbering` is the `numId`/level it came from, for a
+toolbar that wants to say which list the caret is in.
 
 ## Shapes, pictures and tables
 
@@ -278,4 +357,6 @@ underlined.
 - **Grammar** checking. Android reports grammar errors and they are deliberately ignored — only
   `LooksLikeTypo` is treated as an error, so the behaviour matches the other three platforms.
 - Inserting new paragraph styles.
+- Setting the **paper size or orientation** — margins can be set, the sheet they sit on cannot.
+- **Per-section** page setup. One geometry is read for the document and one is written back.
 - Everything the viewer does not render is still not rendered — see `document-viewer.md`.
