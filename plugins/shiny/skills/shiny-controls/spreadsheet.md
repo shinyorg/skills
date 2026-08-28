@@ -101,9 +101,124 @@ sheet.UsedRange;                       // bounding box of populated cells, or nu
 sheet.GetFormula(cell);                // formula text without the leading '='
 sheet.GetDisplayValue(cell);           // computed value
 
-var format = workbook.Styles.Resolve(sheet.GetStyleIndex(cell));
+// GetEffectiveStyleIndex, not GetStyleIndex: a cell formatted through its column or row carries no
+// style of its own, and the plain getter reports it as unformatted.
+var format = workbook.Styles.Resolve(sheet.GetEffectiveStyleIndex(cell));
 var text = workbook.Styles.Format(sheet.GetDisplayValue(cell), format);
 ```
+
+## Formatting
+
+`ShowToolbar` puts the built-in formatting bar above the formula bar. **It is off by default** — unlike
+`ShowFormulaBar` and `ShowSheetTabs`, which are on.
+
+```xml
+<office:SpreadsheetView Workbook="{Binding Workbook}" ShowToolbar="True" />
+```
+
+```razor
+<SpreadsheetView Workbook="workbook" ShowToolbar="true" />
+```
+
+The bar carries font/size, bold, italic, underline, strikethrough, text colour, cell fill, horizontal
+*and* vertical alignment, wrap text, number formats, decimal places, AutoSum, fit-column and clear
+formatting. Extra items go in `ToolbarContent` (Blazor) or `Toolbar.ToolbarItems` (MAUI).
+
+Everything it does is also on the controller, so a host can drive the same commands from its own
+chrome:
+
+```csharp
+var controller = view.Controller;
+
+controller.ToggleBold();            // ToggleItalic, ToggleUnderline, ToggleStrikethrough, ToggleWrapText
+controller.SetFontFamily("Cambria");
+controller.SetFontSize(14);
+controller.SetTextColor(new ArgbColor(255, 0xC0, 0x00, 0x00));
+controller.SetFillColor(new ArgbColor(255, 0xFF, 0xEB, 0x3B));   // null removes the fill
+controller.SetAlignment(CellHorizontalAlignment.Center);         // same value again returns to General
+controller.SetVerticalAlignment(CellVerticalAlignment.Center);
+controller.AdjustIndent(+1);
+controller.ClearFormatting();       // formatting only; the contents stay
+
+controller.ActiveFormat;            // ResolvedFormat for the active cell — what a toolbar shows
+controller.CanUndo;                 // and CanRedo
+```
+
+**Formatting is a delta, not an assignment.** `CellFormatChange` names only what changes, so bolding a
+range that mixes colours leaves each cell's colour alone. Applying one to a range is a single undoable
+command:
+
+```csharp
+workbook.Execute(new FormatRangeCommand("Budget", CellRange.Parse("A1:D1"), new CellFormatChange
+{
+    Bold = true,
+    Background = new ArgbColor(255, 0xFF, 0xEB, 0x3B)
+}));
+```
+
+Do **not** write a style index onto a cell directly. Resolve, fold the change in, intern, write:
+`Workbook.Styles` reads a style index into a `ResolvedFormat` and `Workbook.StyleWriter.Intern` turns
+one back into an index. Interning is what keeps the styles part from growing one entry per formatted
+cell.
+
+### Number formats
+
+```csharp
+controller.SetNumberFormat(NumberFormatPreset.Currency);   // culture-aware symbol and placement
+controller.SetNumberFormatCode("#,##0.00;[Red](#,##0.00)");
+controller.AdjustDecimals(+1);                             // General becomes 0.0
+```
+
+Presets: `General`, `Number`, `Currency`, `Percent`, `Scientific`, `ShortDate`, `Time`, `Text`.
+`NumberFormats.PresetOf(code)` returns null for a code no preset produces — show nothing selected
+rather than guessing.
+
+### Auto formulas
+
+```csharp
+controller.ApplyAutoFunction(AutoFunction.Sum);   // Average, Count, Min, Max
+```
+
+Returns **false** when there is nothing to total, and writes nothing — do not assume it always acts.
+Where the formula goes and what it covers follows Excel:
+
+- One cell selected: the run of numbers immediately above it, else the run to its left, with the result
+  in that cell. A cell already holding SUM/AVERAGE/COUNT/MIN/MAX ends the run, so a second total does
+  not double-count.
+- A single row or column selected: the total goes just past the end — or into the last cell when that
+  cell is empty, which is what selecting the numbers *and* the blank below them means.
+- A block selected: one total per column, in the row underneath.
+
+`AutoFunctions.Plan(sheet, range)` exposes the same plan without writing anything.
+
+## Formatting columns and rows
+
+A selection made from a **column header** is written as a column style, not as a million cell styles:
+
+```csharp
+controller.Selection.SelectColumn(2);
+controller.SetNumberFormat(NumberFormatPreset.Currency);   // applies to C1:C1048576, including empty rows
+```
+
+That is the only way a format reaches rows that do not exist yet. Row-header selections behave the
+same. A cell's own style still wins over its row's, which wins over its column's — read the effective
+one with `Worksheet.GetEffectiveStyleIndex(cell)`, **not** `GetStyleIndex`, which returns only the
+cell's own and shows an unformatted column.
+
+Column widths and row heights are recorded in the file:
+
+```csharp
+controller.SetColumnWidth(180);        // pixels, for the selected columns
+controller.AutoFitColumns();           // approximate: character counts, not measured text
+controller.SetColumnsHidden(true);
+
+workbook.Execute(new SetColumnWidthCommand("Budget", first: 1, last: 3, characters: 24.5));
+workbook.Execute(new SetColumnStyleCommand("Budget", 1, 1, styleIndex));
+workbook.Execute(new SetRowHeightCommand("Budget", row: 0, points: 24));
+```
+
+Dragging a column-header edge in the grid commits the same command, so a hand-dragged width survives a
+save.
 
 ## Driving the grid from a toolbar
 
@@ -157,6 +272,12 @@ Do not generate code that assumes these exist:
 
 - **Insert/delete rows and columns.** Deliberately deferred: it requires rewriting references across
   formulas, merged cells, conditional formatting, defined names, data validation, charts and tables.
+  (Formatting, resizing and hiding a column *are* supported — it is inserting and deleting that is not.)
+- **Cell borders.** `ResolvedFormat` does not model them, so the toolbar cannot apply them and a
+  file's existing borders are neither drawn nor lost.
+- **Wrapped text rendering.** `ToggleWrapText` is stored and saved, and Excel honours it on open, but
+  the grid still paints one line per cell — wrapping needs row auto-height, which the layout has not
+  got.
 - Adding or removing merged cells (existing merges render, but cannot be changed).
 - Editing charts, pivot tables or conditional formatting.
 - Multi-range ("Ctrl-click") selection.

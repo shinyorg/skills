@@ -88,6 +88,16 @@ the same twenty presets, the same path builder.
 
 Both toolbars already offer these, over the same galleries as the Word side.
 
+## Toolbar icons and tooltips
+
+The slide toolbar draws from the **same `OfficeIcons` set** as the document toolbar — monochrome
+stroked artwork on a 24x24 grid, one weight, no colour of its own, shared between MAUI and Blazor. The
+slide-only marks are `Previous`, `Next`, `Indent`, `Outdent`, `TextBox` and `Delete`. No glyph, letter
+or emoji goes on a toolbar button; add to the enum instead. `ShowToolbarTooltips` controls the hover
+tooltips on those icon-only buttons — on for Blazor and for MAUI desktop, off on iOS and Android.
+
+The full rules, and why they are rules, are in **document-editor.md** — one icon strategy, one place.
+
 ## Highlighting
 
 `a:highlight` holds a real colour, so nothing is approximated. The pickers still offer
