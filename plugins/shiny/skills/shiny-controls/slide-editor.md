@@ -63,12 +63,41 @@ c.Backspace();
 c.ToggleBold();
 c.SetFontSize(24);                // POINTS, not pixels
 c.SetAlignment(TextAlignment.Center);
-c.ShiftLevel(+1);                 // indent the bullet
+c.ShiftLevel(+1);                 // indent the bullet; each paragraph moves relative to its own level
+c.HandleTab(shift: false);        // what the Tab key does — always a level change inside a shape
+c.ToggleBulletList(); c.ToggleNumberedList();
+c.SetListStyle(ListStyle.None);   // explicit: writes a:buNone, see below
 c.SetHighlight(color);            // null clears it; ToggleHighlight(color) for a toolbar button
 c.AddTextBox(slideX, slideY);
 c.DeleteSelectedShape();
 c.Undo();
 ```
+
+## Lists
+
+The two toggle buttons write into the paragraph's own `a:pPr`: `a:buChar` for a bullet, `a:buAutoNum`
+for a number, `a:buNone` for neither. Read the state back off `CaretFormat.List` and `CaretFormat.Level`.
+
+Three things to get right:
+
+- **`ListStyle.None` writes `a:buNone`, it does not remove the element.** A body placeholder inherits
+  its bullet from the master's list style, so leaving the properties alone puts that bullet straight
+  back and the button looks like it did nothing.
+- **`a:pPr`'s children are a sequence**, and the bullet slot sits between `a:buFont` and `a:tabLst`.
+  Appending a `a:buChar` after a `a:defRPr` that was already there saves without complaint and produces
+  a file PowerPoint reports as corrupt. Go through `SetBullet`, never build the element by hand.
+- **Nine levels, 0-8.** A tenth is a file PowerPoint will not open.
+
+`ShapeParagraph.Bullet` is the mark to draw and is already resolved: an auto-numbered paragraph arrives
+with a **real number** in it, counted per text body at its own outline level and rendered in the file's
+own scheme (arabic, alphabetic or roman; period, trailing paren or both). `ShapeParagraph.List` is the
+kind, which `Bullet` cannot tell you — `"1."` is a perfectly good literal bullet glyph.
+
+Typing `- ` or `1. ` at the start of a paragraph starts a list, using the **same detector as the Word
+side** so the two hosts and the two file types cannot drift. `c.IsAutoFormatListEnabled = false` off.
+
+Unlike the document editor, Tab has no "not in a list" case: every paragraph in a shape carries an
+outline level whether or not it draws a mark, so `HandleTab` always changes level.
 
 ## Adding shapes, pictures and tables
 
@@ -92,7 +121,8 @@ Both toolbars already offer these, over the same galleries as the Word side.
 
 The slide toolbar draws from the **same `OfficeIcons` set** as the document toolbar — monochrome
 stroked artwork on a 24x24 grid, one weight, no colour of its own, shared between MAUI and Blazor. The
-slide-only marks are `Previous`, `Next`, `Indent`, `Outdent`, `TextBox` and `Delete`. No glyph, letter
+slide-only marks are `Previous`, `Next`, `TextBox` and `Delete`; `BulletList`, `NumberedList`,
+`Indent` and `Outdent` are shared with the document toolbar. No glyph, letter
 or emoji goes on a toolbar button; add to the enum instead. `ShowToolbarTooltips` controls the hover
 tooltips on those icon-only buttons — on for Blazor and for MAUI desktop, off on iOS and Android.
 
@@ -144,7 +174,8 @@ zoomed-out deck would have grab targets too small to hit.
 Escape, Delete and Ctrl/Cmd+B/I/U/Z are wired.
 
 **MAUI**: typing works via a hidden `Entry`. **Physical keys do not** — MAUI has no portable key-down
-event. Route them with `editor.HandleKey(EditorKey.Left, shift: true)` from a platform hook.
+event. Route them with `editor.HandleKey(EditorKey.Left, shift: true)` from a platform hook;
+`EditorKey.Tab` carries the nesting.
 
 ## Not implemented
 

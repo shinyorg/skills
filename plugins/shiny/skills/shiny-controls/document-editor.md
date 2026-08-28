@@ -135,8 +135,14 @@ c.SetHighlight(new ArgbColor(255, 255, 255, 0));   // null clears it
 c.ToggleHighlight(new ArgbColor(255, 255, 255, 0));
 c.SetAlignment(TextAlignment.Center);
 
+c.ToggleBulletList(); c.ToggleNumberedList();
+c.SetListStyle(ListStyle.Numbered);  // None / Bullet / Numbered, explicit rather than a toggle
+c.ChangeListLevel(1);                // nest a list item; -1 un-nests
+c.HandleTab(shift: false);           // what the Tab key does; returns false if it consumed nothing
+
 c.Undo(); c.Redo();
 c.CaretFormat;                       // what a toolbar should show as active
+c.CaretFormat.List;                  // ListStyle at the caret; ListLevel is 0-8
 c.Selection.Range;
 ```
 
@@ -185,7 +191,37 @@ Both toolbars already show a split highlight button over this palette — the sa
 and the same palette the slide editor uses (there `a:highlight` holds a real colour, so nothing is
 approximated).
 
-### Numbered lists
+### Lists
+
+**Both toolbars carry two toggle buttons** — bulleted and numbered — plus indent and outdent. Use
+`CaretFormat.List` to decide which is lit and `CaretFormat.ListLevel` to decide whether outdent is
+enabled; the indent pair is enabled **only inside a list**, because that is the only thing it moves.
+
+A Word paragraph does not carry its own bullet: it points at a definition in `numbering.xml`. So
+`SetListStyle` on a document that has never had a list creates the part, a nine-level definition and
+the instance behind it. The definition is stamped with a fixed `w:nsid`, so a second press finds the
+first one's work instead of adding a near-identical abstract list every time — do not write your own
+definitions to get a list, call the controller.
+
+**Nesting.** `HandleTab` is the whole Tab story and hosts should route the key straight into it:
+
+- In a list, Tab nests and Shift+Tab un-nests. A selection spanning levels moves each item relative to
+  its own level rather than flattening them.
+- Outside a list, Tab inserts a real `w:tab`, which is **four characters wide in the offset space** —
+  matching what the reader projects. Shift+Tab outside a list does nothing and returns false.
+
+**The numbered levels compound.** Level 1's `lvlText` is `%1%2.`, so the second level reads `1a`, `1b`
+under item 1 and restarts at `1a` under item 2. Bullets cycle `•`, `◦`, `▪` by level. Each level
+carries its own hanging indent — that is what the label is drawn *in*, so a level definition written
+without one paints the bullet on top of the first letter.
+
+**Autoformat.** Typing `-`, `*`, `+` or `•` then a space starts a bulleted list; digits closed by `.`
+or `)` start a numbered one. The marker and the space both go, in one undo step. The marker has to be
+everything before the caret, so a hyphen mid-sentence is untouched. `c.IsAutoFormatListEnabled = false`
+turns it off — worth doing for a document of shell transcripts.
+
+**Enter on an empty item ends the list**: a nested item comes out one level first, so repeated Enter
+walks back up the nesting and then leaves. Enter on an item *with* text still makes a new item.
 
 A list number is **not** stored on the paragraph that carries it — it is a function of every numbered
 paragraph before it, so it is worked out in a pass over the whole block list after every edit. Two
@@ -197,8 +233,11 @@ consequences worth knowing:
   every further edit pushed it one higher.)
 - Splitting an item, deleting one, or dropping a block in renumbers the rest of that list on its own.
 
-`ListLabel.Text` is what to draw; `ListLabel.Numbering` is the `numId`/level it came from, for a
-toolbar that wants to say which list the caret is in.
+Each `%n` in a compound `lvlText` renders in the format of the level it **refers to**, not the format
+of the paragraph being labelled — that is what makes `%1%2.` come out as `1a.` rather than `11.`.
+
+`ListLabel.Text` is what to draw, `ListLabel.IsBullet` says which of the two buttons the caret's
+paragraph belongs to, and `ListLabel.Numbering` is the `numId`/level it came from.
 
 ## Shapes, pictures and tables
 
@@ -274,13 +313,15 @@ await document.SaveAsAsync("edited.docx");
 ## Keyboard input
 
 **Blazor**: complete. Typing goes through `beforeinput`, so IME composition, autocorrect, dictation and
-paste all work. Arrows, Home/End, Ctrl/Cmd+B/I/U, Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z are wired.
+paste all work. Arrows, Home/End, Tab/Shift+Tab, Ctrl/Cmd+B/I/U, Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z are
+wired. Tab's default must be prevented or the browser moves focus off the editor.
 
 **MAUI**: typing works — a hidden `Entry` gives the platform keyboard and IME somewhere to send text.
 **Physical keys do not**, because MAUI exposes no portable key-down event. Route them yourself:
 
 ```csharp
 Editor.HandleKey(EditorKey.Left, shift: true);
+Editor.HandleKey(EditorKey.Tab, shift: true);    // un-nest a list item
 Editor.HandleKey(EditorKey.Undo, control: true);
 ```
 
