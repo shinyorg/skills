@@ -1,19 +1,30 @@
-# Ribbon (Desktop + Blazor)
+# Ribbon (MAUI + Blazor)
 
 An Office-style tabbed command bar: a strip of tabs over a body of titled command groups. For
 applications with more commands than a toolbar can hold — editors, IDEs, analysis tools.
 
 | Package | Namespace | Use when |
 |---|---|---|
-| **`Shiny.Maui.Controls.Desktop`** | `Shiny.Maui.Controls.Desktop.Ribbons` | MAUI desktop — Windows, macOS (AppKit), Mac Catalyst, Linux |
-| **`Shiny.Blazor.Controls`** | `Shiny.Blazor.Controls` | Blazor — **no add-on package**, the ribbon is in the main package (same split as docking) |
+| **`Shiny.Maui.Controls`** | `Shiny.Maui.Controls.Ribbons` | MAUI — every target, iOS and Android included |
+| **`Shiny.Blazor.Controls`** | `Shiny.Blazor.Controls` | Blazor |
+
+It is in the **core** package on both hosts. It used to be in `Shiny.Maui.Controls.Desktop` under
+`Shiny.Maui.Controls.Desktop.Ribbons` — never emit that namespace.
 
 **No registration on either host.** It is markup, not a service — do not emit a `UseShinyRibbon()` or
 `AddShinyRibbon()` call, there is no such thing.
 
-**Do not use it on a phone.** It wants a pointer to hover with and enough width for three rows of small
-commands. Generate `ShinyToolbar` / `ShinyTabBar` (Blazor) or `ShinyTabbedPage` (MAUI) for mobile
-chrome — see toolbar-tabbar.md and tabbedpage.md.
+**On a phone, set `DisplayMode="Simplified"`.** Expanded wants a pointer and enough width for three
+rows of small commands. Simplified is one dense row, every item small, group titles dropped — that is
+the mobile form of a ribbon, and it is what ImageEditor switches to below 600px wide.
+
+**For app-level navigation a phone still wants a bar, not a ribbon.** Generate `ShinyToolbar` /
+`ShinyTabBar` (Blazor) or `ShinyTabbedPage` (MAUI) for that — see toolbar-tabbar.md and tabbedpage.md.
+A ribbon is for a document surface with more commands than a bar can hold.
+
+**Size items consistently.** Simplified keeps a label only on items declared `Small`, so a group mixing
+`Large` and `Small` renders some items labelled and some as bare icons with no rule a user can see. Pick
+one size per bar unless a `Large` item is genuinely meant to dominate.
 
 ## The shape
 
@@ -29,8 +40,8 @@ item-list / `ItemsSource` form; never invent one.
 
 ## MAUI
 
-`xmlns:shiny="http://shiny.net/maui/controls"` — the ribbon is mapped onto the core namespace URI from
-the Desktop assembly, so do **not** emit a `clr-namespace:` prefix for it.
+`xmlns:shiny="http://shiny.net/maui/controls"` — the same URI as every other core control, so do
+**not** emit a `clr-namespace:` prefix for it.
 
 ```xml
 <shiny:Ribbon ApplicationButtonText="File"
@@ -145,6 +156,11 @@ the Desktop assembly, so do **not** emit a `clr-namespace:` prefix for it.
 Nothing declares a column, so never try to. A `Large` item (the default) takes a column to itself —
 icon over label — and `Small` items stack up to `SmallItemRows` (3) deep in a shared column. A
 `RibbonSeparator` or a large item ends the column and starts a fresh one. Reordering the items in a
+Rows are sized to their content per group, so a bar mixing hosted pickers with icon buttons must pin
+one height or the groups will not line up with each other: `SmallItemRowHeight = 32` on MAUI, and on
+Blazor `--shiny-ribbon-row-h: 32px` set on the `.shiny-ribbon` element itself (a wrapper does not
+work — the ribbon sets the property on itself and that wins over inheritance).
+
 group re-flows it; that is the only lever.
 
 Set `Size="Small"` on the secondary commands and leave the primary one large. Three smalls per column
@@ -225,3 +241,22 @@ everything else stays on the tokens. See styling.md.
   all work there. Adding a tab/group/item *after* the fact rebuilds, and dropdown panels are added on
   demand — those two paths are the limit on that head.
 - Key tips (Alt-key letter badges) are not implemented on either host.
+
+### Collapsing
+
+The chevron collapses the body and restores it to whatever mode it was in — `Simplified` stays
+`Simplified`. `AllowCollapse="false"` removes it.
+
+If you generate a host that rebuilds its ribbon on every state change, carry `DisplayMode` across the
+rebuild (read it off the old instance, or two-way bind it). A fresh ribbon starts at its default and
+the user's collapse is silently lost.
+
+## Overflow hint
+
+When a tab's groups are wider than the bar the body scrolls, and a fade is drawn on whichever edge
+still has content beyond it — otherwise a bar that scrolls is indistinguishable from one that does
+not. It is automatic on both hosts; nothing to switch on.
+
+Hosting a `Label` in a MAUI ribbon group: set `VerticalTextAlignment = Center`, not just
+`VerticalOptions`. The pinned row height makes the label *be* the row, so `VerticalOptions` has nothing
+to centre within and the text falls to the top while neighbouring icons stay centred.

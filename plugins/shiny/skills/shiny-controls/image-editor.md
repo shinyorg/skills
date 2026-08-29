@@ -201,3 +201,15 @@ editor.DrawStrokeColor = Colors.Yellow;
     Task ZoomTo400() => editor!.SetZoomAsync(4).AsTask();
 }
 ```
+
+### Toolbar
+
+The default toolbar is a [Ribbon](ribbon.md) on both hosts — Home (Tools / Shapes / Image), View
+(zoom), a contextual tab for the active tool's options, and undo/redo/reset in quick access. You do
+not build any of that; it is what the control renders when you do not pass `ToolbarTemplate`.
+
+Do **not** hand-roll a tool row beside the editor. `ToolbarTemplate` replaces the whole bar if a host
+genuinely needs its own, and `ToolbarActions` adds the host's own commands into the Home tab without
+giving up the rest.
+
+On a narrow editor the ribbon switches itself to `Simplified` below 600px — no code needed.

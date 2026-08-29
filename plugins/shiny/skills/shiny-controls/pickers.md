@@ -37,3 +37,9 @@ The `DurationPickerCell` uses the same FloatingPanel-based picker internally.
 | `MinuteInterval` | `int` | `5` |
 
 **Note:** When using `DurationPickerCell` in a TableView, the page must use `ShinyContentPage` so the floating panel has an overlay host to render into.
+
+## Width (MAUI)
+
+`FontPickerButton`, `FontSizePickerButton` and `ColorPickerButton` shrink-wrap their trigger by
+default. Setting `WidthRequest` makes the trigger fill that width, so a toolbar can size a row of
+pickers to a common width without leaving a gap beside each one.

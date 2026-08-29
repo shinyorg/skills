@@ -1,6 +1,6 @@
 # Motion Icons
 
-Animated icons that run on a timer, on hover, on tap, when they scroll into view, or on command. 42 built-in icons, each with motion drawn for it, plus generic presets that work on any artwork including your own.
+Animated icons that run on a timer, on hover, on tap, when they scroll into view, or on command. 111 built-in icons, each with motion drawn for it, plus generic presets that work on any artwork including your own.
 
 **Both hosts, core packages.** `MotionIconView` is in `Shiny.Maui.Controls`; `<MotionIcon>` is in `Shiny.Blazor.Controls`. There is no separate add-on package to install. The artwork and motion definitions live in `Shiny.Controls.MotionIcons.Shared`, which both core packages reference; the MAUI side also builds on `Shiny.Controls.Keyframe.Shared`, so an icon is a `KeyframeScene` played by the same `Player` a hand-written timeline uses.
 
@@ -98,16 +98,29 @@ For a busy indicator, bind `IsPlaying` rather than toggling `Trigger`:
 
 ## The icon set
 
-`arrow-right`, `bell`, `bookmark`, `calendar`, `camera`, `chart`, `check`, `chevron-down`, `clock`, `close`, `cloud`, `copy`, `download`, `edit`, `eye`, `filter`, `heart`, `home`, `info`, `loader`, `location`, `lock`, `mail`, `menu`, `message`, `pause`, `play`, `plus`, `power`, `refresh`, `search`, `settings`, `share`, `star`, `sun`, `thumbs-up`, `trash`, `upload`, `user`, `volume`, `warning`, `wifi`.
+Names are one flat, case-insensitive namespace; the grouping below is only to make it readable.
 
-Enumerate at runtime with `MotionIconLibrary.Names` / `.All`.
+- **Actions** — `add-user`, `attach`, `check`, `close`, `copy`, `download`, `edit`, `filter`, `link`, `loader`, `logout`, `menu`, `more`, `pin`, `plus`, `power`, `print`, `redo`, `refresh`, `save`, `search`, `send`, `settings`, `share`, `sort`, `trash`, `undo`, `upload`, `zoom-in`, `zoom-out`
+- **Navigation** — `arrow-down`, `arrow-left`, `arrow-right`, `arrow-up`, `chevron-down`, `chevron-left`, `chevron-right`, `chevron-up`, `collapse`, `compass`, `expand`, `external-link`
+- **Objects** — `battery`, `bell`, `bookmark`, `calendar`, `camera`, `cart`, `clock`, `cloud`, `coffee`, `credit-card`, `eye`, `flag`, `gift`, `heart`, `home`, `lightbulb`, `location`, `lock`, `mail`, `message`, `rocket`, `shield`, `star`, `sun`, `tag`, `user`
+- **Media** — `headphones`, `microphone`, `music`, `mute`, `pause`, `play`, `record`, `repeat`, `shuffle`, `skip-back`, `skip-forward`, `stop`, `video`, `volume`
+- **Files** — `book`, `clipboard`, `database`, `file`, `file-text`, `folder`, `folder-open`, `image`
+- **Weather** — `cloud-rain`, `cloud-snow`, `droplet`, `lightning`, `moon`, `thermometer`, `umbrella`, `wind`
+- **Indicators** — `activity`, `bluetooth`, `chart`, `check-circle`, `help`, `hourglass`, `info`, `signal`, `thumbs-up`, `trending-up`, `warning`, `wifi`, `x-circle`
+
+Directional icons come in matched sets: every arrow travels the way it points and pulls its shaft in
+behind the head, and every chevron bounces once in its own direction, so swapping `arrow-right` for
+`arrow-left` in a right-to-left layout gets the mirrored motion for free.
+
+**Never invent a name.** An unknown one renders nothing and throws nothing, so a typo is invisible
+until someone looks at the screen. Enumerate at runtime with `MotionIconLibrary.Names` / `.All`.
 
 ## Your own artwork
 
 Quickest — a single path:
 
 ```xml
-<shiny:MotionIconView PathData="M12 2 3 20h18z" Motion="Pop" />
+<shiny:MotionIconView PathData="M12 2L3 20H21z" Motion="Pop" />
 ```
 
 Split into parts when pieces move differently — this is what makes a hinged icon possible:

@@ -53,7 +53,6 @@ using var workbook = Workbook.Create("Sheet1");
 ```razor
 <div style="height:420px">
     <SpreadsheetView Workbook="workbook"
-                     Theme="SpreadsheetTheme.Dark"
                      CellChanged="OnCellChanged" />
 </div>
 ```
@@ -120,9 +119,16 @@ var text = workbook.Styles.Format(sheet.GetDisplayValue(cell), format);
 <SpreadsheetView Workbook="workbook" ShowToolbar="true" />
 ```
 
-The bar carries font/size, bold, italic, underline, strikethrough, text colour, cell fill, horizontal
-*and* vertical alignment, wrap text, number formats, decimal places, AutoSum, fit-column and clear
-formatting. Extra items go in `ToolbarContent` (Blazor) or `Toolbar.ToolbarItems` (MAUI).
+The bar is a ribbon with two tabs.
+
+- **Home** — clipboard; font/size, bold, italic, underline, strikethrough, text colour, cell fill;
+  horizontal *and* vertical alignment, indent, wrap text; number formats and decimal places; AutoSum,
+  clear contents, clear formatting.
+- **Data** — insert and delete rows and columns; column width (fit on the button, four presets behind
+  its chevron) and hide/unhide; a function button each for SUM, AVERAGE, COUNT, MIN and MAX.
+
+Extra items go in `ToolbarContent` (Blazor) or `Toolbar.ToolbarItems` (MAUI); they land in their own
+never-collapsing group on **Home**, so they are on the tab that opens.
 
 Everything it does is also on the controller, so a host can drive the same commands from its own
 chrome:
@@ -284,3 +290,62 @@ Do not generate code that assumes these exist:
 - Copy/paste and the fill handle's drag-to-fill behaviour (the handle is drawn but inert).
 - Physical-key navigation on MAUI — MAUI has no portable key-down event, so arrow keys work on
   Blazor only. On MAUI, call `Move`/`BeginEdit`/`ClearSelection` from your own platform key hook.
+
+### Dark mode
+
+`Theme` is nullable; **leave it unset** and the grid, formula bar, toolbar and sheet tabs follow the
+host's light/dark scheme live. Pass `SpreadsheetTheme.Light` / `.Dark` only to pin one.
+
+### Toolbar
+
+The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the quick access
+row. You do not build any of it; it is what the control renders.
+
+Do **not** hand-roll a formatting strip beside this control. Use `ToolbarContent` (Blazor) /
+`ToolbarItems` (MAUI) to add your own commands — they land in their own group that never collapses.
+
+The tab strip is on by default (Blazor `ShowTabs`, MAUI `Ribbon.ShowTabStrip`). Setting Blazor's
+`ShowTabs="false"` does not remove the Data commands — it folds those groups onto the single tab. Below
+600px the bar switches itself to `Simplified` — no code needed.
+
+### Clipboard and structure
+
+On the controller: `Cut()`, `Copy()`, `Paste()`, `ClearClipboard()`, `CanPaste`, `Clipboard`,
+`ClipboardRange`, `ClipboardChanged`, and `InsertRows(count = 1)` / `InsertColumns(count = 1)` /
+`DeleteRows` / `DeleteColumns`.
+
+`ClipboardRange` is the source range of the pending cut or copy, and the control draws the animated
+dashed marching-ants border around it for you — do not draw your own, and do not repurpose
+`SpreadsheetTheme.SelectionBorder` for it; the border has its own `ClipboardBorder` token precisely so
+the two read as different things. `ClipboardChanged` is the event to hook if a host needs to react to
+the clipboard filling or emptying; `Changed` also fires, but it fires on every keystroke as well.
+
+The toolbar already carries cut, copy, paste, insert and delete for rows and columns, column width and
+hide/unhide, clear contents, and the five aggregates — do not add your own buttons for any of them.
+What is left for a host to wire is what has no affordance on the bar: row heights, `GoTo`, and
+`SetSheetVisible`.
+
+## Touch
+
+Both editable surfaces read a pointer's kind and behave differently under a finger:
+
+- **Spreadsheet** — tap selects a cell, drag **pans** both axes, and a selection is extended by
+  dragging one of the two round handles on its corners. Header presses still select and resize.
+- **Document editor** — tap places the caret, drag **pans**, double/triple-tap select a word or
+  paragraph, and the selection is adjusted by the handles under each end. Long-press opens the
+  spelling menu.
+
+Mouse behaviour is unchanged (drag extends, wheel scrolls) and the handles are not drawn for it. Do
+not add a separate pan gesture or a scroll control on top of this — it is already there.
+
+## Theming
+
+`Theme` unset follows the host, and that means the app's **neutral tokens** — the grid's background,
+text, grid lines and headers come from `Surface` / `OnSurface` / `OutlineVariant` / `SurfaceContainer`
+/ `Outline`, so the grid and the ribbon above it share one ground. Semantic colours (selection green,
+clipboard blue) are not themed. Do not set `Theme` just to get dark mode; it is already automatic.
+
+`Watermark` (an `OfficeWatermark`) is on both the editor and the viewer - a picture drawn behind the
+content, defaulting to a 0.15 wash. It is a **display** watermark: drawn, never written into the file,
+because the three formats store one in three unrelated ways. The editors' watermark button uses the
+same picker as inserting a picture.

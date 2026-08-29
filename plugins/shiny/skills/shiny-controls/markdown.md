@@ -218,3 +218,9 @@ Bold, italic, strikethrough, H1-H6 headings, unordered/ordered/task lists, inlin
                        Padding="8" />
 </ContentPage>
 ```
+
+### Dark mode
+
+Leave `Theme` unset. It resolves to `MarkdownTheme.Themed`, whose colours are all Shiny theme
+tokens, so the output follows the scheme *and* the theme pack. `MarkdownTheme.Light` / `.Dark` are
+literal palettes for a preview that must look the same whatever the app is doing.

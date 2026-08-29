@@ -419,3 +419,9 @@ public class ChatMessageTemplateSelector : DataTemplateSelector
 - On Blazor, put the `ChatView` in a wrapper with `height: 100%` inside `<SheetContent>`; the sheet sizes its body to the visible detent band, so the chat fills it and its input bar stays on screen.
 - Don't hand-build a composer. `ChatView` already hosts a `ChatEntryView`/`ChatEntry`; set the pass-through properties, or supply your own composer via `InputBar` / `InputTemplate`. Never wire a composer to `IChatSession` directly — `ChatView` owns that.
 - For app-specific verbs (MAUI), add `ChatInputAction`/`ChatBubbleAction` — don't try to recreate the removed tool classes.
+
+### Dark mode
+
+Leave `MyBubbleColor` / `MyTextColor` / `OtherBubbleColor` / `OtherTextColor` unset — they default to
+theme tokens and follow the scheme. Set all four (not just the bubbles) if you want the classic
+messenger green-and-white look.

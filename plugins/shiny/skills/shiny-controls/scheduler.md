@@ -527,3 +527,9 @@ Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`Sel
   `SeparatorColor` and `CurrentTimeMarkerColor` all default to `null` and resolve from theme tokens.
   A `SchedulerEvent.Color` (or a user's `BubbleColor`) still wins for that item, since per-item colour
   is data.
+
+### Dark mode
+
+Leave `CalendarCellColor`, `CalendarCellSelectedColor`, `CurrentDayColor` and the day-header colours
+unset — they default to theme tokens. Event chip colours are yours to pick per event; the label ink
+is derived from each chip's colour automatically, so do not set a text colour on them.

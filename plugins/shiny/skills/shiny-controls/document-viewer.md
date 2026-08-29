@@ -171,3 +171,8 @@ Do not generate code that assumes these work:
 - Charts, SmartArt, embedded OLE and animations in PowerPoint — reported, not drawn.
 - Custom/freeform geometry, drawn as the bounding rectangle.
 - Group shapes are flattened, which is wrong if the group has been scaled relative to its children.
+
+### Dark mode
+
+`Theme` is nullable; **leave it unset** to follow the host's light/dark scheme. Pass
+`DocumentTheme.Light` / `.Dark` only to pin one.
