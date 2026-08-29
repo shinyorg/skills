@@ -111,3 +111,8 @@ void OnPinCompleted(object? sender, SecurityPinCompletedEventArgs e)
 - Changing `Length` rebuilds the cells; a longer `Value` is truncated to fit
 - When `HideCharacter` is null or empty, the entered character is shown verbatim
 - `Completed` fires whenever the value length reaches `Length` — including via programmatic assignment
+
+### Dark mode
+
+Leave `CellBackgroundColor` unset — it defaults to `surface-container-low` and follows the scheme.
+If you pin it, pin `CellTextColor` too.

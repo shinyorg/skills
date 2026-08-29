@@ -193,3 +193,36 @@ event. Route them with `editor.HandleKey(EditorKey.Left, shift: true)` from a pl
 An unedited deck saves **byte-identical**. After an edit, the parts the reader materialised (every
 slide, layout, master, theme and notes part) are re-serialised by the SDK's only public flush — nothing
 is lost and nothing is added or removed, but their bytes move.
+
+### Dark mode
+
+`Theme` is nullable; **leave it unset** to follow the host's light/dark scheme. `SlideTheme.Dark`
+darkens only the surround — a slide is an authored artboard and is never inverted.
+
+### Toolbar
+
+The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the quick access
+row. You do not build any of it; it is what the control renders.
+
+Do **not** hand-roll a formatting strip beside this control. Use `ToolbarContent` (Blazor) /
+`ToolbarItems` (MAUI) to add your own commands — they land in their own group that never collapses.
+
+The tab strip is off by default; turn it on only when the editor is the whole application. Below
+600px the bar switches itself to `Simplified` — no code needed.
+
+## Toolbar
+
+Two ribbon tabs: **Home** (Slide nav, Font, Paragraph) and **Insert** (text box, shape, table, picture,
+delete). Do not add Layout or Zoom tabs - a slide is a fixed artboard always scaled to fit, so it is
+never clipped and there is nothing to pan or zoom.
+
+Inserting a picture goes through the same shared path as the document editor: camera/gallery on
+iOS and Android, a filtered native file dialog on every desktop head.
+
+Shapes are the shared **Shapes ribbon tab**, same as the document editor. `OfficeInsertMenu` takes
+`ShowShapes="false"` wherever that tab is present.
+
+`Watermark` (an `OfficeWatermark`) is on both the editor and the viewer - a picture drawn behind the
+content, defaulting to a 0.15 wash. It is a **display** watermark: drawn, never written into the file,
+because the three formats store one in three unrelated ways. The editors' watermark button uses the
+same picker as inserting a picture.

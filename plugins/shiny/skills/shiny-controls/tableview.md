@@ -543,3 +543,14 @@ await tableView.ScrollToBottomAsync();
 | `ItemDropped` | `ItemDroppedEventArgs` | Cell reordered via drag sort |
 | `ModelChanged` | `EventArgs` | Root/sections/cells changed |
 | `CellPropertyChanged` | `CellPropertyChangedEventArgs` | Cell property changed |
+
+### Section headers
+
+Leave `HeaderBackgroundColor`, `HeaderTextColor`, `FooterTextColor`, `SeparatorColor` and
+`SectionSeparatorColor` unset — they resolve from theme tokens and follow a theme swap or an
+appearance flip live. Leave `HeaderFontSize` unset too; it resolves to the theme's `BodySmallSize`.
+
+Section titles are **drawn** uppercase on both hosts (MAUI via `HeaderTextTransform`, Blazor via
+CSS). Write `Title` in normal sentence case — `Title="Toggle Controls"`, not `"TOGGLE CONTROLS"` —
+because the transform is presentation only and the bound string is what bindings, accessibility and
+tests see. Set `HeaderTextTransform="None"` on MAUI if a design wants sentence case.

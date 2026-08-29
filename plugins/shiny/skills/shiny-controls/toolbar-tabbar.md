@@ -142,3 +142,10 @@ Rules worth knowing:
 `HasShadow`, `BorderColor`, `BorderThickness`, `SafeArea`, `ZIndex`, `CssClass`, `Style`, `ItemClicked`.
 
 `TabBarItem`: `Key`, `Icon`, `ActiveIcon`, `Label`, `Href`, `Badge`, `IsDisabled`, `Tag`.
+
+### Dark mode
+
+Leave `BackgroundColor`, `TextColor`, `MenuBackgroundColor`, `MenuTextColor`, `TintColor`,
+`ActiveColor` and `InactiveColor` unset — they default to theme tokens and follow the scheme. They
+emit as inline styles, so anything you pass pins permanently; if you pass a background, pass a
+`TextColor` with it.

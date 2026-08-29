@@ -401,3 +401,73 @@ underlined.
 - Setting the **paper size or orientation** — margins can be set, the sheet they sit on cannot.
 - **Per-section** page setup. One geometry is read for the document and one is written back.
 - Everything the viewer does not render is still not rendered — see `document-viewer.md`.
+
+### Dark mode
+
+`Theme` is nullable; **leave it unset** and the page and its chrome follow the host's light/dark
+scheme live. Pass `DocumentTheme.Light` / `.Dark` only to pin one — a preview that must stay
+paper-white, say. The `ToolbarBackground` / `ToolbarForeground` / `ToolbarBorder` parameters on
+`DocumentEditorView` default to theme tokens; leave them unset too.
+
+### Toolbar
+
+The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the quick access
+row. You do not build any of it; it is what the control renders.
+
+Do **not** hand-roll a formatting strip beside this control. Use `ToolbarContent` (Blazor) /
+`ToolbarItems` (MAUI) to add your own commands — they land in their own group that never collapses.
+
+The tab strip is off by default; turn it on only when the editor is the whole application. Below
+600px the bar switches itself to `Simplified` — no code needed.
+
+## Touch
+
+Both editable surfaces read a pointer's kind and behave differently under a finger:
+
+- **Spreadsheet** — tap selects a cell, drag **pans** both axes, and a selection is extended by
+  dragging one of the two round handles on its corners. Header presses still select and resize.
+- **Document editor** — tap places the caret, drag **pans**, double/triple-tap select a word or
+  paragraph, and the selection is adjusted by the handles under each end. Long-press opens the
+  spelling menu.
+
+Mouse behaviour is unchanged (drag extends, wheel scrolls) and the handles are not drawn for it. Do
+not add a separate pan gesture or a scroll control on top of this — it is already there.
+
+## Toolbar and mobile behaviour
+
+Two ribbon tabs: **Home** (Font, Paragraph, Proofing) and **Layout** (Page Setup, Insert, Zoom). Do not
+add a tab per group - one-group tabs were removed on purpose.
+
+Reading on a phone is covered by three things that already exist; do not reinvent them:
+- one-finger drag pans **both** axes (touch); ctrl-wheel and sideways wheel on desktop
+- pinch, or Layout ▸ Zoom (50-300% stops)
+- Layout ▸ Fit width, which spans the page across the window (print layout only)
+
+Spelling has three entry points: long-press/right-click menu, Home ▸ Proofing (toggle + prev/next,
+which select the word and open its menu), and on MAUI a keyboard accessory bar offering the corrections
+while the caret is in a misspelling (`ShowSpellingSuggestions`). `GoToNextSpellingErrorAsync` is async
+because it has to spell-check each paragraph as it walks - the pass only covers what is on screen.
+
+Inserting a picture on iOS/Android asks Take Photo / Photo Library / Browse Files; desktop goes
+straight to the file browser. Hosts need the two iOS usage-description keys.
+
+Shapes are a **Shapes ribbon tab** (`OfficeRibbonItems.ShapesTab` on MAUI, `<OfficeShapesTab>` on
+Blazor), not a dropdown - do not reintroduce a picker panel. Margins are four preset buttons in
+Layout ▸ Margins. Shape icons come from `ShapeIcons.For(geometry)`, built from the same maths the
+painter uses; names from `ShapeNames`.
+
+Four ribbon tabs: **Home** (Font, Paragraph, Proofing), **Layout** (Margins, Page, Zoom), **Insert**
+(Objects, Header & Footer, Breaks) and **Shapes**. Header/footer/page-number/page-break/print-layout
+are all on the bar - do not add separate host chrome for them. `ChromeText(header)` reads the current
+line back for seeding an editor; `SetHeaderText(null)` removes it. Headers only render in print layout.
+
+Layout ▸ Page has Portrait/Landscape toggles (`SetPageOrientation`, undoable, writes both the swapped
+dimensions and `w:orient`). Each Office control has an `Accent` defaulting to its Microsoft colour -
+Word blue, Excel green, PowerPoint red - which paints the ribbon header, tab ink and underline. Set
+`Accent = null` to fall back to the theme. Use `OfficeAccent.From(colour)` for a custom one so the ink
+is chosen for you. Multi-column layout is **not** supported.
+
+`Watermark` (an `OfficeWatermark`) is on both the editor and the viewer - a picture drawn behind the
+content, defaulting to a 0.15 wash. It is a **display** watermark: drawn, never written into the file,
+because the three formats store one in three unrelated ways. The editors' watermark button uses the
+same picker as inserting a picture.

@@ -69,3 +69,9 @@ A view that applies a frosted glass (blur) effect behind its content. Uses nativ
 - Use `FrostedGlassView` (MAUI) or `FrostedGlass` (Blazor) when the user wants glass/blur/acrylic/frosted effects
 - Always place over a visible background (image, gradient, or content) — blur over a solid color has no visible effect
 - For navigation bars or toolbars, wrap the bar content in `FrostedGlassView` and overlay it on the page content
+
+### Dark mode
+
+Leave `TintColor` unset — it defaults to the themed surface at 60% and follows the scheme. A fixed
+white veil reads as fog in dark mode. If you pin a light tint, pin the text colour of the content
+inside it too.
