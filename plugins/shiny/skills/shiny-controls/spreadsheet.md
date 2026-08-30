@@ -240,6 +240,32 @@ controller.ClearSelection();
 controller.Undo();
 ```
 
+## Find
+
+**Home ▸ Find** — the same `OfficeFindBar` the document editor carries, over the same
+`IFindController`. See `document-editor.md` ▸ **Find** for the API and the rules it shares.
+
+```csharp
+var find = controller.Find;         // SpreadsheetFinder : IFindController
+
+find.SearchAllSheets = true;        // off by default: the active sheet only, as in Excel
+find.Query = "Q1";                  // searches and steps onto the first hit at or after the active cell
+find.FindNext();                    // switches sheets when the hit is on another one
+find.Matches;                       // IReadOnlyList<SpreadsheetFindMatch> (Sheet name, CellRef, Start, Length)
+
+controller.FindMatchCells();        // cells to wash on the showing sheet — what the painter takes
+```
+
+Workbook-specific behaviour:
+
+- What is searched is the cell text **as the formula bar shows it** — the formula when there is one,
+  otherwise the literal. Not the formatted value: `1234` would miss a cell showing `1,234.00`.
+- Matches are collected in **book order**, never active-sheet-first — ordering around the showing
+  sheet re-orders the list every time "next" crosses a boundary, which walks two sheets forever.
+- **Hidden sheets are never searched**, even with `SearchAllSheets`.
+- Stepping calls `GoTo`, so the cell is selected and scrolled into view; the wash covers **whole
+  cells**, because a cell is the smallest thing a selection can address.
+
 ## Saving
 
 ```csharp
@@ -288,6 +314,7 @@ Do not generate code that assumes these exist:
 - Editing charts, pivot tables or conditional formatting.
 - Multi-range ("Ctrl-click") selection.
 - Copy/paste and the fill handle's drag-to-fill behaviour (the handle is drawn but inert).
+- **Replace.** Find is implemented (see **Find**); replacing what it finds is not.
 - Physical-key navigation on MAUI — MAUI has no portable key-down event, so arrow keys work on
   Blazor only. On MAUI, call `Move`/`BeginEdit`/`ClearSelection` from your own platform key hook.
 

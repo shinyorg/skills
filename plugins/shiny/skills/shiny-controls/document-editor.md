@@ -328,6 +328,59 @@ Editor.HandleKey(EditorKey.Undo, control: true);
 A desktop host adds its own platform hook (`NSEvent` on macOS, `KeyDown` on Windows) and calls that.
 Tapping, selection, typing and every toolbar command work without it.
 
+## Find
+
+**Home ▸ Find** on all three Office toolbars: a box, a `3/12` readout and previous/next arrows. One
+component per host — `OfficeFindBar` — bound to an `IFindController`, which the document, slide and
+spreadsheet finders all implement.
+
+```csharp
+var find = c.Find;                                 // DocumentFinder : IFindController
+
+find.Options = new FindOptions { MatchCase = true, WholeWord = true };
+find.Query = "revenue";                            // searches and steps onto the first hit
+
+find.Count;                                        // how many
+find.ActiveIndex;                                  // zero-based, -1 when none
+find.Status;                                       // "1/4"; "0/0" for no hits; "" when not searching
+find.Matches;                                      // IReadOnlyList<DocumentFindMatch>
+
+find.FindNext();                                   // wraps at the end
+find.FindPrevious();                               // wraps at the start
+find.Clear();                                      // drops the query, leaves the selection alone
+find.Changed += (_, _) => { };                     // query, options or match list changed
+```
+
+Rules that hold on all three hosts and all three editors:
+
+- Setting `Query` **searches and steps onto the first hit at or after the caret** — not the top of the
+  content. Do not follow it with a `FindNext()`; that skips to the second hit.
+- Stepping **selects** the match rather than landing beside it, and scrolls it into view.
+- Next and previous **wrap**. `FindNext()` returns false only when there are no matches at all.
+- Editing invalidates the match list but **never moves the view**.
+- Finding changes nothing, so leave it enabled in a read-only editor.
+
+Every hit is washed amber by the painter; the one the selection covers is drawn as the selection
+instead, so the current match is the one that looks different.
+
+`MatchCase` and `WholeWord` live on the controller, not on the bar. Whole-word uses
+`WordBoundaries.IsWordChar`, the same rule double-click selection uses, so `don` does not match
+`don't`. `TextSearch.Matches(text, query, options)` is public if you need the same matcher elsewhere.
+
+**Only paragraphs are searched.** Table cells are not: a `DocumentPosition` is a block and an offset,
+and a table has neither — counting hits the arrows could never reach would be worse than not counting
+them.
+
+Wiring the bar by hand (it is what the three built-in toolbars host):
+
+```xml
+<office:OfficeFindBar Find="{Binding Controller.Find}" />
+```
+
+```razor
+<OfficeFindBar Find="@editor?.Controller?.Find" Moved="StateHasChanged" />
+```
+
 ## Spell check
 
 Turned on by default, and on MAUI the checker is the **platform's own** — `UITextChecker` (iOS,
@@ -394,7 +447,7 @@ underlined.
 - **Floating (anchored) drawings.** They are read, and drawn in the text flow at the point they are
   anchored from rather than at their real position; the unsupported note says so. Nothing inserts one.
 - A shape's own text is drawn but has no caret — pass it at insert time.
-- Cut/copy/paste through the clipboard, find and replace.
+- Cut/copy/paste through the clipboard, and **replace** — find itself is implemented, see **Find**.
 - **Grammar** checking. Android reports grammar errors and they are deliberately ignored — only
   `LooksLikeTypo` is treated as an error, so the behaviour matches the other three platforms.
 - Inserting new paragraph styles.
