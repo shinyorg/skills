@@ -177,6 +177,32 @@ Escape, Delete and Ctrl/Cmd+B/I/U/Z are wired.
 event. Route them with `editor.HandleKey(EditorKey.Left, shift: true)` from a platform hook;
 `EditorKey.Tab` carries the nesting.
 
+## Find
+
+**Home ▸ Find** — the same `OfficeFindBar` the document editor carries, over the same
+`IFindController`. See `document-editor.md` ▸ **Find** for the API and the rules it shares.
+
+```csharp
+var find = c.Find;                  // SlideFinder : IFindController
+
+find.Query = "roadmap";             // searches the whole deck and steps onto the first hit
+find.FindNext();
+find.Status;                        // "2/5"
+find.Matches;                       // IReadOnlyList<SlideFindMatch>
+```
+
+Deck-specific behaviour:
+
+- A search spans **every slide**, not the one being shown.
+- Stepping onto a match opens its slide, selects the shape, puts the caret in its text and selects the
+  matched word. If the deck is in `SlideViewMode.Grid` it switches back to `Single` first — a
+  thumbnail has no caret to move.
+- **Only `IsEditable` shapes are searched.** Layout and master shapes are template decoration shared
+  by every slide using them; a hit inside one would count the company name once per slide and step the
+  user into something they cannot select. Table cells and notes are out too — a `SlidePosition` is a
+  shape, a paragraph and an offset, and neither has one.
+- `FindMatchRects()` returns highlights for the **showing slide only**, in viewport coordinates.
+
 ## Not implemented
 
 - **Soft line breaks** (`a:br`) — read and rendered, but they contribute no characters to the offset
