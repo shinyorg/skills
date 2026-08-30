@@ -96,7 +96,7 @@ Focus moves into the panel on open (the first focusable, or whatever carries `da
 | `CloseButtonLabel` | `string` | `"Close"` | Accessible name. |
 | `CloseOnBackdropClick` | `bool` | `true` | |
 | `CloseOnEscape` | `bool` | `true` | Only the topmost modal answers. |
-| `NudgeOnBlockedDismiss` | `bool` | `true` | A refused backdrop click shoves the panel instead of doing nothing. |
+| `NudgeOnBlockedDismiss` | `bool` | `true` | A refused dismissal shoves the panel instead of doing nothing — a backdrop click that does not close, and any route `Closing` cancels. |
 
 ### State and events
 | Member | Type | Notes |
@@ -154,5 +154,6 @@ new ModalButton("Save")
 - **No host component.** Unlike `Toast`, `Dialogs` or `ProgressLine`, `ModalView` needs no `<ModalHost />` and no `AddShinyModal()` — it renders where you put it.
 - Put it at page level, not inside a container with `transform`/`filter`/`contain`. Those create a containing block for `position: fixed` and would trap the panel inside that element.
 - `Closing` is the only veto. A footer button's `OnClick` runs **before** it, so "save then close" works without touching `IsOpen`.
+- A vetoed close shakes the panel (`NudgeOnBlockedDismiss`). Say *why* it was refused from inside the panel — anything the handler writes to the page is behind the modal that just refused to move.
 - Set `AriaLabel` whenever there is no `Title` (a `HeaderTemplate` or `ShowHeader="false"`), or the dialog is announced unnamed.
 - Mutating a `ModalButton` in place (`State`, `Disabled`) needs a `StateHasChanged` unless the click handler that changed it is the thing returning.
