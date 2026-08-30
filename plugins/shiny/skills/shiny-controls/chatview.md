@@ -340,7 +340,7 @@ AI-composer convention). Blazor sends on Enter and inserts a newline on Shift+En
 - **Typing:** debounces `ToggleTypingAsync`; expires stale inbound typing indicators.
 - **Connection:** shows a banner and disables the input bar while not `Connected`.
 - **Markdown toolbar:** shows formatting buttons per `Info.BodyPermissions`; renders the markdown subset (`**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, underline, `[text](url)`) in bubbles. Self-contained — no Markdown-package dependency.
-- **Images:** an attach affordance (shown when `CanSendImages`) offers Gallery, plus Camera when the platform supports capture (MAUI `MediaPicker.IsCaptureSupported`; Blazor `<InputFile capture>`). Tapping an image bubble opens the `ImageViewer` when `OpenImagesInViewer`.
+- **Images:** an attach affordance (shown when `CanSendImages`) offers Gallery, plus Camera when the platform supports capture (MAUI `MediaPicker.IsCaptureSupported`; Blazor `<InputFile capture>`). Tapping an image bubble opens the `ImageViewer` when `OpenImagesInViewer`. On MAUI the viewer the chat hosts is deliberately invisible — it exists to raise the lightbox onto the page's overlay layer, not to draw anything inside the conversation. Nothing about the host page is required; any `ContentPage` works.
 
 ## Custom actions (MAUI only)
 

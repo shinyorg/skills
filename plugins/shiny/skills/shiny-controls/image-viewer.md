@@ -39,11 +39,12 @@ The thumbnail and the full-screen overlay are both a `ShinyImage`, so binding `U
 
 Generate `Uri` for anything coming off a server and `Source` only for streams, embedded resources and font images. `Source` wins when both are set.
 
-Three things follow from there being two images, and generated code should not fight any of them:
+Four things follow from there being two images, and generated code should not fight any of them:
 
 - **The overlay is empty until it opens.** Populating it up front would decode a second full-size bitmap for every viewer in a list. It is filled in `OpenAsync`, from the same URI, so it comes back off the memory cache the thumbnail already warmed — do not add your own preload.
 - **`ImageLoaded`/`ImageFailed` fire once**, from the thumbnail. The overlay loading the same URI on open is not a second event.
 - **`State`, `Progress`, `IsLoading` and `LoadError` mirror the thumbnail** — the copy that is always in the visual tree, so they still say something useful while the viewer is closed.
+- **The overlay is not drawn inside the control.** It goes into the nearest `OverlayHost` (or `ShinyContentPage`'s), and otherwise into a page-wide layer `ImageViewer` installs on the `ContentPage`. No particular page layout is required. A host that wants the viewer as a *presenter only* — a photo raised over something else, never a thumbnail in place — sets `IsVisible="False"` on it; the lightbox lives on the page, so hiding the control costs nothing. Leaving it visible paints the source full-bleed wherever the control sits, and `SyncSource` makes it opaque to touches once there is an image.
 
 This is MAUI-only. On Blazor `Source` is a URL string handed straight to `<img>`; there is no `Uri`, no ring and no `PlaceholderUri` on the viewer. Use `<ShinyImage>` separately there if you need progress.
 
