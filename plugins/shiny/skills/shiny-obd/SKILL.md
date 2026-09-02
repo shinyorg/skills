@@ -38,6 +38,10 @@ triggers:
   - ObdException
   - ObdTimeoutException
   - obd emulator
+  - protocol pinning
+  - RefreshNegotiatedProtocol
+  - ATSP
+  - AutoConnect
   - obd simulator
   - simulate obd adapter
   - fake obd adapter
@@ -184,6 +188,10 @@ triggers:
   - Elm327Responder
   - DrivingScenarioPlayer
   - obd emulator
+  - protocol pinning
+  - RefreshNegotiatedProtocol
+  - ATSP
+  - AutoConnect
   - fake obd adapter
   - test without a car
   - obd ble
@@ -310,6 +318,29 @@ Two constructors:
 
 Properties:
 - `DetectedAdapter` — `ObdAdapterInfo?` with `RawIdentifier` (string) and `Type` (ObdAdapterType enum: Unknown, Elm327, ObdLink). Null when explicit profile used.
+- `Protocol` — `string?`, settable before `Connect`. The ELM protocol number to pin with `ATSP` instead of searching. Ignored when an explicit profile was supplied — pass it to the profile's constructor instead.
+- `NegotiatedProtocol` — `string?`, the protocol the adapter reports it is on. Refreshed by `Connect` and by `RefreshNegotiatedProtocol()`.
+
+Methods:
+- `RefreshNegotiatedProtocol(CancellationToken)` — re-reads `ATDPN` and updates `NegotiatedProtocol`.
+
+**Always pin the protocol on reconnect.** `ATSP0` does not choose a protocol — it defers the choice to
+the first command that needs the bus, and that command pays the whole ELM search: seconds of it,
+routinely longer than a command timeout. `ATZ` discards the result, so an unpinned adapter pays it
+again on every reconnect. Generate this pattern whenever an app reconnects to a remembered adapter:
+
+```csharp
+var connection = new ObdConnection(transport) { Protocol = savedProtocol };   // null on a first run
+await connection.Connect();
+
+// ⚠️ Ask AFTER something has needed the bus. ATSP0 has chosen nothing at the end of Connect, so
+// asking there reports null and the app never learns a number to save.
+await connection.Execute(new SupportedPidsCommand(0x00));
+savedProtocol = await connection.RefreshNegotiatedProtocol();
+```
+
+A stale pin is safe — it is verified with mode 01 during initialization and dropped for a search when
+nothing answers.
 
 Handles:
 - ELM327 hex response parsing (single-line and multi-frame CAN)
@@ -329,8 +360,12 @@ public interface IObdAdapterProfile
 ```
 
 Built-in profiles:
-- `Elm327AdapterProfile` — ATZ, ATE0, ATL0, ATS1, ATH0, ATSP0
-- `ObdLinkAdapterProfile` — extends Elm327 with STFAC, ATCAF1
+- `Elm327AdapterProfile(string? protocol = null)` — ATZ, ATE0, ATL0, ATS1, ATH0, then `ATSP{protocol}` or `ATSP0`
+- `ObdLinkAdapterProfile(string? protocol = null)` — STFAC, then the Elm327 sequence, then ATCAF1
+
+`ATZ` is sent **once** per connect, by the profile. Auto-detection probes with `ATI` alone and does not
+reset first. `STFAC` restores factory defaults, so it precedes the ELM327 configuration rather than
+following it.
 
 ## Standard Commands (StandardCommands static class)
 
@@ -712,8 +747,19 @@ public class BleObdConfiguration
     public string WriteCharacteristicUuid { get; set; } = "FFF2";
     public string? DeviceNameFilter { get; set; }
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public bool AutoConnect { get; set; }   // default false
 }
 ```
+
+**Leave `AutoConnect` off** for an adapter somebody is waiting on, which is the normal OBD case. On
+Android it selects `ConnectGatt(autoConnect: true)`, the background connection path, where the
+controller only attempts during widely spaced scan windows — tens of seconds for an adapter a direct
+connect reaches in a few hundred milliseconds. It also arms the platform's own reconnect, which races
+any caller supervising the session itself. Turn it on only when nothing in the app is doing that job.
+
+The transport reads the write characteristic's advertised properties on connect and writes with or
+without a GATT response accordingly; do not assume either.
 
 ### BleObdTransport
 
