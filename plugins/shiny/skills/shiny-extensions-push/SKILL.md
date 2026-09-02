@@ -52,7 +52,7 @@ triggers:
   - server push notification
   - APNs server
   - FCM server
-  - FCM multicast
+  - FCM fan-out
   - push batching
   - web push VAPID
   - WNS server
@@ -330,19 +330,16 @@ color, image); Web Push uses `WebPushOptions` (icon, urgency); WNS uses `Windows
 a `ToastGeneric` toast built from title/body + `DeepLink`). All providers honour the cross-cutting fields
 (title/body, badge, sound, data, deep link, collapse id, TTL, priority).
 
-## Batching / FCM multicast
+## Delivery fan-out and custom batching
 
-`FcmProvider` implements `IPushBatchProvider` (`MaxBatchSize` 500): when `PushManagerOptions.EnableBatching`
-is on (the default), the manager packs devices that share the same notification into one multipart `/batch`
-request instead of one request per device — far fewer round trips for broadcasts and topic fan-out. This is
-automatic; no API change at the call site. Notes:
-- Grouping is by the **identical notification instance**, so an interceptor that rewrites the notification
-  per device (localization) naturally falls back to per-device sends for those devices.
-- Per-device dead-token pruning, token rotation, metrics, and `OnSent`/`OnFailed` still happen per device.
-- Set `push.Configure(m => m.EnableBatching = false)` to force per-device delivery everywhere.
-- To make a custom transport batchable, implement `IPushBatchProvider` (`MaxBatchSize` + `SendBatch`
-  returning one result per registration, in input order). Web Push has no multicast endpoint, so it stays
-  one request per device (fanned out concurrently by the manager).
+FCM's multipart `/batch` endpoint has been discontinued. `FcmProvider` and `FcmTenantProvider` therefore use
+one supported HTTP v1 `messages:send` request per device; `PushManagerOptions.MaxDegreeOfParallelism` bounds
+the concurrent fan-out. Per-device dead-token pruning, token rotation, metrics, and `OnSent`/`OnFailed` are
+preserved. Only an explicit FCM `UNREGISTERED` response expires a token; a generic HTTP 404 is an `Error`.
+
+Custom transports with a real bulk endpoint can implement `IPushBatchProvider` (`MaxBatchSize` + `SendBatch`
+returning one result per registration, in input order). Set
+`push.Configure(m => m.EnableBatching = false)` to force per-device delivery for those providers.
 
 ## Multiple apps (keyed registration)
 
