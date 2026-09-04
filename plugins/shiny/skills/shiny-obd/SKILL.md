@@ -201,6 +201,8 @@ triggers:
   - device scanner
   - obd adapter not found
   - ble scan not finding device
+  - adapter not found on first connect
+  - unnamed ble device
   - adapter profile
   - Shiny.Obd
   - AddShinyObdBluetoothLE
@@ -780,7 +782,7 @@ fails an in-flight command straight away instead of making the caller wait out t
 
 ### BLE scanning rules
 
-Two rules the library already follows internally. Generated code that scans with `IBleManager`
+Three rules the library already follows internally. Generated code that scans with `IBleManager`
 directly must follow them too, or it will not find adapters on iOS.
 
 **1. Never match on `IPeripheral.Name` alone.** On iOS `CBPeripheral.Name` is null while scanning a
@@ -795,6 +797,26 @@ var name = scanResult.Peripheral.Name ?? scanResult.AdvertisementData?.LocalName
 *advertisement*, and most ELM327 clones don't advertise their GATT service — it appears only after
 connecting. `bleManager.Scan(new ScanConfig("FFF0"))` finds nothing at all on iPhone. Scan
 unfiltered and use `ServiceUuid` after connecting.
+
+**3. Never require a name, and never identify a remembered adapter by one.** Rule 1 makes the name
+*better*; it does not make it reliable. Plenty of ELM327 clones advertise no name at all, and on iOS
+even the fallback is empty until CoreBluetooth has connected to that peripheral once and cached it —
+so `where(x => !string.IsNullOrEmpty(name))` is in practice a **first-connection-of-the-process**
+filter. The symptom is distinctive and easy to misread: pairing works, the first reconnect after a
+cold start fails, and every reconnect after that succeeds.
+
+```csharp
+// WRONG - drops unnamed adapters, and on iOS that is most of them on the first run
+.Where(x => !string.IsNullOrEmpty(x.Name))
+
+// RIGHT - the peripheral id is the only key always present
+.Where(x => x.Peripheral.Uuid == rememberedId)
+```
+
+Persist `IPeripheral.Uuid` for a remembered adapter and match on that. Use a name filter only when
+the *user* asked to narrow by name — then excluding unnamed devices is correct, because a filter
+cannot match a name that isn't there. `BleObdDeviceScanner` surfaces unnamed adapters with `Name` as
+an empty string, so a picker should fall back to the id or RSSI for the row label.
 
 `BleObdDeviceScanner` logs every advertisement at `Debug` level before filtering (name,
 `Peripheral.Name`, id, RSSI, advertised service UUIDs). When a user reports that an adapter isn't
