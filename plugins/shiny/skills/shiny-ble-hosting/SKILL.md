@@ -39,6 +39,7 @@ triggers:
   - Shiny.BluetoothLE.Hosting
   - ibeacon advertise
   - ble notify
+  - ble notify cancellation
   - ble indicate
   - ble read characteristic
   - ble write characteristic
@@ -293,6 +294,36 @@ await characteristic.Notify(data, specificPeripheral1, specificPeripheral2);
 `IPeripheral.Mtu` (and `BleServiceContext.Mtu`) is the usable payload -- the negotiated ATT MTU
 already minus the 3-byte ATT header. Cap a notification at `peripheral.Mtu` directly; do not
 subtract the header again. Anything larger is silently truncated by the platform.
+
+On iOS, Mac Catalyst and macOS `Notify` applies CoreBluetooth's back-pressure: when the transmit queue
+is full it waits for `peripheralManagerIsReadyToUpdateSubscribers` and retries, so the task completes
+only once the value is actually queued. Await each `Notify` before sending the next one -- do not fire
+many in parallel with `Task.WhenAll`, and do not add your own delay or retry loop around it.
+
+Pass a `CancellationToken` to bound that wait - it goes **before** the `params` centrals:
+
+```csharp
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+await characteristic.Notify(data, cts.Token);                  // all subscribers
+await characteristic.Notify(data, cts.Token, context.Peripheral); // one central
+```
+
+If Bluetooth powers off while an Apple `Notify` is waiting, the task faults with `InvalidOperationException`.
+Generated `[BleService]` classes get a matching `NotifyX(data, cancellationToken, params centrals)` overload,
+and generated request/response replies already pass `BleHostToken`. An empty centrals list means every
+subscriber on all platforms; a named list goes only to those centrals. `SubscribedCentrals` is tracked whether
+or not `SetNotification` was given a subscribe hook, so never register a no-op hook just to populate it.
+
+**Android** paces `Notify` per central - it waits for `onNotificationSent` before sending that central the next
+value and throws if Android refuses the notification or reports a failed status. Do not add delays between
+notifications. A central that enabled indications receives indications.
+
+**Linux (BlueZ)** has two limits the code you generate must respect. BlueZ only tells the app whether *any*
+central has notifications enabled, so while one is subscribed every connected central appears in
+`SubscribedCentrals`. And every `Notify` reaches all subscribed centrals - the `centrals` argument cannot narrow
+it (the send is skipped only when none of the named centrals is subscribed). Never put per-central data on a
+notify characteristic that several centrals subscribe to on Linux; generated request/response replies fan out
+to every subscriber there. Adding or removing a service re-registers the whole GATT application with BlueZ.
 
 ```csharp
 [Notify]
