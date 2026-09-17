@@ -1,6 +1,6 @@
 # Shiny AI Skills
 
-AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, GPS, geofencing, background jobs, push notifications, HTTP transfers, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
+AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, beacons, GPS, geofencing, background jobs, push notifications, Live Activities, HTTP transfers, embedded HTTP server, screen recording, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, web apps hosted inside MAUI, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
 
 ## The `shiny` Plugin
 
@@ -27,20 +27,24 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-core` | Hosting, DI, key-value stores, lifecycle hooks, platform abstractions |
 | `shiny-bluetoothle` | BLE scanning, connecting, GATT operations, managed scanner |
 | `shiny-ble-hosting` | BLE peripheral GATT server, advertising, L2CAP CoC channels |
+| `shiny-beacons` | iBeacon & Eddystone ranging, background region monitoring, broadcasting |
 | `shiny-jobs` | Background job scheduling — native iOS/Android schedulers plus in-process jobs |
 | `shiny-locations` | GPS tracking, geofencing, motion activity recognition |
 | `shiny-notifications` | Local notification scheduling, channels, badges, interactive actions |
 | `shiny-push` | Push notifications — native FCM/APNs and Azure Notification Hubs |
+| `shiny-liveactivities` | iOS Live Activities (Lock Screen, Dynamic Island) and Android 16 Live Updates |
 | `shiny-firebase` | Firebase Cloud Messaging for iOS and Android |
-| `shiny-http-transfers` | Background uploads and downloads with progress tracking |
+| `shiny-http-transfers` | Background uploads and downloads with progress tracking, Live Activity / foreground-service progress |
 | `shiny-data-sync` | Bidirectional JSON sync over HTTP with background outbox/inbox |
-| `shiny-httpserver` | Embedded HTTP/1.1, HTTP/2 & HTTP/3 server where ASP.NET Core cannot run |
+| `shiny-httpserver` | Embedded HTTP/1.1, HTTP/2 & HTTP/3 server where ASP.NET Core cannot run — reverse proxy, gRPC, WebDAV, MCP, tunnelling |
+| `shiny-wifi` | Wi-Fi scanning, connect/disconnect, saved networks, current network, hotspot |
 | `shiny-discovery` | Local network discovery — mDNS/DNS-SD, SSDP/UPnP, WS-Discovery |
 | `shiny-obd` | OBD-II commands, adapter auto-detection, BLE/WiFi/serial transports |
 | `shiny-music` | Music library permissions, querying, playback, lyrics, album art |
 | `shiny-health` | HealthKit / Health Connect queries, writes, real-time observers |
 | `shiny-contactstore` | Contact CRUD, fluent async query builder, permissions |
 | `shiny-calendarstore` | Calendar & event CRUD, fluent async query builder, permissions |
+| `shiny-screenrecorder` | Screen recording to MP4 with mic/system audio, display/window selection, pause/resume |
 | `shiny-speech` | Speech-to-text, text-to-speech, audio capture and playback |
 | `shiny-aiconversation` | Chat client, wake word, STT/TTS, persistent message store |
 
@@ -48,13 +52,14 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 
 | Skill | What It Helps With |
 |---|---|
-| `shiny-maui-shell` | Pages, ViewModels, navigation, source-generated routes |
+| `shiny-maui-shell` | Pages, ViewModels, navigation, source-generated routes, guards, deep links, app shortcuts, typed dialogs |
+| `shiny-appdevicebridge` | Host OTA-updated web apps (Blazor WASM, React, Vue) inside MAUI with typed C#/TypeScript device bridges |
 
 ### Controls — shared .NET MAUI and Blazor UI
 
 | Skill | What It Helps With |
 |---|---|
-| `shiny-controls` | TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, CameraView, MediaElement, scheduler, Markdown, barcodes, motion icons, and more |
+| `shiny-controls` | TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, CameraView, MediaElement, DataGrid, Wizard, Walkthrough, Kanban, Gantt, Diagram, Spreadsheet, Document Editor, Ribbon, Flyout, TabbedPage/NavigationPage, scheduler, Markdown, barcodes, motion icons, and more |
 
 ### Mediator
 
@@ -66,7 +71,7 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 
 | Skill | What It Helps With |
 |---|---|
-| `shiny-documentdb` | Schema-free JSON document store — queries, CRUD, indexes, AOT configuration |
+| `shiny-documentdb` | Schema-free JSON document store — queries, joins, CRUD, indexes & unique indexes, AOT configuration |
 | `shiny-firestore-mobile` | On-device native Firestore provider with offline persistence and snapshot listeners |
 | `shiny-spatial` | Spatial queries, geometry types, R\*Tree indexing |
 

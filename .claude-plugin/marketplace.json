@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Shiny agent skills for Claude Code and GitHub Copilot CLI",
-    "version": "2.1"
+    "version": "2.2"
   },
   "plugins": [
     {
       "name": "shiny",
-      "version": "2.1",
+      "version": "2.2",
       "source": "./plugins/shiny",
-      "description": "Every Shiny library for .NET in one plugin — cross-platform mobile & device client libraries (BLE client & peripheral, GPS, geofencing, background jobs, local & push notifications, HTTP background transfers, JSON data sync, OBD-II over BLE/WiFi/serial, music, health, contacts, calendar, Wi-Fi scan/connect/hotspot, local network discovery via mDNS/SSDP/WS-Discovery, speech-to-text/TTS, AI conversation with wake word, hosting/DI), an AOT-clean embedded HTTP/1.1/2/3 server, .NET MAUI components (Shell navigation with source-generated routes, hosting modules, device/app info), shared MAUI & Blazor UI controls (TableView, TreeView, FloatingPanel, ChatView, ImageViewer/Editor, scheduler, Markdown, barcodes/QR), Mediator/CQRS with middleware & source generators, AOT-friendly data (DocumentDb over SQLite/LiteDB/Cosmos/Mongo/DynamoDB/Redis/RavenDB/Firestore/DuckDB/IndexedDB/major SQL, Spatial geodata, native Firestore for iOS/Android), .NET Aspire integrations, and source generators & utilities."
+      "description": "Every Shiny library for .NET in one plugin — cross-platform mobile & device client libraries (BLE client & peripheral, iBeacon/Eddystone, GPS, geofencing, background jobs, local & push notifications, Live Activities/Live Updates, HTTP background transfers, JSON data sync, OBD-II over BLE/WiFi/serial, music, health, contacts, calendar, Wi-Fi scan/connect/hotspot, local network discovery via mDNS/SSDP/WS-Discovery, screen recording, speech-to-text/TTS, AI conversation with wake word, hosting/DI) across iOS, Android, tvOS, desktop & Blazor, an AOT-clean embedded HTTP/1.1/2/3 server with reverse proxy, AppDeviceBridge for OTA-updated web apps inside MAUI with device bridges, .NET MAUI components (Shell navigation with source-generated routes, guards, deep links & app shortcuts, hosting modules, device/app info), shared MAUI & Blazor UI controls (TableView, TreeView, DataGrid, FloatingPanel, ChatView, CameraView, MediaElement, ImageViewer/Editor, Wizard, Kanban, Gantt, Spreadsheet, Document Editor, scheduler, Markdown, barcodes/QR), Mediator/CQRS with middleware & source generators, AOT-friendly data (DocumentDb over SQLite/LiteDB/Cosmos/Mongo/DynamoDB/Redis/RavenDB/Firestore/DuckDB/IndexedDB/major SQL, Spatial geodata, native Firestore for iOS/Android), .NET Aspire integrations, and source generators & utilities."
     }
   ]
 }
