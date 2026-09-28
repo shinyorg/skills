@@ -37,7 +37,10 @@ using var workbook = await Workbook.OpenAsync(stream);
 using var workbook = Workbook.Create("Sheet1");
 ```
 
-`Workbook` is `IDisposable` and holds the package open. Dispose it when the page goes away.
+`Workbook` is `IDisposable` and holds the package open. Dispose it when the page goes away for good —
+on MAUI **not** in `OnHandlerChanged` with a null handler: Shell drops the handler on every flyout
+switch but keeps the page, and the view would come back holding a disposed workbook (see the
+lifetime note in `document-editor.md`).
 
 ### MAUI
 
@@ -59,6 +62,68 @@ using var workbook = Workbook.Create("Sheet1");
 
 The Blazor host paints to a canvas that fills its container, so **the container needs an explicit
 height** — without one it collapses to zero and nothing appears.
+
+### The Excel window (Office shell) — on by default
+
+`SpreadsheetView` is Excel's whole window, not just a grid: an `OfficeShell` (see
+[office-shell.md](office-shell.md)) dressed as `OfficeApp.Excel` with
+
+- the green **title bar** — AutoSave, Save / Undo / Redo, the workbook name (rename dropdown), save
+  status ("Unsaved changes" / "Saving…" / "Saved" / "Saved locally"), and the command search (every
+  ribbon command, with its shortcut, plus Save / New Workbook / Export to PDF / Export to CSV / Print /
+  Comments / the three views; a query matching no command searches every sheet);
+- the **ribbon** with **File** opening the backstage and **Comments / Editing mode / Share** at its end
+  (Viewing mode makes the workbook read-only);
+- formula bar, grid and sheet tabs as before;
+- the **Comments pane** on the right: every note in the workbook (`Sheet!Cell`, author, text); a click
+  selects the cell, switching sheets;
+- the **status bar**: Ready / Enter / Edit, "Average: x  Count: n  Sum: y" (hidden unless
+  `SelectionStatistics.IsMeaningful`), Normal / Page Layout / Page Break Preview, and a zoom slider
+  (10–400%) bound to `Zoom`;
+- the **backstage**: templates (blank, Monthly budget, Invoice, Weekly schedule — built in code by
+  `SpreadsheetTemplates`, pictured on first open via `OfficeTemplateThumbnails.Spreadsheet()`), recent files (host-supplied), Info with statistics (sheets, cells with data,
+  formulas, notes), Save, Save As / Export (xlsx, CSV of the active sheet, PDF), Print.
+
+Switches (all default `true`): `ShowShell` (false = the old ribbon + formula bar + grid + tabs),
+`ShowTitleBar`, `ShowStatusBar`, `ShowBackstage`, `ShowCommentsPane`, and on Blazor `ShowRibbonActions`.
+`ShowToolbar`, `ShowFormulaBar`, `ShowSheetTabs` still work.
+
+The shell reads and writes **no files**. Save (title bar, backstage, Ctrl+S), Save As, Export and Print
+raise **`FileRequested`** with a `SpreadsheetFileRequest` (`Format`, `FileName`, `Action`
+Save/SaveAs/Export/Print, `Sheet`, `WriteToAsync(stream)`, `ToBytesAsync()`). On **Blazor**, leaving it
+unhandled downloads the file in the browser (Print opens the PDF in a new tab); on **MAUI** it must be
+handled for anything to be written:
+
+```csharp
+sheet.FileRequested += async (_, request) =>
+{
+    var path = Path.Combine(FileSystem.AppDataDirectory, request.FileName);
+    await using var file = File.Create(path);
+    await request.WriteToAsync(file);
+};
+```
+
+```razor
+<SpreadsheetView @bind-Workbook="workbook" @bind-Zoom="zoom"
+                 DocumentName="Budget" UserName="Allan Ritchie" RecentFiles="recent"
+                 FileRequested="SaveAsync" />
+```
+
+Other shell members: `DocumentName` (two-way), `UserName` (avatar + author of new notes), `Templates`,
+`RecentFiles`, `SaveState` (Blazor override), `AutoSave` (Blazor; saves 2 s after the last edit when
+`FileRequested` is handled), events `TemplateSelected` (handle it to build templates yourself —
+unhandled, the view builds the workbook, shows it and raises Blazor `WorkbookChanged` /
+MAUI `WorkbookReplaced`; use `@bind-Workbook` on Blazor), `OpenRequested`, `RecentFileSelected`,
+`ShareRequested`. `Commands` is the `OfficeCommandIndex` behind the search — add your own commands to
+it. MAUI also exposes `Shell`, `TitleBar`, `StatusBar`, `Backstage`, `GoToNote(...)` and `SaveAsync()`.
+`FileMenuRequested` is still raised by File (after the backstage opens).
+
+Shared helpers for custom chrome: `SpreadsheetShell.Aggregates(stats)`, `.ModeText(controller.EditMode)`,
+`.Notes(workbook)`, `.GoTo(controller, note)`, `.Search(controller, text)`, `.DocumentInfo(workbook, name)`,
+`.ToCsv(workbook, sheet)`; `SpreadsheetExport.WriteAsync(workbook, sheet, format, stream)` (xlsx / csv /
+pdf — PDF paints the used range with the grid's own painter onto Letter pages, no headings, gridlines
+or selection); `controller.ViewMode` (`SheetViewMode.Normal/PageLayout/PageBreakPreview`) and
+`controller.PageLayout` (`SheetPagination`).
 
 ## Editing
 
@@ -85,8 +150,30 @@ workbook.Evaluate("SUM(A1:A9)", "Budget", CellRef.Parse("Z1")); // ad-hoc, not s
 workbook.Calc.CircularCells;   // non-empty when the sheet has a circular reference
 ```
 
-Roughly 80 functions are implemented across math, statistics, logic, text, lookup, date and
-information categories. Unknown functions evaluate to `#NAME?` rather than throwing.
+About 140 functions are implemented across financial, logical, text, date & time, lookup & reference,
+math & trig, statistical and information categories — including XLOOKUP, XMATCH, SUBTOTAL, AGGREGATE,
+SUMPRODUCT, IFERROR/IFNA, AVERAGEIFS/MAXIFS/MINIFS, TEXTJOIN, CONCAT and PMT, PV, FV, NPV, IRR, RATE,
+NPER, IPMT, PPMT, SLN. Unknown functions evaluate to `#NAME?` rather than throwing.
+`FunctionCatalog` describes every one (category, arguments, description) — it is what the Insert
+Function dialog and autocomplete read; `FunctionRegistry.Default` is what evaluates.
+
+**No dynamic arrays.** UNIQUE, SORT, FILTER and spilled ranges are not supported — the engine holds one
+value per formula cell. An XLOOKUP whose return range has several columns returns the first.
+
+Defined names work in formulas (`=SUM(Sales)`), including recalculation when a cell inside the named
+range changes:
+
+```csharp
+controller.DefineName("Sales", "Budget!$B$2:$B$13");            // throws on a name Excel would refuse
+controller.RenameName("Sales", scope: null, "Revenue", "Budget!$B$2:$B$13");
+controller.DeleteName("Revenue");
+workbook.DefinedNames;                                           // IReadOnlyList<DefinedNameInfo>
+workbook.VisibleNames;                                           // without Excel's _xlnm.* and hidden ones
+controller.GoTo("Sales");                                        // the name box: names, ranges, Sheet2!B5
+DefinedNameRules.IsValid(name, out var error);
+```
+
+Typing a new name into the name box with a range selected defines it, as in Excel.
 
 **Reading a value: use `GetEffectiveValue` / `GetDisplayValue`, not `Worksheet.GetValue`.**
 `GetValue` returns what is stored in the file, which for a formula cell is the cached result and is
@@ -108,24 +195,33 @@ var text = workbook.Styles.Format(sheet.GetDisplayValue(cell), format);
 
 ## Formatting
 
-`ShowToolbar` puts the built-in formatting bar above the formula bar. **It is off by default** — unlike
-`ShowFormulaBar` and `ShowSheetTabs`, which are on.
+`ShowToolbar` puts the built-in Excel ribbon above the formula bar. **It is ON by default** (it used to
+be off — set `ShowToolbar="false"` for a read-only viewer that should not grow a ribbon).
 
 ```xml
-<office:SpreadsheetView Workbook="{Binding Workbook}" ShowToolbar="True" />
+<office:SpreadsheetView Workbook="{Binding Workbook}" ShowToolbar="False" />
 ```
 
 ```razor
-<SpreadsheetView Workbook="workbook" ShowToolbar="true" />
+<SpreadsheetView Workbook="workbook" ShowToolbar="false" />
 ```
 
-The bar is a ribbon with two tabs.
+The ribbon is organised like Excel's:
 
-- **Home** — clipboard; font/size, bold, italic, underline, strikethrough, text colour, cell fill;
-  horizontal *and* vertical alignment, indent, wrap text; number formats and decimal places; AutoSum,
-  clear contents, clear formatting.
-- **Data** — insert and delete rows and columns; column width (fit on the button, four presets behind
-  its chevron) and hide/unhide; a function button each for SUM, AVERAGE, COUNT, MIN and MAX.
+- **File** — the application button. Opens the built-in backstage (see *The Excel window* above) and
+  raises `FileMenuRequested`; with `ShowBackstage="false"` it only raises the event.
+- **Home** — Clipboard; Font (incl. text colour, fill, the **Borders** dropdown with line style and
+  colour); Alignment (incl. **Merge & Center** split button); Number (formats, currency, percent,
+  decimals, More Number Formats…); **Styles** (Conditional Formatting, Format as Table, Cell Styles);
+  **Cells** (Insert / Delete / Format — row height, column width, hide/unhide, Format Cells…);
+  Editing (AutoSum, Fill, Clear, Sort & Filter, Go To); Find.
+- **Insert** — Table, Charts (column, bar, line, pie, area), Link, Note, Watermark.
+- **Formulas** — Insert Function, AutoSum, one menu per Function Library category, Name Manager,
+  Define Name, Use in Formula, Calculate Now, Show Formulas.
+- **Data** — Sort A→Z / Z→A / custom Sort, Filter, Clear, Reapply, Data Validation.
+- **Review** — New/Edit Note, Delete, Previous/Next, Show All Notes.
+- **View** — Gridlines, Headings, Formula Bar, Show Formulas; Zoom…, 100%, Zoom to Selection;
+  Freeze Panes.
 
 Extra items go in `ToolbarContent` (Blazor) or `Toolbar.ToolbarItems` (MAUI); they land in their own
 never-collapsing group on **Home**, so they are on the tab that opens.
@@ -226,6 +322,131 @@ workbook.Execute(new SetRowHeightCommand("Budget", row: 0, points: 24));
 Dragging a column-header edge in the grid commits the same command, so a hand-dragged width survives a
 save.
 
+## Excel features on the controller
+
+Everything the ribbon does is a controller method, each **one undo step**, each written into the file
+in the place Excel expects (worksheet children are kept in `CT_Worksheet` order — see `SheetXml`).
+
+```csharp
+// Merge
+controller.MergeCells(MergeMode.MergeAndCenter);   // MergeAcross, MergeCells; keeps only the top-left value
+controller.UnmergeCells();
+controller.ToggleMergeAndCenter();
+controller.IsActiveCellMerged;
+
+// Freeze panes (writes <sheetViews><pane state="frozen">)
+controller.FreezePanes();          // at the active cell
+controller.FreezeTopRow();
+controller.FreezeFirstColumn();
+controller.UnfreezePanes();
+
+// Borders — interned in styles.xml <borders>
+controller.BorderLine = new BorderEdge(CellBorderStyle.Medium, new ArgbColor(255, 0, 0x70, 0xC0));
+controller.ApplyBorders(BorderPreset.Outside);   // Bottom, Top, Left, Right, None, All, ThickOutside, DoubleBottom…
+
+// Sort and filter
+controller.SortAscending();                      // current region, header detected (SheetSort.DetectHeader)
+controller.Sort([new SortKey(Column: 2, Descending: true), new SortKey(0)], hasHeader: true);
+controller.ToggleAutoFilter();                   // Ctrl+Shift+L
+controller.ApplyColumnFilter(sheet.AutoFilter!, column: 1,
+    ColumnFilter.ForCondition(1, new FilterCondition(FilterOperator.GreaterThan, "100")));
+controller.ApplyColumnFilter(filter, 0, ColumnFilter.ForValues(0, ["North", "East"]));
+controller.ClearFilters();
+controller.ReapplyFilters();
+
+// Fill
+controller.FillDown();                           // Ctrl+D
+controller.FillRight();                          // Ctrl+R
+controller.AutoFillTo(CellRange.Parse("A1:A20"));   // what dragging the fill handle does: series, weekdays, "Q1"→"Q2", rebased formulas
+
+// Conditional formatting (<conditionalFormatting> + <dxfs>)
+controller.AddConditionalFormat(ConditionalFormatRule.CellIs(ConditionalOperator.GreaterThan, DxfFormat.LightRedFill, "100"));
+controller.AddConditionalFormat(ConditionalFormatRule.TopBottom(10, percent: false, bottom: false, DxfFormat.GreenFill));
+controller.AddConditionalFormat(ConditionalFormatRule.Bar(ConditionalPresets.DataBars[0].Color));
+controller.AddConditionalFormat(ConditionalPresets.ColorScales[0].Rule);
+controller.ClearConditionalFormats(entireSheet: false);
+
+// Data validation (<dataValidations>)
+controller.SetValidation(DataValidationRule.ForList(["Red", "Green", "Blue"]));
+controller.SetValidation(DataValidationRule.ForNumber(ValidationType.Whole, ValidationOperator.Between, "1", "10"));
+controller.SetValidation(null);                  // clears
+controller.ValidationFailed += (_, failure) => { };   // refused input never reaches the cell
+
+// Cell styles and tables
+controller.ApplyCellStyle(CellStylePresets.Find("Good")!);
+controller.FormatAsTable("TableStyleMedium2");   // writes a table part + <tableParts>; filter arrows included
+controller.ConvertTableToRange();
+
+// Charts (DrawingML chart part in a drawing, anchored to cells)
+var id = controller.InsertChart(ChartKind.Column, title: "Sales");   // from the selection / current region
+controller.SelectedChartId = id;
+controller.DeleteSelectedChart();                // or Delete with the chart selected
+
+// Notes (legacy comments part + the VML Excel needs to show them)
+controller.SetNote("Check this");
+controller.DeleteNote();
+controller.ShowAllNotes = true;
+
+// Hyperlinks
+controller.SetHyperlink(new CellHyperlink(cell) { Address = "https://shinylib.net", Display = "Shiny" });
+controller.SetHyperlink(new CellHyperlink(cell) { Location = "Sheet2!A1" });
+controller.HyperlinkActivated += (_, url) => { /* open it — the host's job */ };
+
+// View (saved in the sheet's <sheetView>)
+controller.ShowGridlines = false;
+controller.ShowHeadings = false;
+controller.ToggleShowFormulas();                 // Ctrl+`
+
+// Zoom and the status bar
+controller.Zoom = 1.25;                          // 0.1 – 4; ZoomIn()/ZoomOut() step Excel's stops
+controller.ZoomChanged += (_, zoom) => { };
+var stats = controller.SelectionStatistics;      // Average, Count, NumericalCount, Min, Max, Sum
+controller.SelectionStatisticsChanged += (_, _) => { };
+```
+
+**Zoom and pointer coordinates.** Pass pointer positions in the host's own units; the controller divides
+by the zoom. Position an in-cell editor with `controller.EditorBounds` (already zoomed) and
+`controller.EditorFontSize`, never with `Viewport.CellRect` directly.
+
+**Views expose the status-bar members too:** `SpreadsheetView.Zoom` (MAUI bindable, two-way; Blazor
+`Zoom` + `ZoomChanged`), `SelectionStatistics` and `SelectionStatisticsChanged`.
+
+### Dialogs are data
+
+Every dialog — Format Cells (Ctrl+1), Data Validation, the Highlight Cells prompts, Insert Function,
+Name Manager, Hyperlink, Note, Sort, Filter, Create Table, Go To, Zoom, Row Height, Column Width — is a
+`SheetDialog` built in the kernel (`SpreadsheetDialogs`) and rendered by one generic component per
+host. A command that needs input raises `controller.DialogRequested`; the views render it for you. To
+open one yourself:
+
+```csharp
+controller.ShowDialog(SpreadsheetDialogs.FormatCells(controller));
+controller.ShowDialog(SpreadsheetDialogs.Conditional(controller, ConditionalDialogKind.GreaterThan));
+```
+
+Popup menus (right-click, a validated cell's dropdown) arrive as `controller.MenuRequested`
+(`SheetMenuRequest` of `SheetMenuItem`); the views render those too. Right-click / long-press calls
+`controller.OpenContextMenu(x, y)`.
+
+### Keyboard
+
+`controller.HandleKey(key, modifiers)` is Excel's shortcut table for both hosts — `key` named the way
+a browser's `KeyboardEvent.key` names it. Blazor wires it for you (plus Ctrl/Cmd+S = Save and
+Ctrl/Cmd+P = Print in the shell); on MAUI call `SpreadsheetView.HandleKey` from your platform key hook —
+the Office package has no MAUI physical-key hook (neither does `DocumentEditor`), so a MAUI host without
+one gets no keyboard shortcuts. Covered: arrows (Ctrl = to edge, Shift =
+extend), Tab/Enter, Home/Ctrl+Home/Ctrl+End, PageUp/Down, Ctrl+PageUp/Down (sheets), F2, Shift+F2 (note),
+Shift+F3 (insert function), Ctrl+F3 (names), F5/Ctrl+G, F9, Delete, Escape, Ctrl+Space / Shift+Space,
+Ctrl+A (region, then all), Ctrl+C/X/V/Z/Y, Ctrl+B/I/U/5, Ctrl+D/R, Ctrl+K, Ctrl+1, Ctrl+9/0,
+Ctrl+; (date), Ctrl+Shift+: (time), Ctrl+` (formulas), Ctrl+Shift+L (filter), Ctrl+Shift+$ % & _,
+Alt+= (AutoSum), Alt+Down (list), Shift+F10 (context menu).
+
+### Formula autocomplete
+
+`FormulaAssist.Analyze(text, caret, definedNames)` returns the suggestions and the signature of the
+call the caret is in; `FormulaAssist.Accept(...)` applies one. Both views' in-cell editor and formula
+bar use it — do not build another.
+
 ## Driving the grid from a toolbar
 
 Both hosts expose the same `SpreadsheetController`:
@@ -284,8 +505,9 @@ byte-identical file.
 ## What is preserved, and what is not
 
 Edits are applied surgically to the open OOXML package. Parts the editor does not model — macros,
-tracked changes, custom XML, pivot caches, embedded objects, conditional formatting, charts — are
-never touched and survive a save intact.
+tracked changes, custom XML, pivot caches, embedded objects, sparklines, x14 extensions — are never
+touched and survive a save intact. Conditional-format blocks, validation rules and charts the model does
+not understand are kept as they were when the sheet's other rules are edited.
 
 Pass an `UnsupportedFeatureCollector` when opening to find out what a document contains that the
 editor cannot show or edit:
@@ -302,21 +524,15 @@ foreach (var feature in collector.Features)
 
 Do not generate code that assumes these exist:
 
-- **Insert/delete rows and columns.** Deliberately deferred: it requires rewriting references across
-  formulas, merged cells, conditional formatting, defined names, data validation, charts and tables.
-  (Formatting, resizing and hiding a column *are* supported — it is inserting and deleting that is not.)
-- **Cell borders.** `ResolvedFormat` does not model them, so the toolbar cannot apply them and a
-  file's existing borders are neither drawn nor lost.
-- **Wrapped text rendering.** `ToggleWrapText` is stored and saved, and Excel honours it on open, but
-  the grid still paints one line per cell — wrapping needs row auto-height, which the layout has not
-  got.
-- Adding or removing merged cells (existing merges render, but cannot be changed).
-- Editing charts, pivot tables or conditional formatting.
-- Multi-range ("Ctrl-click") selection.
-- Copy/paste and the fill handle's drag-to-fill behaviour (the handle is drawn but inert).
+- **Dynamic arrays** (UNIQUE, SORT, FILTER, spill ranges).
+- **Row auto-height.** Wrapped text paints on several lines inside the row's height; rows do not grow.
+- Chart *editing* beyond insert, move, resize and delete — series, axes and chart styles cannot be
+  changed; charts from Excel render with default styling. Pivot tables are preserved, not shown.
+- Named cell styles: the Cell Styles gallery applies the style's formatting directly rather than
+  writing a `cellStyles` entry.
+- Threaded comments (Excel 365's "Comments"); the control reads and writes Notes.
+- Multi-range ("Ctrl-click") selection; the OS clipboard (the control keeps its own).
 - **Replace.** Find is implemented (see **Find**); replacing what it finds is not.
-- Physical-key navigation on MAUI — MAUI has no portable key-down event, so arrow keys work on
-  Blazor only. On MAUI, call `Move`/`BeginEdit`/`ClearSelection` from your own platform key hook.
 
 ### Dark mode
 
@@ -335,21 +551,23 @@ host's light/dark scheme live. Pass `SpreadsheetTheme.Light` / `.Dark` only to p
 
 ### Toolbar
 
-The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the quick access
-row. You do not build any of it; it is what the control renders.
+The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the shell's title
+bar (or the ribbon's quick access row when the shell or its title bar is off). You do not build any of it; it is what the control renders.
 
 Do **not** hand-roll a formatting strip beside this control. Use `ToolbarContent` (Blazor) /
 `ToolbarItems` (MAUI) to add your own commands — they land in their own group that never collapses.
 
 The tab strip is on by default (Blazor `ShowTabs`, MAUI `Ribbon.ShowTabStrip`). Setting Blazor's
-`ShowTabs="false"` does not remove the Data commands — it folds those groups onto the single tab. Below
-600px the bar switches itself to `Simplified` — no code needed.
+`ShowTabs="false"` does not remove the other tabs' commands — it folds those groups onto the single
+tab. Below 600px the bar switches itself to `Simplified` — no code needed.
 
 ### Clipboard and structure
 
 On the controller: `Cut()`, `Copy()`, `Paste()`, `ClearClipboard()`, `CanPaste`, `Clipboard`,
 `ClipboardRange`, `ClipboardChanged`, and `InsertRows(count = 1)` / `InsertColumns(count = 1)` /
-`DeleteRows` / `DeleteColumns`.
+`DeleteRows` / `DeleteColumns` (Home ▸ Cells on the ribbon). A structural edit repoints formulas on
+every sheet, defined names, merged cells, conditional formatting, data validation, hyperlinks, notes,
+the AutoFilter, tables and charts (anchors and series) — no host fix-up needed.
 
 `ClipboardRange` is the source range of the pending cut or copy, and the control draws the animated
 dashed marching-ants border around it for you — do not draw your own, and do not repurpose
@@ -357,10 +575,9 @@ dashed marching-ants border around it for you — do not draw your own, and do n
 the two read as different things. `ClipboardChanged` is the event to hook if a host needs to react to
 the clipboard filling or emptying; `Changed` also fires, but it fires on every keystroke as well.
 
-The toolbar already carries cut, copy, paste, insert and delete for rows and columns, column width and
-hide/unhide, clear contents, and the five aggregates — do not add your own buttons for any of them.
-What is left for a host to wire is what has no affordance on the bar: row heights, `GoTo`, and
-`SetSheetVisible`.
+The ribbon already carries every command on this page — do not add your own buttons for any of them.
+With the shell on, the backstage and status bar are built in too; what is left for a host to wire is
+where files go (`FileRequested`) and, optionally, recent files and its own templates.
 
 ## Touch
 

@@ -5,7 +5,7 @@ Two controls, on both hosts:
 | Control | What it is |
 |---|---|
 | `DocumentEditor` | the lone editing surface — canvas, caret, selection, typing. No chrome. |
-| `DocumentEditorView` | `DocumentEditor` plus a formatting toolbar |
+| `DocumentEditorView` | `DocumentEditor` dressed as Word: the Office shell (title bar, ribbon, ruler, navigation + comments panes, status bar, File backstage) — on by default |
 
 Same packages as the viewers (`Shiny.Maui.Controls.Office` / `Shiny.Blazor.Controls.Office`), same two
 constraints: **MAUI needs `UseShinyOffice()`** (it registers SkiaSharp, plus the AppKit canvas on `net10.0-macos`), **Blazor is WASM-only**, and on Blazor the container needs
@@ -38,6 +38,59 @@ using var document = await WordDocument.OpenAsync("report.docx", editable: true)
 <office:DocumentEditorView x:Name="Editor" Document="{Binding Document}" />
 <office:DocumentEditor x:Name="BareEditor" Document="{Binding Document}" />
 ```
+
+**Lifetime (MAUI):** never dispose the document in the page's `OnHandlerChanged` when `Handler` is
+null. Shell drops a page's handler on every flyout switch but keeps the page and re-lays it out on
+the way back, so the editor would read a disposed package in `LayoutSubviews` — on iOS 26+ that
+exception poisons UIKit's observation tracking and the app later hangs/crashes in
+`setLeftBarButtonItem`. Swapping `Document` there is no better (it rebuilds the ribbon mid-teardown).
+Dispose when the page is truly done with it (or when replacing it); the same applies to
+`Workbook`, `SlideDeck` and `NotebookDocument` on their editors.
+
+## The Word window (Office shell) — on by default
+
+`DocumentEditorView` wraps itself in `OfficeShell` (see `office-shell.md`) with every part already wired
+to the controller. **Do not wrap a `DocumentEditorView` in another `OfficeShell`** — set its properties
+instead. `ShowShell="false"` gives back the plain ribbon-over-page layout (own quick access Undo/Redo, own
+navigation pane, Styles dropdown instead of the gallery).
+
+| Part | Switch | Wired to |
+|---|---|---|
+| Title bar | `ShowTitleBar` | `DocumentName` (default "Document1", two-way), `DocumentLocation`, `SaveState` (`OfficeSaveState?`; null = Unsaved once edited), `AutoSave` (two-way), `UserName` (also the comment/revision author); Save → `SaveRequested`; Undo/Redo → controller; command search = `CommandIndex` (ribbon + extras); a query matching no command searches the document |
+| Ribbon | `ShowToolbar` | `File` opens the backstage (and still raises `FileClicked`/`FileRequested`); right end = Comments / Editing-Reviewing-Viewing (`EditMode`, two-way: Reviewing turns Track Changes on, Viewing makes it read-only) / Share (`ShareRequested`); Home › Styles is `OfficeStyleGallery`; shortcuts are in each item's `Shortcut` |
+| Ruler | `ShowRuler` | Print Layout only. Indents / tab stops of the caret paragraph, section left/right margins — dragging applies them (one undo step) |
+| Navigation pane | `ShowNavigationPane` (two-way; View › Navigation Pane, Ctrl+F) | headings (click to jump), search → Results (click selects the hit) |
+| Comments pane | `ShowCommentsPane` (two-way; ribbon Comments button) | every comment: author, date, quoted text; click jumps, delete per comment, New |
+| Status bar | `ShowStatusBar` | "Page X of Y" (click → nav pane), "N words" (click → Word Count), language; Read / Print / Web view buttons (= `ReadMode` / `PageLayout`); zoom slider two-way with `Zoom` (25–400% = `DocumentController.MinimumZoom`/`MaximumZoom`) |
+| Backstage | always (File) | `Templates` (null = `WordTemplates.All`: Blank, Report, Letter — tiles get a first-page picture on first open, `OfficeTemplateThumbnails.Word()`), `RecentFiles` (host list), Info (statistics); print preview |
+
+Events (Blazor `EventCallback`, MAUI `EventHandler`): `SaveRequested`, `SaveAsRequested(OfficeFileFormat)`,
+`ExportRequested(OfficeFileFormat)`, `OpenRequested`, `RecentFileSelected(OfficeRecentFile)`,
+`NewDocumentRequested(OfficeTemplate)`, `DocumentOpened(WordDocument)`, `PrintRequested`, `ShareRequested`,
+`DocumentRenamed(string)`. **Unhandled defaults:** New opens the template in place and raises
+`DocumentOpened`; on Blazor Save downloads the `.docx`, Save As / Export download `.docx`/`.pdf`/`.txt`/`.html`,
+Print opens the browser print dialog over a PDF. MAUI raises the events only — write the file yourself.
+
+PDF: `view.ExportPdf(stream)` (both hosts) or `DocumentPdfExporter.Export(document, stream, options)` in
+`Shiny.Controls.Office.Skia` — print layout at 100%, one PDF page per page, same painter as the screen,
+works on WASM. `DocumentPdfExporter.RenderPagePng(document, page, scale)` renders a preview.
+
+```razor
+<div style="height:760px">
+    <DocumentEditorView Document="document" @bind-DocumentName="name" SaveState="saveState"
+                        UserName="Allan Ritchie" RecentFiles="recent"
+                        SaveRequested="SaveAsync" ExportRequested="ExportAsync" />
+</div>
+```
+
+```xml
+<office:DocumentEditorView x:Name="Editor" DocumentName="{Binding Name}" UserName="Allan Ritchie"
+                           SaveRequested="OnSave" ExportRequested="OnExport" />
+```
+
+Glue for custom chrome lives in `Shiny.Controls.Office.Shell.WordShell` (headings, search results, styles,
+ruler units px↔pt, tab stops, view-mode ids, document info) and the controller gained
+`CurrentTabStops` / `SetTabStops`, `GoToComment(id)`, `CommentedText(comment)`.
 
 ## The toolbar is composed from what each host has
 
@@ -321,7 +374,7 @@ await document.SaveAsAsync("edited.docx");
 ## Keyboard input
 
 **Blazor**: complete. Typing goes through `beforeinput`, so IME composition, autocorrect, dictation and
-paste all work. Arrows, Home/End, Tab/Shift+Tab, Ctrl/Cmd+B/I/U, Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z are
+paste all work. Arrows, Home/End, Tab/Shift+Tab and every Word shortcut (via `WordShortcuts`) are
 wired. Tab's default must be prevented or the browser moves focus off the editor.
 
 **MAUI**: typing works — a hidden `Entry` gives the platform keyboard and IME somewhere to send text.
@@ -333,7 +386,8 @@ Editor.HandleKey(EditorKey.Tab, shift: true);    // un-nest a list item
 Editor.HandleKey(EditorKey.Undo, control: true);
 ```
 
-A desktop host adds its own platform hook (`NSEvent` on macOS, `KeyDown` on Windows) and calls that.
+A desktop host adds its own platform hook (`NSEvent` on macOS, `KeyDown` on Windows) and calls that,
+plus `Editor.HandleShortcut("b", command: true)` for Word's shortcuts.
 Tapping, selection, typing and every toolbar command work without it.
 
 ## Find
@@ -375,9 +429,9 @@ instead, so the current match is the one that looks different.
 `WordBoundaries.IsWordChar`, the same rule double-click selection uses, so `don` does not match
 `don't`. `TextSearch.Matches(text, query, options)` is public if you need the same matcher elsewhere.
 
-**Only paragraphs are searched.** Table cells are not: a `DocumentPosition` is a block and an offset,
-and a table has neither — counting hits the arrows could never reach would be worse than not counting
-them.
+**Table cells are searched too.** Find walks the story (`WordDocument.Paragraphs` — every paragraph in
+reading order, table cells included), so a hit inside a cell is counted, stepped onto and selected like
+any other; a vertically merged continuation cell contributes nothing, matching the layout.
 
 Wiring the bar by hand (it is what the three built-in toolbars host):
 
@@ -448,19 +502,93 @@ underlined.
   telling the user spelling is on.
 - Set `SpellCheckEnabled`/`IsSpellCheckEnabled` to `false` to turn it off entirely.
 
+## Word feature set (controller API)
+
+Everything is a `DocumentEditorController` method first; the ribbons are thin layers over it. Generate
+calls to these rather than host code that edits XML.
+
+**Positions index the story** (`WordDocument.Paragraphs`: every paragraph in reading order, table cells
+included). `DocumentPosition.Block` is a story index, NOT an index into `WordDocument.Blocks` (the
+top-level list). Map with `document.TopBlockOf(i)`, `document.FirstParagraphOf(top)`, `document.CellOf(i)`.
+
+```csharp
+var c = editor.Controller!;
+
+// Tables (caret can be in cells; Tab/Shift+Tab walk cells, Tab in last cell adds a row)
+c.InsertTable(3, 4); c.InsertTableRowAbove(); c.InsertTableRowBelow();
+c.InsertTableColumnLeft(); c.InsertTableColumnRight();
+c.DeleteTableRow(); c.DeleteTableColumn(); c.DeleteTable();
+c.MergeTableCells();   // selection must run from one cell into another (c.CanMergeTableCells)
+c.SplitTableCell();    c.IsInTable; c.CurrentCell;
+
+// Find & replace (Replace All = one undo step)
+c.Find.Query = "colour"; c.ReplaceCurrent("color");
+c.ReplaceAll("colour", "color", new FindOptions { MatchCase = true, WholeWord = true });
+
+// Clipboard: Copy/Cut return plain text for the OS clipboard; Paste(systemText) pastes formatted
+// when systemText matches the last internal copy, else plain. PasteText = keep text only.
+var text = c.Copy(); c.Paste(text); c.PasteText("a\nb");
+c.CopyFormatting(sticky: false); c.CompletePointerGesture();  // format painter
+
+// Font / paragraph
+c.GrowFont(); c.ShrinkFont(); c.ChangeCase(TextCase.Sentence); c.ClearFormatting();
+c.ToggleSubscript(); c.ToggleSuperscript();
+c.SetLineSpacing(1.15); c.SetParagraphSpacing(beforePoints: 12, afterPoints: 6);
+c.ChangeIndent(+1); c.SetIndents(left: null, right: null, firstLine: -48);   // negative = hanging
+c.SetParagraphShading(color); c.SetParagraphBorders(ParagraphBorderPreset.Bottom);
+c.ShowFormattingMarks = true;
+
+// Styles (for a gallery)
+IReadOnlyList<DocumentStyleInfo> styles = c.AvailableStyles;   // Id, Name, FontFamily, FontSize(pt), Color, Bold, Italic, OutlineLevel
+c.ApplyStyle("Heading1"); var id = c.CurrentStyleId; c.CurrentStyleChanged += ...;
+
+// Insert
+c.InsertHyperlink("https://example.com", "Example"); c.RemoveHyperlink(); c.CurrentHyperlink;
+c.InsertHyperlink("#mark");  // bookmark link
+c.InsertBookmark("mark"); c.GoToBookmark("mark");
+c.InsertDateTime("D"); c.InsertSymbol("©"); c.InsertHorizontalLine(); c.InsertPageNumberField();
+c.InsertBlankPage(); c.InsertSectionBreak(SectionBreakType.NextPage);
+
+// Design / layout
+c.SetPageColor(color); c.SetWatermarkText("DRAFT");   // persisted as VML in the header
+c.SetPaperSize(PaperSize.A4); c.SetColumns(2);         // columns saved, not drawn
+
+// References
+c.InsertTableOfContents(); c.UpdateTableOfContents(); c.InsertFootnote("Source: ...");
+
+// Review
+c.Author = "Jane Doe";
+c.AddComment("Check this"); c.DeleteComment(); c.NextComment(); c.ShowComments = true;
+c.IsTrackingChanges = true;   // persisted as w:trackRevisions
+c.AcceptChange(); c.RejectAllChanges(); c.NextChange();
+
+// Status bar / navigation
+DocumentStatistics s = c.Statistics; c.StatisticsChanged += ...;   // CurrentPage, Pages, Words, Characters…
+c.ZoomChanged += ...;
+foreach (var h in c.Headings()) { /* h.Level, h.Text, h.Paragraph */ } c.GoToParagraph(p);
+
+// Keyboard: one shared table
+c.HandleShortcut("b", command: true, shift: false, alt: false, out var handled);
+```
+
+Views: `ReadMode`, `ShowNavigationPane`, `ShowRibbonTabs` (default **true**), `Statistics`,
+`StatisticsChanged`, `ZoomChanged`, `CurrentStyleChanged`; File hook = MAUI `ShowFileButton` +
+`FileRequested`, Blazor `FileClicked`. MAUI desktop hosts route keys with
+`view.HandleShortcut(key, ctrl, shift, alt)`; Blazor handles keys itself. Host-only commands (Find,
+Replace, Hyperlink, New Comment, Word Count, clipboard) surface as `ShortcutRequested` on the surface.
+New ribbon icons are `WordIcons.*` (typed `OfficeIcon`, numbered from 1000).
+
 ## Not implemented
 
-- Editing a table's *structure* once inserted — adding or removing rows and columns, merging cells.
-  Typing in its cells works.
+- **Multi-column layout** is written (`w:cols`) but drawn as one column.
+- **Per-section** page setup is written but every page draws on the last section's paper.
 - **Floating (anchored) drawings.** They are read, and drawn in the text flow at the point they are
   anchored from rather than at their real position; the unsupported note says so. Nothing inserts one.
 - A shape's own text is drawn but has no caret — pass it at insert time.
-- Cut/copy/paste through the clipboard, and **replace** — find itself is implemented, see **Find**.
 - **Grammar** checking. Android reports grammar errors and they are deliberately ignored — only
   `LooksLikeTypo` is treated as an error, so the behaviour matches the other three platforms.
-- Inserting new paragraph styles.
-- Setting the **paper size or orientation** — margins can be set, the sheet they sit on cannot.
-- **Per-section** page setup. One geometry is read for the document and one is written back.
+- Tracked formatting changes and tracked paragraph joins; endnotes are numbered but not drawn;
+  headers/footers are set as a line of text, not edited in place.
 - Everything the viewer does not render is still not rendered — see `document-viewer.md`.
 
 ### Dark mode
@@ -472,14 +600,14 @@ paper-white, say. The `ToolbarBackground` / `ToolbarForeground` / `ToolbarBorder
 
 ### Toolbar
 
-The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the quick access
-row. You do not build any of it; it is what the control renders.
+The bar is a [Ribbon](ribbon.md) on both hosts — titled groups, with undo/redo in the shell's title
+bar (or the ribbon's quick access row when the shell or its title bar is off). You do not build any of it; it is what the control renders.
 
 Do **not** hand-roll a formatting strip beside this control. Use `ToolbarContent` (Blazor) /
 `ToolbarItems` (MAUI) to add your own commands — they land in their own group that never collapses.
 
-The tab strip is off by default; turn it on only when the editor is the whole application. Below
-600px the bar switches itself to `Simplified` — no code needed.
+The tab strip is **on by default** (Word's eight tabs need it). Below 600px the bar switches itself to
+`Simplified` — no code needed.
 
 ## Touch
 
@@ -496,15 +624,20 @@ not add a separate pan gesture or a scroll control on top of this — it is alre
 
 ## Toolbar and mobile behaviour
 
-Two ribbon tabs: **Home** (Font, Paragraph, Proofing) and **Layout** (Page Setup, Insert, Zoom). Do not
-add a tab per group - one-group tabs were removed on purpose.
+Word's tabs: **Home** (Clipboard, Font, Paragraph, Styles, Editing), **Insert** (Pages, Tables,
+Illustrations, Links, Comments, Header & Footer, Text, Symbols), **Design** (Page Background),
+**Layout** (Page Setup, Paragraph), **References** (Table of Contents, Footnotes), **Review**
+(Proofing, Comments, Tracking, Changes), **View** (Views, Show, Zoom), a contextual **Table** tab
+while the caret is in a table, and **Shapes**. Do not add host chrome duplicating any of it.
 
 Reading on a phone is covered by three things that already exist; do not reinvent them:
 - one-finger drag pans **both** axes (touch); ctrl-wheel and sideways wheel on desktop
-- pinch, or Layout ▸ Zoom (50-300% stops)
-- Layout ▸ Fit width, which spans the page across the window (print layout only)
+- pinch, or View ▸ Zoom (50-300% stops)
+- Print Layout opens a page wider than the viewport at page-width fit (both hosts) until a zoom is
+  chosen — so do NOT set `Zoom="1"` on a phone layout; setting `Zoom` at all turns the fit off
+- View ▸ Page Width, which spans the page across the window (print layout only)
 
-Spelling has three entry points: long-press/right-click menu, Home ▸ Proofing (toggle + prev/next,
+Spelling has three entry points: long-press/right-click menu, Review ▸ Proofing (toggle + prev/next,
 which select the word and open its menu), and on MAUI a keyboard accessory bar offering the corrections
 while the caret is in a misspelling (`ShowSpellingSuggestions`). `GoToNextSpellingErrorAsync` is async
 because it has to spell-check each paragraph as it walks - the pass only covers what is on screen.
@@ -517,18 +650,12 @@ Blazor), not a dropdown - do not reintroduce a picker panel. Margins are four pr
 Layout ▸ Margins. Shape icons come from `ShapeIcons.For(geometry)`, built from the same maths the
 painter uses; names from `ShapeNames`.
 
-Four ribbon tabs: **Home** (Font, Paragraph, Proofing), **Layout** (Margins, Page, Zoom), **Insert**
-(Objects, Header & Footer, Breaks) and **Shapes**. Header/footer/page-number/page-break/print-layout
-are all on the bar - do not add separate host chrome for them. `ChromeText(header)` reads the current
-line back for seeding an editor; `SetHeaderText(null)` removes it. Headers only render in print layout.
-
-Layout ▸ Page has Portrait/Landscape toggles (`SetPageOrientation`, undoable, writes both the swapped
-dimensions and `w:orient`). Each Office control has an `Accent` defaulting to its Microsoft colour -
-Word blue, Excel green, PowerPoint red - which paints the ribbon header, tab ink and underline. Set
-`Accent = null` to fall back to the theme. Use `OfficeAccent.From(colour)` for a custom one so the ink
-is chosen for you. Multi-column layout is **not** supported.
+`ChromeText(header)` reads the current header/footer line back for seeding an editor;
+`SetHeaderText(null)` removes it. Headers only render in print layout. Orientation is Layout ▸ Page
+Setup ▸ Orientation (`SetPageOrientation`, undoable). Each Office control has an `Accent` defaulting to
+its Microsoft colour; `Accent = null` falls back to the theme; `OfficeAccent.From(colour)` for a custom one.
 
 `Watermark` (an `OfficeWatermark`) is on both the editor and the viewer - a picture drawn behind the
 content, defaulting to a 0.15 wash. It is a **display** watermark: drawn, never written into the file,
-because the three formats store one in three unrelated ways. The editors' watermark button uses the
-same picker as inserting a picture.
+because the three formats store one in three unrelated ways. The document editor additionally has a
+**persisted text watermark** (`SetWatermarkText`, Design ▸ Watermark) written as Word's VML WordArt.
