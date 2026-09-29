@@ -772,7 +772,7 @@ Three constructors:
 
 Uses Shiny.BluetoothLE v4 APIs:
 - `ConnectAsync` for task-based connection
-- `NotifyCharacteristic` for RX notifications
+- `NotifyCharacteristic` for RX notifications — `Connect` waits on `WhenCharacteristicSubscriptionChanged` until they are confirmed on, so the first command cannot overtake the CCCD write
 - `WriteCharacteristicAsync` for TX writes
 - Collects notification bytes until `>` prompt, returns complete response
 
