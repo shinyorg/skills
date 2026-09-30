@@ -1,6 +1,6 @@
 ---
 name: shiny-appdevicebridge
-description: Generate code using Shiny.AppDeviceBridge, device bridges on your app's own Shiny.Net.HttpServer that also host a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, and given device access through bridges with typed C# and TypeScript clients
+description: Generate code using Shiny.AppDeviceBridge, device bridges on your app's own Shiny.Net.HttpServer that also host a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, GitHub releases or a provider of your own, and given device access through bridges with typed C# and TypeScript clients
 auto_invoke: true
 triggers:
   - Shiny.AppDeviceBridge
@@ -53,6 +53,8 @@ triggers:
   - AddTrafficRecorder
   - TrafficRecorder
   - TrafficRecorderOptions
+  - TrafficRecorder.WaitForAsync
+  - TrafficRecorder.WaitUntilAsync
   - TrafficMonitorPage
   - ShowTrafficMonitorAsync
   - TrafficText
@@ -60,6 +62,10 @@ triggers:
   - shiny-bridge-sim
   - bridge simulator
   - simulate bridges
+  - simulator MCP
+  - simulator web panel
+  - shiny-bridge-sim --web
+  - drive the simulator
   - GPX trail
   - traffic monitor
   - WebAppNativeCalls
@@ -89,10 +95,17 @@ triggers:
   - magnetometer
   - compass
   - barometer
+  - Shiny.AppDeviceBridge.Gps
+  - Shiny.AppDeviceBridge.Geofencing
   - IGpsBridge
   - IGeofencesBridge
   - IMotionBridge
   - IBluetoothLEBridge
+  - Shiny.AppDeviceBridge.Beacons
+  - AddBeaconsBridge
+  - IBeaconsBridge
+  - iBeacon
+  - Eddystone
   - IObdBridge
   - IWifiBridge
   - IDiscoveryBridge
@@ -101,6 +114,17 @@ triggers:
   - ITransfersBridge
   - IHealthBridge
   - ISpeechBridge
+  - IScreenRecorderBridge
+  - AddScreenRecorderBridge
+  - AddScreenRecorderBridgeClient
+  - ScreenRecorderBridgeClient
+  - ScreenRecorderBridgeOptions
+  - Shiny.AppDeviceBridge.ScreenRecorder
+  - Shiny.AppDeviceBridge.ScreenRecorder.Client
+  - Shiny.ScreenRecorder
+  - screenrecorder.ended
+  - screen recording
+  - screen recorder
   - IContactsBridge
   - ICalendarBridge
   - IPhotosBridge
@@ -120,6 +144,68 @@ triggers:
   - camera.status
   - remote viewfinder
   - device camera
+  - IWearablesBridge
+  - AddWearablesBridge
+  - AddWearablesBridgeClient
+  - WearablesBridgeClient
+  - WearablesBridgeOptions
+  - WebAppWearableDelegate
+  - Shiny.AppDeviceBridge.Wearables
+  - Shiny.AppDeviceBridge.Wearables.Client
+  - Shiny.Wearables
+  - wearables.message
+  - apple watch
+  - wear os
+  - watchos
+  - wearos
+  - WatchConnectivity
+  - Shiny.AppDeviceBridge.Maps
+  - Shiny.AppDeviceBridge.Maps.Client
+  - Shiny.AppDeviceBridge.Maps.Blazor
+  - Shiny.AppDeviceBridge.Maps.Valhalla
+  - Shiny.AppDeviceBridge.MapPacks
+  - shiny-map-packs
+  - AddMapsBridge
+  - AddOnDeviceDirections
+  - MapsOptions
+  - IMapsBridge
+  - IDirectionsBridge
+  - IGeocoder
+  - NominatimGeocoder
+  - GeocodeAsync
+  - geocoding
+  - AddMapsBridgeClient
+  - AddDirectionsBridgeClient
+  - AddBridgeMaps
+  - ITrafficProvider
+  - ITrafficIncidentProvider
+  - TomTomIncidentProvider
+  - HereTrafficProvider
+  - AzureMapsTrafficProvider
+  - AzureMapsTrafficStyle
+  - TrafficIncidentKind
+  - ShowIncidents
+  - TomTomTrafficProvider
+  - TrafficLayer
+  - TrafficTile
+  - TrafficInfo
+  - ShowTraffic
+  - traffic map
+  - BridgeMap
+  - MapPin
+  - MapShape
+  - DirectionsRequest
+  - DirectionsRoute
+  - AddMapPacks
+  - MapMapPacks
+  - MapPackCatalog
+  - MapPackSignature
+  - offline maps
+  - map tiles
+  - pmtiles
+  - maplibre
+  - valhalla
+  - turn-by-turn directions
   - IRpiCameraBridge
   - AddRpiCameraBridge
   - Shiny.AppDeviceBridge.RpiCamera
@@ -172,6 +258,13 @@ triggers:
   - "@shinyorg/appdevicebridge"
   - hybrid web app
   - over-the-air web app updates
+  - IUpdateProvider
+  - UpdateInfo
+  - UpdateProvider
+  - ReleaseServerUpdateProvider
+  - GitHubReleasesUpdateProvider
+  - GitHubUpdateInfo
+  - github releases
 ---
 
 # Shiny.AppDeviceBridge
@@ -196,8 +289,8 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine) and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Locations
-    (GPS/geofences/motion), Notifications, Push, Speech, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
+    (GPS/motion), Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -206,6 +299,9 @@ calls device features from that web app, updates it over the air, or writes a br
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
 - `AllowWebPermissions` and `UseTrafficMonitor` stay on `MauiAppBuilder`; `AddTrafficRecorder` stays on
   `ShinyHttpServerBuilder`.
+- For the page's own position, prefer `navigator.geolocation` with `AllowWebPermissions(WebAppWebPermissions.Geolocation)`
+  over the GPS bridge. It works on every head except Linux, including macOS (AppKit), where the host answers it from
+  CoreLocation. Declare `NSLocationWhenInUseUsageDescription` on Apple platforms.
 - Every bridge route requires `AppDeviceBridgePolicies.Bridges`, which the bridges enforce themselves.
 - **There is no private server.** Never generate `o.Server`, `o.ConfigureServer`, `o.AddAuthentication` or
   `o.AddAuthorization` on `AppDeviceBridgeOptions` — they do not exist. Use the builder.
@@ -252,15 +348,16 @@ builder
         bridge => bridge
             .Configure(o => o.AppId = "field-app")   // AppId, BasePath, AllowedHosts, AuthorizeBridges
             .AddAppSupportBridge()
-            .AddLocationBridges()
+            .AddGpsBridge()
+            .AddGeofenceBridge()
             .AddCalendarBridge()
             .AddPhotosBridge()
             .AddFoldersBridge(),
         webApp =>
         {
-            webApp.UseBaseline(typeof(App).Assembly, "webapp.zip");   // offline, no update server needed
-            // webApp.UpdateServer = new Uri("https://api.example.com/webapps");
-            // webApp.PublicKey = "-----BEGIN PUBLIC KEY-----…";
+            webApp.UseBaseline(typeof(App).Assembly, "webapp.zip");   // offline, no update provider needed
+            // webApp.UpdateProvider = new ReleaseServerUpdateProvider(new Uri("https://api.example.com/webapps"), "-----BEGIN PUBLIC KEY-----…");
+            // webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
         }
     );
 
@@ -289,11 +386,19 @@ public class App : Application
 }
 ```
 
+Updates come from `webApp.UpdateProvider` (an `IUpdateProvider`): `ReleaseServerUpdateProvider(uri, publicKey)` for the
+signed ASP.NET Core release server (`Channel` for prereleases), `GitHubReleasesUpdateProvider("https://github.com/owner/repo")`
+for GitHub releases (`AssetName`, `IncludePrereleases`, `TagPrefix`, `Token`, `RequiredWhen`), or a class of the app's
+own: `GetUpdateInfoAsync(Version host, WebAppVersion? app, ct)` returns an `UpdateInfo` (derive it to carry a download
+URL; null = nothing newer) and `DownloadAsync(update, ct)` returns the zip stream. The host enforces newer-only, the
+size/`Sha256` when given, and the archive opening; an exception is offline, `InvalidDataException` rejects. Never
+generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFactory` — those options don't exist.
+
 - `UseAppDeviceBridge` listens on loopback port 5780 unless the app sets a port of its own.
 - Without MAUI: `services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => …).AddRpiCameraBridge().AddTunnel().AddBridge<ClipboardBridge>()))`.
   A non-MAUI web host is the same overload on the server's builder: `http.AddAppDeviceBridge(bridge => …, webApp => …)`.
-- Bridge extensions register the Shiny service behind them. Do **not** also call `AddGps()`, `AddBluetoothLE()`
-  and so on.
+- Bridge extensions register the Shiny service behind them. Do **not** also call `AddGps()`, `AddBluetoothLE()`,
+  `AddBeaconRanging()` and so on.
 - A platform without an implementation answers `501`; `IHostBridge.GetInfoAsync()` lists every bridge with
   `IsSupported`.
 - Platform setup is the underlying library's: usage descriptions, manifest permissions, entitlements. Loopback
@@ -306,17 +411,22 @@ public class App : Application
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
-| `.Locations` | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IGeofencesBridge`, `IMotionBridge` |
+| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IMotionBridge` (`GpsJsonContext`) |
+| `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
+| `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
+| `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
+| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
 | `.Health` | `AddHealthBridge()` | `IHealthBridge` |
 | `.Speech` | `AddSpeechBridge()` | `ISpeechBridge` |
+| `.ScreenRecorder` | `AddScreenRecorderBridge(o => o.MaxDuration = TimeSpan.FromMinutes(10))` — `ScreenRecorderBridgeOptions`: `Root` (`data`), `Folder` (`screen-recordings`), `MaxDuration` (1 h; `null` for none), `ConfirmStart`, `RegisterScreenRecorder` (on) | `IScreenRecorderBridge` — the device's screen to a video via Shiny.ScreenRecorder; all platforms — see Screen recorder below |
 | `.Contacts` | `AddContactsBridge()` | `IContactsBridge` |
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
@@ -331,6 +441,117 @@ Client packages are `Shiny.AppDeviceBridge.{Bridge}.Client`, registered with `Ad
 name from the interface: `IAppBridge` → `AddAppBridgeClient()`, `ITransfersBridge` → `AddTransfersBridgeClient()`,
 `ITrayBridge` → `AddTrayBridgeClient()`, `IQuickEntryBridge` → `AddQuickEntryBridgeClient()`. The desktop bridges share
 `Shiny.AppDeviceBridge.Desktop.Client`.
+
+## Maps and directions
+
+`AddMapsBridge(o => …)` adds `/_bridge/maps` and `/_bridge/directions` on every platform. Online by default; offline
+where the user downloaded a region.
+
+- **Tiles:** `GET /_bridge/maps` returns `TilesUrl`/`GlyphsUrl`/`SpritesUrl` templates for MapLibre (never hard-code
+  them). A tile comes from an installed region, then the tile cache (`TileCacheBytes`), then `OnlineTiles` — a
+  `.pmtiles` URL read by Range, or a `{z}/{x}/{y}` template — else `204`. Keys in `OnlineTiles`/`ConfigureRequest` never
+  reach the page.
+- **Blazor:** reference `Shiny.AppDeviceBridge.Maps.Blazor`, `services.AddWebAppHostClient().AddBridgeMaps()`, and use
+  `<BridgeMap @ref="map" Latitude=… Longitude=… Zoom=… Style="height: 60vh" OnClick=… OnDrawn=… />`. Methods:
+  `AddPinAsync(new MapPin(id, new GeoPoint(lat, lon), label, Draggable: true))`, `AddShapeAsync(new MapShape(id,
+  MapShapeKind.Line|Polygon, points, color))`, `AddCircleAsync`, `ShowRouteAsync(route)`, `SetDrawModeAsync(MapDrawMode.Pin|Line|Polygon|None)`,
+  `FitBoundsAsync`, `FitAllAsync`, `FlyToAsync`, `ClearAsync`, `SnapshotAsync()`. MapLibre is bundled — don't add a CDN
+  script. In `Pin` mode `OnClick` gets `IsPinMode = true` and the page adds the pin; `OnDrawn` hands back a finished
+  line/area for the page to add.
+- **Traffic:** flow via `o.Traffic` — `new TomTomTrafficProvider(key)` (vector), `new HereTrafficProvider(key)
+  { MinTrafficCongestion = "heavy" }` (raster), `new AzureMapsTrafficProvider(key)` or `(clientId, ct => token)` with
+  `Style = AzureMapsTrafficStyle.Relative|RelativeDark|Delay|ReducedSensitivity|Absolute` (raster, Render v2 tilesets —
+  never the Traffic v1 API, retiring 2028). Incidents via `o.TrafficIncidents = new TomTomIncidentProvider(key)`,
+  independent of flow. Keys stay native. Page: `<BridgeMap ShowTraffic="traffic" ShowIncidents="incidents" />` or
+  `SetTrafficAsync`/`SetIncidentsAsync`; `HasTraffic`/`HasIncidents` are false without a provider. Custom flow:
+  `ITrafficProvider` — `Layer` (`TrafficLayer`: `TrafficTileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty`
+  (current/free-flow 0–1), optional `ClosedProperty`; or `Raster` with `TileSize`) and `GetTileAsync(z, x, y, http, ct)`
+  → `TrafficTile(bytes, contentType, contentEncoding)` or null. Custom incidents: `ITrafficIncidentProvider` —
+  `TrafficIncidentLayer(minZoom, maxZoom, refresh, attribution, kindProperty, kinds)` mapping the provider's values to
+  `TrafficIncidentKind`, plus `LineSourceLayer`, `PointSourceLayer`, `DescriptionProperty`, `DelayProperty`,
+  `ClusterSizeProperty`. Routes `maps/traffic/{z}/{x}/{y}` and `maps/incidents/{z}/{x}/{y}`: `204` with no data or no
+  connection, `501` without a provider. `o.Traffic`/`o.TrafficIncidents` may be reassigned at runtime (e.g. from a
+  settings screen); the page re-reads `GET maps` (re-create `<BridgeMap>`) to see the change. Never send provider keys
+  to the page. Live only; directions don't use traffic.
+- **Regions:** `Catalog` + `CatalogPublicKey` (required together, usually the web app release key).
+  `GetRegionsAsync(refresh)`, `InstallAsync(id, new MapPackInstallRequest(Directions: true))` (202; progress on
+  `maps.download`/`OnDownloadAsync`; `Installed` at once when nothing is newer — events can beat the reply, so a page keeps
+  the newest state rather than overwriting it with the reply), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified
+  against the signed hash; interrupted downloads resume. Server: `services.AddMapPacks(o => { o.SigningKey; o.PacksDirectory; })`
+  + `app.MapMapPacks("/maps")`; build the directory with `shiny-map-packs region|assets|list|remove`.
+- **Directions:** `RouteAsync(new DirectionsRequest([new RouteStop(lat, lon), …], TravelMode.Car, DistanceUnits.Kilometers,
+  Language, DirectionsSource.Auto, new RouteAvoid(Tolls: true)))` → `DirectionsRoute` (metres, seconds, `Shape` as
+  `[lon, lat]`, `Legs[].Maneuvers[]`). `Auto` = on the device when a downloaded road network covers every stop, else
+  online. Errors: `404 no_route`, `503 offline_unavailable`, `501` with no router at all.
+- **Addresses:** `o.Directions.Geocoder = new NominatimGeocoder("MyApp/1.0 (me@example.com)")` (the User-Agent Nominatim's
+  policy requires; `BaseAddress` for your own server, `Countries`, `MinimumInterval` 1 s) or an `IGeocoder` of your own.
+  `GeocodeAsync(query, limit: 5, language)` → `GeocodeResult(Places, Attribution)`, each `GeocodedPlace(Name, Address,
+  Latitude, Longitude, Bounds)` best first; feed one into a `RouteStop`. Always online: `503 geocoder_unavailable`, `501`
+  without a geocoder; `DirectionsInfo.Geocoding` says which. Search when the user asks, not per keystroke — the public
+  server allows one request a second, and the geocoder spaces them. Regions for a trip: the catalog regions whose
+  `Bounds` contain any `route.Shape` point, installed with `Directions: true`.
+- **On-device:** `AddOnDeviceDirections()` from `.Maps.Valhalla` — Android and iOS (valhalla-mobile 0.6.3 / Valhalla
+  3.6.3); a no-op elsewhere. Road networks must be built with Valhalla 3.6.3 (`shiny-map-packs --valhalla docker`).
+- **macOS:** `HttpClientHandler` there can't do TLS 1.3; the macOS head adds
+  `bridge.AddMapsBridge(o => o.HttpMessageHandlerFactory = () => new NSUrlSessionHandler())`.
+
+## Wearables
+
+`AddWearablesBridge()` puts the companion app on a paired Apple Watch (WatchConnectivity) or Wear OS device (Data Layer)
+behind `/_bridge/wearables`, backed by Shiny.Wearables (registers `AddWearables<WebAppWearableDelegate>()` itself unless
+`RegisterWearableService = false`). iOS and Android only; everything else answers `501` — check `GetStatusAsync().Supported`.
+
+- **Wire:** bodies are JSON. The page's `data` reaches the watch as UTF-8 JSON text; what the watch sends arrives as JSON,
+  or as a base64 string with `binary: true` when it is not JSON.
+- **Page → watch:** `SendMessageAsync(new WearableMessageRequest("sync", data))` waits for the reply (`WearableReply`);
+  never queues — `409 not_reachable` without a reachable watch. `UpdateContextAsync` (latest state only),
+  `TransferAsync` (queued, in order) and `SendFileAsync(new WearableFileRequest(path, new BridgeFile("data", "maps/city.bin")))`
+  return at once with a `WearableTransferTicket`; `wearables.completed` reports the id delivered/failed/cancelled.
+  A file must be in a root on disk and stay there until `wearables.completed`. `GetPendingTransfersAsync`, `CancelTransferAsync(id)`.
+- **Watch → web app:** events `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`,
+  `wearables.file`, `wearables.completed`. To act on traffic — including in the background — register a native-call
+  handler (`wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`) in the page or
+  `background.js`: the platform wakes the app, and a `wearables.message` handler's **return value is the reply**.
+  Received files are filed to `data/wearables/{id}/{name}` and arrive as a `BridgeFile` for the files bridge.
+
+```js
+// background.js
+appdevicebridge.on("wearables.message", async ({ path, data }) => {
+    if (path === "steps") return { today: 8421 };
+    return null;
+});
+```
+
+The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
+Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
+
+## Screen recorder
+
+`AddScreenRecorderBridge()` records **the device's** screen and registers Shiny.ScreenRecorder's recorder (portal on
+Linux). For the screen of a browser showing the page, use `getDisplayMedia` instead. The WebViews on iOS and Android don't
+have it, which is why this bridge exists.
+
+```csharp
+var status = await recorder.GetStatusAsync();              // Capabilities decide what to offer
+if (!status.Capabilities.Contains(ScreenRecorderCapability.Recording)) return;
+await using var sub = await recorder.OnEndedAsync(e => …);  // every ending: Stopped, Cancelled, RevokedByUser, MaxDurationReached, …
+await recorder.StartAsync(new ScreenRecordingRequest(IncludeMicrophone: true, MaxWidth: 1280));  // returns after consent
+var recording = await recorder.StopAsync();                // recording.File is a BridgeFile → IFilesBridge
+```
+
+- Only set request fields whose `ScreenRecorderCapability` is listed; anything else answers `501` (`not_supported`).
+  Pause and resume need `PauseResume`, which macOS 15 lacks.
+- `409` `recording_busy` (one at a time, including a recording the app started itself), `409` `not_recording` (stop,
+  pause or resume with nothing running; cancel is fine), `403` `permission_denied` (consent declined) or `declined`
+  (`ConfirmStart` said no).
+- The device can end a recording on its own. Always handle `screenrecorder.ended` rather than assuming `StopAsync` will
+  find one; the salvaged file is in `ended.Recording`.
+- Scope: whole screen on Android, macOS, Windows and Linux; this app only on iOS and Mac Catalyst. No display or window
+  picking. **Windows records without asking**: generate `o.ConfirmStart = (request, ct) => ShowMyConfirmationAsync()`
+  for Windows apps. Keep `MaxDuration` set; it is what stops a recording nobody is watching.
+- Setup: Android `FOREGROUND_SERVICE_MEDIA_PROJECTION` (+ `RECORD_AUDIO` for the microphone); Apple
+  `NSMicrophoneUsageDescription` for the microphone; packaged Windows `graphicsCapture`; Linux xdg-desktop-portal +
+  GStreamer or ffmpeg.
 
 ## Quick entry
 
@@ -367,7 +588,10 @@ In memory only (newest 300, text bodies up to 128 KB). `Authorization`, `Proxy-A
 and the `token`/`access_token` query parameters are redacted by default — that is what keeps the WebView's launch token
 and session cookie out of it; do not clear those sets in shipped code. Without MAUI: `http.AddTrafficRecorder()` and read
 `TrafficRecorder.Snapshot()` / `Changed`; `TrafficText` (`Status`, `Headers`, `Body`, `Filter`, `Describe`) formats an
-exchange the way the pages do. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
+exchange the way the pages do. An exchange is added only after its response has gone out, so a client can be back before
+it is there: to read one straight after making the request (a test, a tool), wait for it with
+`await recorder.WaitForAsync(x => x.Path == "/_bridge/wifi/connection", ct)` or `WaitUntilAsync(list => list.Count >= 3, ct)`
+— never `Snapshot()` right after the call. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
 putting `HostView` in a new layout — replacing the content un-parents the old one and the view's `Navigation` goes dead.
 
 ## Simulator (testing a page without a device)
@@ -379,7 +603,13 @@ specific device states (offline, permission denied, `501` on a platform, a GPS w
 ```bash
 shiny-bridge-sim --dev-server http://localhost:5288            # or --app <published wwwroot>; page at http://127.0.0.1:5299/
 shiny-bridge-sim --scenario setup.json --trail walk.gpx --play walk --speed 4 --headless   # CI
+shiny-bridge-sim --dev-server http://localhost:5288 --web      # a browser panel at /_sim/ instead of the TUI
 ```
+
+- `--web` replaces the TUI with a browser control panel at `/_sim/` (link with `#token=…` printed at start). Its API is
+  `POST /_sim/api/{operation}` — the MCP tool names, arguments as a JSON object, `Authorization: Bearer <token>` — so a
+  script can drive it with `curl`. Callers on this device only; a browser `Origin` must be the simulator's own.
+  `--web-token <t>` fixes the token. Not combinable with `--mcp-stdio`; fine with `--mcp`.
 
 - A route answers `value` (JSON validated against the contract; a file for byte routes), `null` (204) or `error`
   (status + `code` + `message`, e.g. `403 access_denied`), with optional `DelayMs`. A bridge can be switched off (all `501`).
@@ -388,7 +618,32 @@ shiny-bridge-sim --scenario setup.json --trail walk.gpx --play walk --speed 4 --
   { "delayMs": 5000, "bridge": "wifi", "route": "GET current", "mode": "null" }, { "bridge": "ble", "supported": false } ] }`.
   Route keys are `"<METHOD> <pattern>"` from the interface (`GET current`, `DELETE regions/{identifier}`, `GET` for the root).
 - `.gpx` loads as `gps.reading` events plus `GET gps/current`/`GET gps/last` values at the recorded pace.
+- A route can also answer a **sequence**: values one per call, the last repeating — for a page that polls (queued →
+  running → done). In a trail step or scenario it is `"values": [ … ]` instead of `"value"`.
 - A new bridge must be added to `BridgeCatalog` and the simulator's csproj; `SimulatorCatalogTests` fail until it is.
+
+### Driving the simulator yourself (MCP)
+
+`shiny-bridge-sim --mcp` serves an MCP endpoint at `/_sim/mcp` on the simulator's own origin, printing a paste-ready
+client config (and writing it to `mcp.json` in the data directory). Use it when you need to put a page into a device
+state and then check what it did. `--mcp-stdio` instead speaks MCP on stdin/stdout, for starting the simulator yourself.
+
+Tools: `get_status`, `list_bridges`, `describe_bridge`, `get_route`; `set_route`, `set_route_sequence`, `reset_route`,
+`set_bridge_supported`, `set_platform`, `set_sticky_writes`; `fire_event`, `set_event_payload`; `list_trails`,
+`load_trail`, `load_trail_file`, `play_trail`, `pause_trail`, `stop_trail`, `remove_trail`; `apply_scenario`,
+`apply_scenario_file`, `capture_scenario`; `get_traffic`, `get_activity`, `clear_traffic`, `set_recording`,
+`wait_for_request`, `wait_for_quiet`.
+
+How to use it well:
+
+- Call `get_route` before `set_route` and shape the value on its `sample` — a value that is not the contract is refused,
+  and the refusal names the contract it should have matched.
+- Set the answer, then `wait_for_request` for the path the page will call. Do not sleep and then read `get_traffic`;
+  only requests made after the wait call count, so the loop is deterministic.
+- If an event seems not to arrive, read the listener count `fire_event` returns — `0` means the page never subscribed.
+- `capture_scenario` hands back the whole setup to check in beside the app as a reproduction.
+- The endpoint is loopback-only, needs the printed bearer token, and refuses any request carrying an `Origin` header —
+  so a page cannot drive it, and neither can a browser-based tool.
 
 ## A Blazor page
 
@@ -443,7 +698,7 @@ Rules:
 4. **Files move by `BridgeFile { Root, Path }`.** Bridges that produce files (photos, exports) return one; read it
    through `IFilesBridge`. Bridges that take a file (share, notification image, tray icon) take one.
 5. **Native calls** — background work handed to the page — are typed:
-   `nativeCalls.HandleAsync("gps", LocationsJsonContext.Default.GpsReading, reading => …)`. The same names run in
+   `nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => …)`. The same names run in
    `background.js` when no page is open; that script is JavaScript (Jint), with `fetch` to `/_bridge`.
 
 ## A JavaScript / TypeScript page
@@ -636,7 +891,9 @@ public static TBuilder AddOrdersBridge<TBuilder>(this TBuilder bridge) where TBu
   applies), `server.UseAuthentication(); server.UseAuthorization();` in `http.Configure`. Nothing is authenticated by
   default unless the app sets a fallback policy. `WebAppPolicies.Session` accepts only the WebView. Bridge policy and
   endpoint policies are separate, and the bridges enforce theirs without the app's pipeline.
-- Update downloads are ECDSA P-256 signed; keep `PublicKey` compiled into the app.
+- Release-server downloads are ECDSA P-256 signed; keep the public key given to `ReleaseServerUpdateProvider` compiled
+  into the app. GitHub releases are not signed — the asset's SHA-256 (`digest`) is checked when GitHub reports it — so
+  prefer the release server when anything other than repository write access must stand between an attacker and the app.
 
 ## Trim and AOT
 
