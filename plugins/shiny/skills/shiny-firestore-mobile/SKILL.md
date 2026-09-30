@@ -27,6 +27,7 @@ triggers:
   - firestore snapshot listener
   - firebase auth maui
   - firebase anonymous sign in
+  - ITMS-91061
 ---
 
 # Shiny Mobile Firestore Provider
@@ -69,6 +70,10 @@ identically to Android and iOS. Anything other than these two TFMs throws `Platf
 multi-targeted app code must guard the mobile paths (`#if ANDROID || IOS`) or avoid resolving the store
 elsewhere.
 
+On iOS the `ShinyFirebaseFirestore` framework ships a merged Apple privacy manifest (`PrivacyInfo.xcprivacy`)
+for Firestore and its statically linked dependencies (4.0.1+). Do not generate a build step that copies one in;
+if App Store Connect reports ITMS-91061 against that framework, the fix is upgrading the package.
+
 ## Installation
 
 ```bash
@@ -108,7 +113,7 @@ builder.Services.AddMobileFirestoreDocumentStore(o =>
 });
 ```
 
-> **Requires `Shiny.DocumentDb` 13.x.** The flat per-type methods (`o.MapTypeToCollection<T>`,
+> **Requires `Shiny.DocumentDb` 14.x** (provider 4.0.0+). The flat per-type methods (`o.MapTypeToCollection<T>`,
 > `o.MapIdProperty<T>`, `o.AddQueryFilter<T>`, `o.MapVersionProperty<T>`, `o.OnBeforeWrite<T>`,
 > `o.OnAfterWrite<T>`) were **removed** in 3.0.0 — never generate them. They all live on the
 > `ConfigureDocument<T>` builder now. Store-level members (`MapIdType<TId>`, `AddInterceptor`,

@@ -17,6 +17,9 @@ triggers:
   - FCM token never returns
   - duplicate FIRApp
   - Class FIRApp is implemented in both
+  - ITMS-91061
+  - missing privacy manifest
+  - PrivacyInfo.xcprivacy
 ---
 
 # Shiny Firebase Push Notifications Skill
@@ -122,6 +125,10 @@ public class MyPushDelegate : IPushDelegate
 - Set Build Action to `BundleResource`
 - Enable Push Notifications capability in Entitlements.plist
 - Enable Remote Notifications background mode
+- No privacy manifest work is needed for the Firebase SDKs — `ShinyFirebase.framework` ships a merged
+  `PrivacyInfo.xcprivacy` (5.2.1+). Do **not** generate an MSBuild target that copies a manifest into it. If the
+  app uses `FirebaseAnalytics`, declare the collected data in the **app's** own `PrivacyInfo.xcprivacy`, since
+  Google ships no manifest for the Analytics binaries
 
 ### Android
 - Add `google-services.json` to your Android project root (if using embedded configuration)
@@ -177,6 +184,13 @@ hangs forever.
 
 From 5.1.0 the native shim also fails fast: if Firebase was never configured, `RequestAccess()` throws
 `Firebase has not been configured` instead of hanging.
+
+### iOS: App Store Connect rejects the upload with ITMS-91061 (missing privacy manifest)
+
+The message names `Frameworks/ShinyFirebase.framework/ShinyFirebase` and an SDK such as GoogleDataTransport.
+Versions up to 5.2.0 linked the Firebase SDKs into that framework without their privacy manifests. **Upgrade to
+5.2.1+**, which ships a merged manifest, and remove any workaround target that copied a manifest into the
+framework. Do not suggest hand-writing a manifest into the framework as the fix.
 
 ## Key Source Files
 - `src/Shiny.Push.FirebaseMessaging/FirebaseConfiguration.cs` - Configuration record
