@@ -749,6 +749,9 @@ public class BleObdConfiguration
     public string WriteCharacteristicUuid { get; set; } = "FFF2";
     public string? DeviceNameFilter { get; set; }
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    // After a command times out or is cancelled, the next write waits up to this long for the
+    // adapter's late '>' prompt — writing into a busy ELM327 makes it answer STOPPED to the new command.
+    public TimeSpan AbandonedReplyGrace { get; set; } = TimeSpan.FromSeconds(2);
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public bool AutoConnect { get; set; }   // default false
 }
