@@ -611,6 +611,10 @@ foreach (var block in SupportedPidsCommand.BlockPids)   // 00, 20, 40, 60, 80, A
 }
 ```
 
+Every ECU on the bus answers a supported-PID request — usually the engine and the transmission, in
+no fixed order. `SupportedPidsCommand` merges their masks, so the result is every PID *any* module
+answers and does not depend on which one replied first.
+
 ### Reading and clearing trouble codes
 
 ```csharp
