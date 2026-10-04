@@ -174,6 +174,20 @@ triggers:
   - wearables.message
   - apple watch
   - wear os
+  - ILiveActivitiesBridge
+  - AddLiveActivitiesBridge
+  - AddLiveActivitiesBridgeClient
+  - LiveActivitiesBridgeClient
+  - WebAppLiveActivityDelegate
+  - LiveActivityStartRequest
+  - Shiny.AppDeviceBridge.LiveActivities
+  - Shiny.AppDeviceBridge.LiveActivities.Client
+  - Shiny.Mobile.LiveActivities
+  - ShinyLiveActivityWidget
+  - liveactivities.token
+  - live activity
+  - dynamic island
+  - live updates
   - watchos
   - wearos
   - WatchConnectivity
@@ -308,7 +322,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -440,6 +454,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
+| `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
 | `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
@@ -544,6 +559,27 @@ appdevicebridge.on("wearables.message", async ({ path, data }) => {
 
 The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
 Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
+
+## Live activities
+
+`AddLiveActivitiesBridge()` puts iOS Live Activities (Lock Screen, Dynamic Island) and Android 16 Live Updates behind
+`/_bridge/liveactivities`, backed by Shiny.Mobile.LiveActivities (registers `AddLiveActivities<WebAppLiveActivityDelegate>()`
+itself unless the app already registered `ILiveActivityManager`). iOS 16.2+ and Android only; everything else answers `501`.
+
+- **iOS: always generate `<ShinyLiveActivityWidget Condition="$(TargetFramework.Contains('-ios'))">true</ShinyLiveActivityWidget>`**
+  in the app's csproj. It builds Shiny's stock widget into the app and adds `NSSupportsLiveActivities`; without it
+  `StartAsync` succeeds and nothing appears. The extension's bundle id is `<app id>.LiveActivity` and needs a profile.
+- `StartAsync(new LiveActivityStartRequest(new LiveActivityContent(Title, Body, ShortStatus, Progress, StaleDate, RelevanceScore, Data), Attributes, Kind))`
+  returns a `LiveActivity { Id, State, PushToken }`. `UpdateAsync(id, new LiveActivityUpdateRequest(content, alert?))`
+  (silent unless an alert), `EndAsync(id, new LiveActivityEndRequest(content?, dismissAt?))`, `EndAllAsync()`,
+  `GetActivitiesAsync()`, `GetStatusAsync()` / `RequestAccessAsync()` (`Access`, `PushToStartToken`).
+  `LiveActivityProgress`: `Value` 0–1, or `Start`/`End` for a system-driven timer, or `Indeterminate`.
+- Errors: `404` unknown id, `400` no content / progress outside 0–1, `502 live_activity_failed` when ActivityKit refuses.
+- **`RequestPushToken` defaults to true and needs the `aps-environment` entitlement on iOS** (ActivityKit otherwise fails
+  with "ActivityInput error 0"). Generate `RequestPushToken: false` unless the app is set up for push.
+- **Server-driven updates:** send the tokens to your server from a native-call handler in `background.js` (or the page):
+  `liveactivities.token` (`{ activityId, token }`, per activity) and `liveactivities.starttoken` (`{ token }`, iOS 17.2+
+  push-to-start). Events `liveactivities.started` and `liveactivities.state` carry `{ id, state, pushToken }`.
 
 ## Printing
 
@@ -814,6 +850,17 @@ stop();    // unsubscribes
   cancelled. The app's own roots (`data`, `cache`) cannot be replaced.
 - On Android a picked folder has no path: the files bridge works, but share, transfers and notification images
   refuse it.
+- A plain `net10.0` project referencing `.Folders` (a shared setup project used by mobile heads) gets GirCore's source
+  generators from the Linux build, and iOS then fails at launch with `Could not find GLib-2.0`. Generate this target in
+  that project's csproj:
+
+  ```xml
+  <Target Name="_DropGirCoreGenerators" AfterTargets="ResolveLockFileAnalyzers">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::Copy('%(Analyzer.NuGetPackageId)').StartsWith('GirCore.'))" />
+    </ItemGroup>
+  </Target>
+  ```
 - `IPhotosBridge.PickAsync` needs no permission. `GetLibraryAsync`/`GetThumbnailAsync`/`ExportAsync` need
   `RequestAccessAsync()` and `NSPhotoLibraryUsageDescription` / `READ_MEDIA_IMAGES`. The library is 501 on Linux.
 
