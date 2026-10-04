@@ -107,6 +107,24 @@ triggers:
   - iBeacon
   - Eddystone
   - IObdBridge
+  - Shiny.AppDeviceBridge.Printers
+  - Shiny.AppDeviceBridge.Printing
+  - AddPrintersBridge
+  - AddPrintingBridge
+  - PrintersBridgeOptions
+  - IPrintersBridge
+  - IPrintingBridge
+  - PrintElements
+  - PrintElement
+  - PrintJobRequest
+  - PrintPdfAsync
+  - HtmlToPdfAsync
+  - HtmlToPdfRequest
+  - html to pdf
+  - PrintingBridgeOptions
+  - receipt printer bridge
+  - ESC/POS bridge
+  - print from the web app
   - IWifiBridge
   - IDiscoveryBridge
   - IPushBridge
@@ -289,7 +307,7 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine) and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Beacons, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
     (GPS/motion), Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
@@ -416,6 +434,8 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
+| `.Printers` | `AddPrintersBridge(o => o.NetworkPorts.Add(9200))` — `PrintersBridgeOptions.NetworkPorts` (9100–9102); registers BLE, mDNS and the PDF renderer itself | `IPrintersBridge` (`PrintersJsonContext`) + the `PrintElements` builder — ESC/POS / TSPL receipt printers over BLE or TCP; see Printing below |
+| `.Printing` | `AddPrintingBridge(o => o.MaxFileBytes = …)` — `PrintingBridgeOptions`: `MaxJsonBytes` (16 MB), `MaxFileBytes` (512 MB) | `IPrintingBridge` (`PrintingJsonContext`) — the OS print dialog / spooler for PDF, image, HTML; see Printing below |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
@@ -524,6 +544,65 @@ appdevicebridge.on("wearables.message", async ({ path, data }) => {
 
 The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
 Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
+
+## Printing
+
+Two bridges, matching Shiny 5.9's two models — **pick by the printer**:
+
+- **`printers`** (`AddPrintersBridge()`, `IPrintersBridge`) — 58/80mm receipt and label printers (ESC/POS, TSPL) over
+  Bluetooth LE or raw TCP 9100. The page builds the receipt; the device encodes and streams it. One printer at a time.
+- **`printing`** (`AddPrintingBridge()`, `IPrintingBridge`) — any printer the OS knows (AirPrint, PrintManager, Windows
+  spooler, CUPS): hand it a PDF, PNG/JPEG, HTML or an http(s) URL. Never use it for a thermal printer, nor `printers` for
+  an office printer.
+
+```csharp
+@inject IPrintersBridge Printers
+@inject IPrintingBridge Printing
+
+// find and connect — Id from a scan, or a network printer by LAN IP literal
+var found = await Printers.ScanAsync(new PrinterScanRequest(PrinterTransport.Ble));
+var printer = await Printers.ConnectAsync(new PrinterConnectRequest(Id: found[0].Id));
+// or: new PrinterConnectRequest(PrinterTransport.Network, Host: "192.168.1.50", Port: 9100, Paper: PrinterPaper.Paper58mm)
+
+var cols = printer.Capabilities.CharactersPerLine;            // lay out against this — never hard-code 32/48
+var receipt = new PrintElements()
+    .AlignCenter().Bold().Size(2).Line("SHINY MART").ResetStyle()
+    .AlignLeft().Line(new string('-', cols))
+    .QrCode("https://example.com/r/1")
+    .Image(logoPng)                                            // PNG/JPEG bytes; scaled to DotsPerLine on the device
+    .Cut();                                                    // only feeds on a printer without a cutter
+await Printers.PrintAsync(receipt.ToRequest());
+
+// the same receipt on an office printer
+var pdf = await Printers.RenderAsync(new PrintRenderRequest(receipt.Elements));
+var result = await Printing.PrintAsync(new PrintJobRequest(PrintJobContent.Pdf, Convert.ToBase64String(pdf)));
+// result.Status: Completed | Submitted (both success) | Cancelled (dialog closed — not an error) | Failed
+
+// a file the device already has, or anything big: stream it — never base64 a large PDF into PrintAsync (16 MB cap)
+await using var file = File.OpenRead(path);
+await Printing.PrintPdfAsync(file, jobName: "Invoice 1042", copies: 2);   // PrintImageAsync for PNG/JPEG; TS: printPdf(blob, {...})
+
+// HTML -> PDF bytes, no print UI (save/share): iOS, Mac Catalyst, Android only — check caps.HtmlToPdf, 501 elsewhere
+byte[] invoicePdf = await Printing.HtmlToPdfAsync(new HtmlToPdfRequest(html, PageWidth: 612, PageHeight: 792));
+```
+
+- **Elements** are flat `PrintElement`s with a `Type` (`Text`, `Line`, `Align`, `Bold`, `Underline`, `Size`,
+  `ResetStyle`, `Feed`, `Barcode`, `QrCode`, `Image`, `Cut`, `Raw`); in TypeScript write them as objects
+  (`{ type: "Line", text: "…" }`) — enums are PascalCase strings. A bad element answers `400 elements[i]: …`.
+- **Errors:** no printer → `409 not_connected`; second connect → `409 already_connected` (`DisconnectAsync` first); a
+  write that fails drops the printer (`409 printer_failed`) and raises `printers.disconnected` — a TCP printer that was
+  switched off is only noticed this way.
+- **Feature-detect:** `GetStatusAsync()` (`BluetoothSupported`, `NetworkScanSupported`, `RenderSupported`) and
+  `Printing.GetCapabilitiesAsync()` (`Pdf`, `Image`, `Html`, `Silent`, `ListPrinters`). Content a platform can't print
+  answers `501` — HTML on Windows and CUPS: render to PDF first. `Silent` + `PrinterId` (from `GetPrintersAsync()`)
+  skips the dialog on Windows and CUPS only.
+- **Security:** a network printer named by address must be a LAN IP literal on a port in `NetworkPorts`; a scanned one
+  connects where it advertised. Don't widen `NetworkPorts` beyond printer ports — elements can carry raw bytes.
+- **Platforms:** network printers everywhere; BLE on Android, iOS, Mac Catalyst, macOS, Windows (Linux once the app
+  registers Shiny.BluetoothLE.Linux); rendering needs `SkiaSharp.NativeAssets.Linux` on Linux (`501` without). Apple:
+  `NSBluetoothAlwaysUsageDescription`, `NSLocalNetworkUsageDescription`, `NSBonjourServices` `_pdl-datastream._tcp` and
+  `_printer._tcp` (+ `com.apple.security.print` sandboxed on macOS). Android: `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`; OS
+  printing needs the app in the foreground.
 
 ## Screen recorder
 
