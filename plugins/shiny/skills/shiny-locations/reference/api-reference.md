@@ -332,8 +332,9 @@ public interface IGeofenceManager
 ### IGeocoder
 
 Reverse geocoding through the platform geocoder. iOS/Mac Catalyst 26+ use MapKit `MKReverseGeocodingRequest`
-(`CLGeocoder` below 26); Android uses `android.location.Geocoder` (listener API on 33+). Needs network access.
-Not registered on Windows or Blazor.
+(`CLGeocoder` below 26); Android uses `android.location.Geocoder` (listener API on 33+). Windows, Linux, macOS,
+Blazor WebAssembly and Android devices without a geocoder backend get an internal OpenStreetMap Nominatim geocoder. Needs
+network access.
 
 ```csharp
 namespace Shiny.Locations;
@@ -345,7 +346,34 @@ public interface IGeocoder
 }
 ```
 
-Returns an empty list when nothing matched. On Android, calling it when `IsSupported` is false throws `InvalidOperationException`.
+Returns an empty list when nothing matched. On Android, calling the native `Geocoder` when `IsSupported` is false throws `InvalidOperationException` - `AddGeocoding()` registers the OpenStreetMap geocoder on those devices instead.
+
+### NominatimOptions
+
+`AddGeocoding()` falls back to an internal `IGeocoder` over the OpenStreetMap Nominatim `reverse` API
+(`format=jsonv2`) - System.Text.Json source generated, AOT/trim safe, at most one placemark per lookup. The
+implementation type is not public: inject `IGeocoder`, and configure it through `AddGeocoding(o => ...)`.
+
+```csharp
+namespace Shiny.Locations;
+
+public class NominatimOptions
+{
+    public const string Attribution = "© OpenStreetMap contributors"; // show wherever results are displayed
+    public static readonly Uri PublicServer;              // https://nominatim.openstreetmap.org/
+    public Uri BaseUri { get; set; }                      // default PublicServer
+    public string UserAgent { get; set; }                 // default "<EntryAssembly>/<version> (Shiny.Gps)"; not sent from the browser
+    public string? Email { get; set; }                    // sent as the email query parameter
+    public string? Language { get; set; }                 // accept-language query parameter; default CurrentUICulture
+    public TimeSpan MinimumRequestInterval { get; set; }  // default 1s (public server policy)
+    public int CacheSize { get; set; }                    // default 100; 0 disables
+}
+```
+
+Requests are serialized and spaced `MinimumRequestInterval` apart (a failed request counts); a result - including
+an empty one - is cached keyed on the position rounded to 5 decimal places. A non-success status (e.g. 429/403 from the
+public server) throws `HttpRequestException`. Language and email travel on the query string, so the browser sends no
+CORS preflight.
 
 ### IGpsDelegate
 
@@ -560,7 +588,8 @@ services.AddGeofencing(typeof(MyGeofenceDelegate));
 ### Geocoding Registration
 
 ```csharp
-services.AddGeocoding(); // registers IGeocoder on iOS, Mac Catalyst and Android - no-op elsewhere
+services.AddGeocoding(); // native IGeocoder on iOS, Mac Catalyst and Android; OpenStreetMap Nominatim elsewhere
+services.AddGeocoding(o => o.Email = "contact@myapp.com"); // configure the Nominatim fallback
 ```
 
 ### Motion Activity Registration
