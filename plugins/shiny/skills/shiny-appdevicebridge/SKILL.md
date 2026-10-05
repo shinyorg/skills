@@ -97,6 +97,12 @@ triggers:
   - barometer
   - Shiny.AppDeviceBridge.Gps
   - Shiny.AppDeviceBridge.Geofencing
+  - Shiny.AppDeviceBridge.DocumentGeofencing
+  - AddDocumentGeofenceBridge
+  - IDocumentGeofencesBridge
+  - WebAppDocumentGeofenceDelegate
+  - document geofencing
+  - polygon geofence
   - IGpsBridge
   - IGeofencesBridge
   - IMotionBridge
@@ -192,6 +198,21 @@ triggers:
   - live activity
   - dynamic island
   - live updates
+  - IInAppPurchasesBridge
+  - AddInAppPurchasesBridge
+  - AddInAppPurchasesBridgeClient
+  - InAppPurchasesBridgeClient
+  - WebAppPurchaseDelegate
+  - PurchaseRequest
+  - FinishPurchaseRequest
+  - Shiny.AppDeviceBridge.InAppPurchases
+  - Shiny.AppDeviceBridge.InAppPurchases.Client
+  - Shiny.Mobile.InAppPurchases
+  - purchases.updated
+  - in-app purchase
+  - storekit
+  - google play billing
+  - subscriptions
   - watchos
   - wearos
   - WatchConnectivity
@@ -326,7 +347,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -447,8 +468,9 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
-| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (iOS, Mac Catalyst, Android; 501 elsewhere and on Android without a geocoding backend). It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
+| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
+| `.DocumentGeofencing` | `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IDocumentGeofencesBridge` (`DocumentGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`documentgeofence.change`; background.js `documentgeofence`). Regions are Shiny.DocumentDb documents, registered in C# only — the app registers the store (spatial provider, `MapSpatialProperty`) itself and must not also call `AddDocumentGeofencing`. `region` is the document via the store's `JsonSerializerOptions` (null without metadata). `start`: 409 `geofence_refused`, 501 `spatial_not_supported`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
@@ -459,6 +481,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
+| `.InAppPurchases` | `AddInAppPurchasesBridge()` — registers `AddInAppPurchases<WebAppPurchaseDelegate>()`; keeps an app's own delegate | `IInAppPurchasesBridge` — App Store / Google Play purchases via Shiny.Mobile.InAppPurchases 5.9; iOS and Android only, `501` elsewhere; see In-app purchases below |
 | `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
@@ -584,6 +607,31 @@ itself unless the app already registered `ILiveActivityManager`). iOS 16.2+ and 
 - **Server-driven updates:** send the tokens to your server from a native-call handler in `background.js` (or the page):
   `liveactivities.token` (`{ activityId, token }`, per activity) and `liveactivities.starttoken` (`{ token }`, iOS 17.2+
   push-to-start). Events `liveactivities.started` and `liveactivities.state` carry `{ id, state, pushToken }`.
+
+## In-app purchases
+
+`AddInAppPurchasesBridge()` puts the App Store (StoreKit 2) and Google Play Billing behind `/_bridge/purchases`, backed
+by Shiny.Mobile.InAppPurchases (registers `AddInAppPurchases<WebAppPurchaseDelegate>()` itself; an app's own
+`IPurchaseDelegate` keeps running beside it). iOS and Android only; everything else answers `501`. This is store
+purchasing, **not** Apple Pay / Google Pay card processing.
+
+- `GetStatusAsync()` → `PurchasesStatus { Platform, CanMakePayments }`. `GetProductsAsync(new ProductsRequest([...ids]))`
+  → `StoreProduct` (unknown ids omitted; Google base plans/offers and Apple's intro offer in `SubscriptionOffers`).
+- `PurchaseAsync(new PurchaseRequest(productId, AccountToken: user.Id, OfferToken?, Quantity, Replacement?))` →
+  `PurchaseResult { Status, Purchase? }` — `Success`, `Pending`, `Cancelled`, `AlreadyOwned`. Cancel is a result,
+  not an exception. **Always generate `AccountToken`** (the user's GUID); the stores echo it to the server.
+- **Verify, grant, then finish — always generate it in that order:** POST `purchase.VerificationData` to the app's own
+  server (Shiny.Mobile.InAppPurchases.Server's `IPurchaseVerifier` takes it directly), store the entitlement, then
+  `FinishAsync(purchase.TransactionId, new FinishPurchaseRequest(Consume: isConsumable))`. **Never grant `Pending`.**
+  The bridge looks the purchase up by transaction id in the store's unfinished purchases and entitlements; `404
+  purchase_not_found` usually means it was already finished. Google refunds purchases not finished within 3 days.
+- At startup, run `GetUnfinishedAsync()` through the same path. `GetEntitlementsAsync()` for what is owned;
+  `RestoreAsync()` only from a "Restore Purchases" button (Apple may prompt sign-in); `ShowManageSubscriptionsAsync(new ManageSubscriptionsRequest(productId?))`.
+- **Out-of-band updates:** `OnUpdatedAsync` / a `purchases.updated` handler in `background.js` — Ask to Buy approvals,
+  renewals, refunds (`State: Revoked` → revoke), other devices. Idempotent on `TransactionId`; generate the background.js
+  handler so purchases arriving with no page open are still verified and finished.
+- Errors by `BridgeException.Code`: `503 store_unavailable|network`, `403 not_allowed`, `404 product_not_found`,
+  `409 product_unavailable|no_user_interface|invalid_state`, `400 developer_error`, `502 verification_failed|purchase_failed`.
 
 ## Printing
 
