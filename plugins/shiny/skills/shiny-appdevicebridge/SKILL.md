@@ -229,6 +229,24 @@ triggers:
   - IDirectionsBridge
   - IGeocoder
   - NominatimGeocoder
+  - AzureMapsGeocoder
+  - GoogleMapsGeocoder
+  - IBasemapProvider
+  - BasemapLayer
+  - BasemapInfo
+  - ProtomapsBasemapProvider
+  - AzureMapsBasemapProvider
+  - AzureMapsBasemapStyle
+  - GoogleMapsBasemapProvider
+  - GoogleMapsBasemapStyle
+  - IRouteProvider
+  - ValhallaRouteProvider
+  - AzureMapsRouteProvider
+  - GoogleMapsRouteProvider
+  - DirectionsException
+  - AzureMapsCredential
+  - Azure Maps
+  - Google Maps
   - GeocodeAsync
   - geocoding
   - AddMapsBridgeClient
@@ -244,7 +262,8 @@ triggers:
   - ShowIncidents
   - TomTomTrafficProvider
   - TrafficLayer
-  - TrafficTile
+  - ProviderTile
+  - TileFormat
   - TrafficInfo
   - ShowTraffic
   - traffic map
@@ -482,7 +501,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
 | `.InAppPurchases` | `AddInAppPurchasesBridge()` — registers `AddInAppPurchases<WebAppPurchaseDelegate>()`; keeps an app's own delegate | `IInAppPurchasesBridge` — App Store / Google Play purchases via Shiny.Mobile.InAppPurchases 5.9; iOS and Android only, `501` elsewhere; see In-app purchases below |
-| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
+| `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -509,10 +528,24 @@ name from the interface: `IAppBridge` → `AddAppBridgeClient()`, `ITransfersBri
 `AddMapsBridge(o => …)` adds `/_bridge/maps` and `/_bridge/directions` on every platform. Online by default; offline
 where the user downloaded a region.
 
+- **Providers are pluggable.** Basemap, router, geocoder, traffic and incidents are each an interface on `MapsOptions`
+  with OpenStreetMap, Azure Maps and Google Maps implementations built in; each may be reassigned while the app runs. Keys
+  live in the provider objects in the native app and never reach the page. Azure Maps providers take a key string or
+  one shared `AzureMapsCredential(key)` / `AzureMapsCredential(clientId, ct => entraToken)`.
+- **Basemap:** `o.Basemap = new ProtomapsBasemapProvider("https://…/planet.pmtiles" or "…/{z}/{x}/{y}.mvt") { MaxZoom,
+  ConfigureRequest }` (OpenStreetMap, vector, Protomaps schema — the same schema as downloaded regions; cached for
+  offline), `new AzureMapsBasemapProvider(key) { Style = AzureMapsBasemapStyle.Road|DarkGrey|Imagery, Language, View }`
+  (raster), or `new GoogleMapsBasemapProvider(key) { Style = GoogleMapsBasemapStyle.Roadmap|Satellite|Terrain,
+  Language, Region }` (raster, Map Tiles API; session handled internally). Custom: `IBasemapProvider` — `Layer`
+  (`BasemapLayer(provider, TileFormat.Vector|Raster, minZoom, maxZoom, attribution) { TileSize, Cacheable }`) and
+  `GetTileAsync(z, x, y, http, ct)` → `ProviderTile` or null. Vector providers must serve the Protomaps schema.
 - **Tiles:** `GET /_bridge/maps` returns `TilesUrl`/`GlyphsUrl`/`SpritesUrl` templates for MapLibre (never hard-code
-  them). A tile comes from an installed region, then the tile cache (`TileCacheBytes`), then `OnlineTiles` — a
-  `.pmtiles` URL read by Range, or a `{z}/{x}/{y}` template — else `204`. Keys in `OnlineTiles`/`ConfigureRequest` never
-  reach the page.
+  them) and `Basemap` (`BasemapInfo`: provider, format, tilesUrl, zooms, tileSize, attribution; null without one). A
+  vector tile comes from an installed region, then the tile cache (`TileCacheBytes`), then a vector basemap, else `204`.
+  A raster basemap is served at `maps/basemap/{z}/{x}/{y}` (`501` when the basemap isn't raster), never cached (Azure's
+  and Google's terms), and drawn over the vector regions so they show through offline — `<BridgeMap>` does this
+  itself; a hand-built MapLibre style adds a raster source above the Protomaps layers. `MapsOptions.ConfigureRequest`
+  only covers the catalog, downloads, glyphs and sprites.
 - **Blazor:** reference `Shiny.AppDeviceBridge.Maps.Blazor`, `services.AddWebAppHostClient().AddBridgeMaps()`, and use
   `<BridgeMap @ref="map" Latitude=… Longitude=… Zoom=… Style="height: 60vh" OnClick=… OnDrawn=… />`. Methods:
   `AddPinAsync(new MapPin(id, new GeoPoint(lat, lon), label, Draggable: true))`, `AddShapeAsync(new MapShape(id,
@@ -521,14 +554,14 @@ where the user downloaded a region.
   script. In `Pin` mode `OnClick` gets `IsPinMode = true` and the page adds the pin; `OnDrawn` hands back a finished
   line/area for the page to add.
 - **Traffic:** flow via `o.Traffic` — `new TomTomTrafficProvider(key)` (vector), `new HereTrafficProvider(key)
-  { MinTrafficCongestion = "heavy" }` (raster), `new AzureMapsTrafficProvider(key)` or `(clientId, ct => token)` with
+  { MinTrafficCongestion = "heavy" }` (raster), `new AzureMapsTrafficProvider(key)` or `(azureMapsCredential)` with
   `Style = AzureMapsTrafficStyle.Relative|RelativeDark|Delay|ReducedSensitivity|Absolute` (raster, Render v2 tilesets —
   never the Traffic v1 API, retiring 2028). Incidents via `o.TrafficIncidents = new TomTomIncidentProvider(key)`,
   independent of flow. Keys stay native. Page: `<BridgeMap ShowTraffic="traffic" ShowIncidents="incidents" />` or
   `SetTrafficAsync`/`SetIncidentsAsync`; `HasTraffic`/`HasIncidents` are false without a provider. Custom flow:
-  `ITrafficProvider` — `Layer` (`TrafficLayer`: `TrafficTileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty`
+  `ITrafficProvider` — `Layer` (`TrafficLayer`: `TileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty`
   (current/free-flow 0–1), optional `ClosedProperty`; or `Raster` with `TileSize`) and `GetTileAsync(z, x, y, http, ct)`
-  → `TrafficTile(bytes, contentType, contentEncoding)` or null. Custom incidents: `ITrafficIncidentProvider` —
+  → `ProviderTile(bytes, contentType, contentEncoding)` or null. Custom incidents: `ITrafficIncidentProvider` —
   `TrafficIncidentLayer(minZoom, maxZoom, refresh, attribution, kindProperty, kinds)` mapping the provider's values to
   `TrafficIncidentKind`, plus `LineSourceLayer`, `PointSourceLayer`, `DescriptionProperty`, `DelayProperty`,
   `ClusterSizeProperty`. Routes `maps/traffic/{z}/{x}/{y}` and `maps/incidents/{z}/{x}/{y}`: `204` with no data or no
@@ -544,9 +577,17 @@ where the user downloaded a region.
 - **Directions:** `RouteAsync(new DirectionsRequest([new RouteStop(lat, lon), …], TravelMode.Car, DistanceUnits.Kilometers,
   Language, DirectionsSource.Auto, new RouteAvoid(Tolls: true)))` → `DirectionsRoute` (metres, seconds, `Shape` as
   `[lon, lat]`, `Legs[].Maneuvers[]`). `Auto` = on the device when a downloaded road network covers every stop, else
-  online. Errors: `404 no_route`, `503 offline_unavailable`, `501` with no router at all.
+  online through `o.Directions.Router`: `new ValhallaRouteProvider(new Uri("https://…/route")) { ApiKey,
+  ConfigureRequest }` (all modes), `new AzureMapsRouteProvider(key) { UseTraffic = true }` (Car, Walking, Truck), `new
+  GoogleMapsRouteProvider(key) { UseTraffic }` (Car, Bicycle, Walking; Google's terms want its routes on a Google
+  basemap), or an `IRouteProvider` (`Name`, `Attribution`, `Modes`, `RouteAsync(request, http, ct)` → `DirectionsRoute`;
+  throw `DirectionsException(DirectionsError.NoRoute|InvalidRequest|RouterFailed, message)`). `DirectionsInfo.OnlineModes`
+  and `.Router` tell the page what it can ask for; `DirectionsRoute.Attribution` must be shown with the route. Errors:
+  `404 no_route`, `400 mode_unsupported` (mode the online router lacks), `503 offline_unavailable`, `501` with no router
+  at all. `o.Directions.Timeout` bounds every online route and search.
 - **Addresses:** `o.Directions.Geocoder = new NominatimGeocoder("MyApp/1.0 (me@example.com)")` (the User-Agent Nominatim's
-  policy requires; `BaseAddress` for your own server, `Countries`, `MinimumInterval` 1 s) or an `IGeocoder` of your own.
+  policy requires; `BaseAddress` for your own server, `Countries`, `MinimumInterval` 1 s), `new AzureMapsGeocoder(key)
+  { View }`, `new GoogleMapsGeocoder(key) { Region }`, or an `IGeocoder` of your own.
   `GeocodeAsync(query, limit: 5, language)` → `GeocodeResult(Places, Attribution)`, each `GeocodedPlace(Name, Address,
   Latitude, Longitude, Bounds)` best first; feed one into a `RouteStop`. Always online: `503 geocoder_unavailable`, `501`
   without a geocoder; `DirectionsInfo.Geocoding` says which. Search when the user asks, not per keystroke — the public
