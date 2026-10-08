@@ -157,6 +157,17 @@ triggers:
   - ICalendarBridge
   - IPhotosBridge
   - IFoldersBridge
+  - IDatabaseBridge
+  - AddDatabaseBridge
+  - AddDatabaseBridgeClient
+  - AddDatabaseDriver
+  - IDatabaseDriver
+  - DatabaseBridgeOptions
+  - SqliteDatabaseDriver
+  - Shiny.AppDeviceBridge.Database
+  - Shiny.AppDeviceBridge.Database.Client
+  - SQLite bridge
+  - database bridge
   - ITrayBridge
   - IQuickEntryBridge
   - ICameraBridge
@@ -365,7 +376,7 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine) and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
     (GPS/motion), Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
@@ -513,6 +524,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
 | `.Camera` | `AddCameraBridge(o => …)` | `ICameraBridge` — this device's camera driven from a page anywhere; viewfinder MJPEG at `camera/preview` for an `<img>` (not Linux) |
 | `.Folders` | `AddFoldersBridge()` — also registers `FolderRoots` for folders the app adds by path | `IFoldersBridge` |
+| `.Database` | `AddDatabaseBridge(o => o.StatementTimeout = …)`; another engine: `bridge.Services.AddDatabaseDriver<T>()` | `IDatabaseBridge` — SQLite files in the file roots, or a driver's connections; all platforms — see Database below |
 | `.Desktop` | `AddTrayIconBridge()`, `AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")` | `Shiny.AppDeviceBridge.Desktop.Client`: `ITrayBridge`, `IQuickEntryBridge` (desktop only; `501` on mobile) |
 | `.RpiCamera` | `AddRpiCameraBridge(o => …)` (either builder — a headless Pi's too) | `IRpiCameraBridge` — snapshots, captures into a file root, controls; live MJPEG at `rpicamera/stream` for an `<img>`; `ICameraService.StreamToAsync(stream)` for a pipe with no HTTP, read with `ReadFramesAsync` (Linux + native shim only) |
 | `.Jobs` | `AddWebAppJob(name, configure)` | native call `job:{name}` with `JobRun` |
@@ -956,6 +968,27 @@ stop();    // unsubscribes
   ```
 - `IPhotosBridge.PickAsync` needs no permission. `GetLibraryAsync`/`GetThumbnailAsync`/`ExportAsync` need
   `RequestAccessAsync()` and `NSPhotoLibraryUsageDescription` / `READ_MEDIA_IMAGES`. The library is 501 on Linux.
+
+## Database
+
+- `.Database` is a database client on the device: `bridge.AddDatabaseBridge()`, `IDatabaseBridge` in the page. Every
+  request names its database by `Root` + `Path` (a SQLite file in a file root — the same rules as the files bridge) **or**
+  by `Connection` + `Database` (a driver's server). Never both: `400`. Unknown root or unserved connection: `404`.
+- **Database errors are answers, not exceptions.** Check `result.Error` (and `ErrorLine` for scripts); only routing
+  problems throw `BridgeException`.
+- Scripts: `QueryAsync(new RunDatabaseQuery(sql, Root: "data", Path: "app.db", RunId: id))`; stop with
+  `CancelAsync(new CancelDatabaseQuery(id))`. `Explain: true` returns `Plan` and runs nothing. Pass `Record: false` for
+  SQL the app runs on nobody's behalf so it stays out of the history.
+- Grids: `GetRowsAsync` / `CountAsync` / `GetTotalsAsync` with `Sort`, `Filters`, `Search` — never build a WHERE in the
+  page. Edit with `InsertRowAsync` / `UpdateRowAsync` / `DeleteRowsAsync`, passing back `RowKeys` untouched.
+- Designs: `PreviewDesignAsync` returns DDL; apply it by running that exact `Sql` with `QueryAsync`.
+- CSV: `PreviewImportAsync` then `ImportAsync` (from `CsvRoot`/`CsvPath` or `CsvText`); `ExportAsync` writes to
+  `TargetRoot`/`TargetPath`.
+- A query cannot `ATTACH`, `VACUUM INTO` or `load_extension` — SQLite's authorizer refuses them. Don't generate code that
+  relies on attaching a second file; copy the data through the page instead.
+- A server engine is an `IDatabaseDriver` the app writes (it keeps its connection strings and secrets) and registers with
+  `bridge.Services.AddDatabaseDriver<T>()`; only SQLite ships. `RowView`, `SqlSpelling`, `QueryPlans`, `DatabaseCsv` and
+  `TableDesigner.Wrong`/`DesignOf` are public for drivers to reuse.
 
 ## Device camera
 
