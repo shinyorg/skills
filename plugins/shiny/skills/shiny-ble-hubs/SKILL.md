@@ -33,6 +33,10 @@ triggers:
   - IBleHubSerializer
   - BleHubRemoteException
   - BleHubDisconnectedException
+  - IBleHubTransportEndpoint
+  - IBleHubClientTransport
+  - ConnectExternal
+  - ble hubs over wifi
 ---
 
 # Shiny.BluetoothLE.Hubs Skill
@@ -292,6 +296,13 @@ Android `AndroidManifest.xml`:
 iOS `Info.plist`: `NSBluetoothAlwaysUsageDescription`.
 
 Testing needs **two physical devices**: simulators and emulators have no usable Bluetooth.
+
+## Wi-Fi as well as BLE
+
+When the app should also work over Wi-Fi (players at home rather than on a plane), don't hand-roll a second transport:
+use **Shiny.SwitchboardR**. The hub and contract stay as they are; the host adds `AddShinyHttpServer(http => http.AddSwitchboardR().AddHub<THub>())`
+and starts with `ISwitchboardRHost.Start(HubTransports.All)`, the client registers `AddSwitchboardRClient<TContract>(...)` and
+uses `ISwitchboardRClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
 
 ## Best Practices
 

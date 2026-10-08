@@ -178,3 +178,18 @@ public interface IBleHubClient<out TContract> : IBleHubConnection
 public sealed record BleHubHostInfo(IPeripheral Peripheral, string? Name, int Rssi) { public string Id { get; } }
 public sealed record BleHubConnectOptions(string? Name = null, string? AppVersion = null, Dictionary<string, string>? Properties = null);
 ```
+
+## Other transports (hidden seams)
+
+`[EditorBrowsable(Never)]` - for transport packages, not app code. To serve hubs over Wi-Fi as well, use
+**Shiny.SwitchboardR** (`AddSwitchboardR().AddHub<THub>()` on the host, `AddSwitchboardRClient<TContract>()` on the client)
+rather than these directly.
+
+- `IHubContext<THub>.TransportEndpoint` → `IBleHubTransportEndpoint`: `Connect(connectionId, HandshakeInfo, IBleHubPeerChannel, ct)`
+  (returns a rejection or null), `GetMethodKind`, `Invoke` → `BleHubInvocationResult(Result, AbortRequested, AbortReason)`,
+  `Stream`, `Disconnected`, `Disconnect`, `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
+  IHubContext with BLE clients.
+- `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(reason, ct)` - implemented by the transport.
+- `BleHubClient.ConnectExternal(events => IBleHubClientTransport, options, ct)`, `BleHubClient.ExternalTransport`.
+- `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `CanTransferFiles`, `Upload`, `Download`, `Close`.
+  `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `Closed(reason)`.
