@@ -164,6 +164,7 @@ triggers:
   - IDatabaseDriver
   - DatabaseBridgeOptions
   - SqliteDatabaseDriver
+  - GetDatabaseNamesAsync
   - Shiny.AppDeviceBridge.Database
   - Shiny.AppDeviceBridge.Database.Client
   - SQLite bridge
@@ -316,6 +317,7 @@ triggers:
   - quick entry
   - global hotkey
   - WebAppFileRoots
+  - DefaultFileRoots
   - WebAppFileStore
   - WebAppFileRoot
   - AddPhotosBridge
@@ -987,7 +989,9 @@ stop();    // unsubscribes
 - A query cannot `ATTACH`, `VACUUM INTO` or `load_extension` — SQLite's authorizer refuses them. Don't generate code that
   relies on attaching a second file; copy the data through the page instead.
 - A server engine is an `IDatabaseDriver` the app writes (it keeps its connection strings and secrets) and registers with
-  `bridge.Services.AddDatabaseDriver<T>()`; only SQLite ships. `RowView`, `SqlSpelling`, `QueryPlans`, `DatabaseCsv` and
+  `bridge.Services.AddDatabaseDriver<T>()`; only SQLite ships. The page lists connections with `GetConnectionsAsync()`
+  and a server's databases with `GetDatabaseNamesAsync(new GetDatabaseNames(connectionId))` (`Names`, or `Error`; SQLite
+  answers with an error, a file being one database). `RowView`, `SqlSpelling`, `QueryPlans`, `DatabaseCsv` and
   `TableDesigner.Wrong`/`DesignOf` are public for drivers to reuse.
 
 ## Device camera
@@ -1125,6 +1129,8 @@ public static TBuilder AddOrdersBridge<TBuilder>(this TBuilder bridge) where TBu
 - Lower level: `WebAppFileRoots` holds every root, `Add(WebAppFileStore)` / `Remove(name)`, raises `Changed`;
   `TryResolve(root, path, out fullPath)` for bridges that need a disk path. `WebAppFileRoot` needs an absolute path.
   Subclass `WebAppFileStore` for storage that is not a directory; throw `WebAppFileException` for failures.
+- An app whose storage is only its own store: `o.DefaultFileRoots = false` (with `FileRoots` empty there are then no
+  `data`/`cache` roots) and `roots.Add(new MyStore("storage"))` at startup. Configured `FileRoots` win regardless.
 - `MaxFileWriteBytes` raises the server's request body limit whichever bridges are registered, so the app's own
   upload endpoints get it too.
 
