@@ -23,12 +23,27 @@ public interface IBleHubSerializer             // register your own before AddBl
     T Deserialize<T>(ReadOnlySpan<byte> data);
 }
 
+public enum HubDisconnectReason                // travels on the wire - values never change
+{
+    ClientDisconnect = 0,    // the client called Disconnect() or was disposed
+    ClientTimeout = 1,       // the link dropped (unsubscribe without a goodbye, sweep, client-side link loss)
+    ServerDisconnect = 2,    // Context.Abort / IHubContext.Disconnect
+    ServerShutdown = 3,      // IBleHubHost.Stop / IHubContext.Stop
+    ConnectionFailed = 4     // a connect or handshake failed (client only, no Disconnected event)
+}
+
+public sealed record HubDisconnect(HubDisconnectReason Reason, string? Message = null)
+{
+    public string Description { get; }           // Message, or Describe(Reason)
+    public static string Describe(HubDisconnectReason reason);   // "Disconnected", "Connection lost", "Disconnected by host", "Host stopped", "Connection failed"
+}
+
 public sealed record HandshakeInfo(int ProtocolVersion, string? Name, string? AppVersion, Dictionary<string, string>? Properties);
 
 public class BleHubException : Exception;
 public class BleHubProtocolException : BleHubException { ushort? MessageId; }
 public class BleHubRemoteException : BleHubException { string RemoteErrorType; }   // hub method threw
-public class BleHubDisconnectedException : BleHubException { string? Reason; }
+public class BleHubDisconnectedException : BleHubException { HubDisconnect? Disconnect; string? Reason; }   // Reason = Disconnect?.Description
 public class BleHubFileTransferNotSupportedException : BleHubException;
 ```
 
@@ -83,6 +98,7 @@ public abstract class BleHub<TContract> where TContract : class
     public IGroupManager Groups { get; }
     public virtual Task OnConnectedAsync();
     public virtual Task OnDisconnectedAsync(string? reason);
+    public virtual Task OnDisconnectedAsync(HubDisconnect disconnect);   // default: OnDisconnectedAsync(disconnect.Description)
 }
 
 public sealed class BleHubCallerContext
@@ -103,6 +119,7 @@ public sealed class BleHubConnectedClient
     public int Mtu { get; }
     public DateTimeOffset ConnectedAt { get; }
     public ConcurrentDictionary<string, object> Items { get; }
+    public Shiny.BluetoothLE.Hosting.IPeripheral? Peripheral { get; }   // the BLE central; null on another transport
 }
 
 public interface IHubClients<T>
@@ -143,6 +160,11 @@ public interface IHubContext<THub>
     // generated per hub: IHubClients<BleHubPush<TContract>> Clients { get; }   (C# 14 extension property)
 }
 
+public sealed record BleHubClientDisconnectedEventArgs(BleHubConnectedClient Client, HubDisconnect Disconnect)
+{
+    public string Reason { get; }                // Disconnect.Description
+}
+
 // generated per contract, eg. for event Action<GameState> StateChanged:
 public static Task StateChanged(this BleHubPush<IGameHub> push, GameState gameState, CancellationToken cancellationToken = default);
 ```
@@ -161,7 +183,7 @@ public interface IBleHubConnection
     bool CanTransferFiles { get; }
     event EventHandler<BleHubStatusChangedEventArgs>? StatusChanged;
     event EventHandler? Connected;
-    event EventHandler<string?>? Disconnected;    // reason
+    event EventHandler<HubDisconnect>? Disconnected;   // not raised for ConnectionFailed
     IObservable<BleHubHostInfo> Discover();       // scan by the hub's service UUID; dispose to stop
     Task Connect(BleHubHostInfo host, BleHubConnectOptions? options = null, CancellationToken cancellationToken = default);
     Task Disconnect();
@@ -176,6 +198,10 @@ public interface IBleHubClient<out TContract> : IBleHubConnection
 }
 
 public sealed record BleHubHostInfo(IPeripheral Peripheral, string? Name, int Rssi) { public string Id { get; } }
+public sealed record BleHubStatusChangedEventArgs(BleHubClientStatus Status, HubDisconnect? Disconnect = null)
+{
+    public string? Reason { get; }               // Disconnect?.Description
+}
 public sealed record BleHubConnectOptions(string? Name = null, string? AppVersion = null, Dictionary<string, string>? Properties = null);
 ```
 
@@ -187,9 +213,9 @@ rather than these directly.
 
 - `IHubContext<THub>.TransportEndpoint` → `IBleHubTransportEndpoint`: `Connect(connectionId, HandshakeInfo, IBleHubPeerChannel, ct)`
   (returns a rejection or null), `GetMethodKind`, `Invoke` → `BleHubInvocationResult(Result, AbortRequested, AbortReason)`,
-  `Stream`, `Disconnected`, `Disconnect`, `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
+  `Stream`, `Disconnected(connectionId, HubDisconnect)`, `Disconnect(connectionId, HubDisconnect)`, `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
   IHubContext with BLE clients.
-- `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(reason, ct)` - implemented by the transport.
+- `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(HubDisconnect, ct)` - implemented by the transport.
 - `BleHubClient.ConnectExternal(events => IBleHubClientTransport, options, ct)`, `BleHubClient.ExternalTransport`.
 - `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `CanTransferFiles`, `Upload`, `Download`, `Close`.
-  `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `Closed(reason)`.
+  `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `Closed(HubDisconnect)`.
