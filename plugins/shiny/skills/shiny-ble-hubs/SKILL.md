@@ -33,6 +33,13 @@ triggers:
   - IBleHubSerializer
   - BleHubRemoteException
   - BleHubDisconnectedException
+  - HubDisconnect
+  - HubDisconnectReason
+  - BleHubClientDisconnectedEventArgs
+  - BleHubStatusChangedEventArgs
+  - OnDisconnectedAsync
+  - disconnect reason
+  - why a client disconnected
   - IBleHubTransportEndpoint
   - IBleHubClientTransport
   - ConnectExternal
@@ -61,6 +68,7 @@ Invoke this skill when the user wants to:
 - Push events from the host to all clients, one client, others or groups
 - Stream results from the host (`IAsyncEnumerable<T>`)
 - Start or stop a hub, disconnect a client, limit or validate clients
+- Tell why a connection ended (client left, link lost, kicked, host stopped) with `HubDisconnectReason`
 - Upload or download files between devices over L2CAP
 
 Do NOT use this skill for talking to third party BLE peripherals (use `shiny-bluetoothle`) or for raw GATT servers
@@ -136,9 +144,13 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
     public override Task OnConnectedAsync()
         => this.Groups.AddToGroupAsync(this.Context.ConnectionId, "lobby");
 
-    public override Task OnDisconnectedAsync(string? reason)
+    // or override OnDisconnectedAsync(string? reason) when you only need the text
+    public override Task OnDisconnectedAsync(HubDisconnect disconnect)
     {
-        engine.Leave(this.Context.ConnectionId);
+        if (disconnect.Reason == HubDisconnectReason.ClientTimeout)
+            engine.MarkAway(this.Context.ConnectionId);   // the link dropped - they may be back
+        else
+            engine.Leave(this.Context.ConnectionId);
         return this.Clients.All.StateChanged(engine.Snapshot());
     }
 
@@ -172,6 +184,13 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
   event methods can be called (`.StateChanged(state)`).
 - **`Groups`**: `AddToGroupAsync`, `RemoveFromGroupAsync` and `GetMembers`. Membership is removed automatically on
   disconnect, after `OnDisconnectedAsync` runs.
+- **Disconnect reasons**: `OnDisconnectedAsync(HubDisconnect)` receives `Reason` (a `HubDisconnectReason`) and an
+  optional `Message`. `Description` is the message, or a default text for the reason. Its default implementation calls
+  `OnDisconnectedAsync(string? reason)` with `Description`, so override only one of them.
+  - `ClientDisconnect`: the client called `Disconnect()` or was disposed.
+  - `ClientTimeout`: the link dropped (an unsubscribe without a goodbye, or the cleanup sweep).
+  - `ServerDisconnect`: `Context.Abort(reason)` or `IHubContext.Disconnect(id, reason)`.
+  - `ServerShutdown`: `IBleHubHost.Stop(reason)` or `IHubContext.Stop(reason)`.
 - **Exceptions** thrown in a hub method reach the caller as `BleHubRemoteException` (with `RemoteErrorType` and
   `Message`).
 
@@ -222,7 +241,8 @@ public class Ticker(IHubContext<GameHub> hub)
 }
 ```
 
-`IHubContext<THub>` also exposes `ClientConnected` / `ClientDisconnected` events and `Groups`.
+`IHubContext<THub>` also exposes `ClientConnected` / `ClientDisconnected` events and `Groups`. `ClientDisconnected` gives
+`BleHubClientDisconnectedEventArgs(Client, Disconnect)`; `e.Disconnect.Reason` says why, and `e.Reason` is the text.
 
 ### 5. Client
 
@@ -241,7 +261,16 @@ public class JoinViewModel(IBleHubClient<IGameHub> client)
     {
         this.scan?.Dispose();
         client.Hub.StateChanged += state => MainThread.BeginInvokeOnMainThread(() => this.Apply(state));
-        client.Disconnected += (_, reason) => { /* host stopped, kicked us, or link lost */ };
+        client.Disconnected += (_, disconnect) =>
+        {
+            var text = disconnect.Reason switch
+            {
+                HubDisconnectReason.ServerShutdown => "The host closed the game",
+                HubDisconnectReason.ServerDisconnect => disconnect.Message ?? "You were removed",
+                HubDisconnectReason.ClientTimeout => "Lost the connection",
+                _ => null   // ClientDisconnect: we left
+            };
+        };
 
         await client.Connect(host, new BleHubConnectOptions("Allan", AppInfo.Current.VersionString));
         var result = await client.Hub.Join("Allan");
@@ -254,10 +283,16 @@ public class JoinViewModel(IBleHubClient<IGameHub> client)
 - **Hub events are raised on a background thread**, one at a time and in the order the host sent them. Marshal to
   the UI thread yourself.
 - **`Status`**: `Disconnected`, `Connecting`, `Connected` or `Disconnecting`. Events: `StatusChanged`, `Connected`,
-  and `Disconnected` (with the reason).
+  and `Disconnected`, an `EventHandler<HubDisconnect>`. `BleHubStatusChangedEventArgs(Status, Disconnect)` carries
+  the `HubDisconnect` for `Disconnecting` and `Disconnected`, and has a computed `Reason` string.
+- **Client-side reasons**: `ClientDisconnect` (`Disconnect()` / `Dispose()`), `ClientTimeout` (the link dropped),
+  `ServerDisconnect` / `ServerShutdown` (from the host), and `ConnectionFailed` (a connect or handshake failed;
+  `Disconnected` isn't raised because it never connected). A disconnect from a host older than reason codes arrives
+  as `ServerDisconnect`.
 - **Failures**:
   - Calls made while not connected throw `BleHubDisconnectedException`.
-  - Calls in flight when the link drops fail with the same exception.
+  - Calls in flight when the link drops fail with the same exception. Its `Disconnect` says why (`Reason` is the
+    text).
   - A call times out with `TimeoutException` after `BleHubProtocolOptions.RequestTimeout` (default 30s). Streams aren't
     timed out.
   - Cancelling a call's `CancellationToken` cancels the hub method on the host.
@@ -318,6 +353,8 @@ uses `ISwitchboardRClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
 6. **Marshal hub events to the UI thread.**
 7. **Disconnecting is cooperative.** iOS peripherals can't drop a central, so `Abort` / `Disconnect` /
    `Stop` ask the client library to leave. Clients built with Shiny.BluetoothLE.Hubs always comply.
+   `Disconnect()` tells the host it is leaving before it unsubscribes, so the host reports `ClientDisconnect` rather
+   than `ClientTimeout`. Switch on `HubDisconnectReason`, never on the message text.
 8. **Never store state on the hub instance.** It is recreated for every call.
 
 ## Reference Files
