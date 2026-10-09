@@ -511,7 +511,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
-| `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
+| `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.9; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
 | `.InAppPurchases` | `AddInAppPurchasesBridge()` — registers `AddInAppPurchases<WebAppPurchaseDelegate>()`; keeps an app's own delegate | `IInAppPurchasesBridge` — App Store / Google Play purchases via Shiny.Mobile.InAppPurchases 5.9; iOS and Android only, `501` elsewhere; see In-app purchases below |
 | `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
@@ -619,7 +619,9 @@ behind `/_bridge/wearables`, backed by Shiny.Wearables (registers `AddWearables<
 `RegisterWearableService = false`). iOS and Android only; everything else answers `501` — check `GetStatusAsync().Supported`.
 
 - **Wire:** bodies are JSON. The page's `data` reaches the watch as UTF-8 JSON text; what the watch sends arrives as JSON,
-  or as a base64 string with `binary: true` when it is not JSON.
+  as a string when it is plain UTF-8 text (`WearableData.FromString`, a Swift/Kotlin `String`), or as a base64 string
+  with `binary: true` when it is neither. Note a page string goes out JSON-quoted (`"hi"`), so a companion reading
+  text should parse JSON.
 - **Page → watch:** `SendMessageAsync(new WearableMessageRequest("sync", data))` waits for the reply (`WearableReply`);
   never queues — `409 not_reachable` without a reachable watch. `UpdateContextAsync` (latest state only),
   `TransferAsync` (queued, in order) and `SendFileAsync(new WearableFileRequest(path, new BridgeFile("data", "maps/city.bin")))`
