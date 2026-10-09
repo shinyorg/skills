@@ -9,15 +9,16 @@ public sealed class BleHubClientAttribute : Attribute
     public string? ProxyName { get; set; }      // default: interface name without leading I + "Client"
 }
 
-public class BleHubProtocolOptions                     // services.ConfigureBleHubProtocol(o => ...)
+public class BleHubProtocolOptions                     // app-wide: server.Protocol(o => ...) or AddBleHubClient(..., o => o.Protocol(p => ...))
 {
+    public const string DefaultServiceUuid = "98ac0390-867f-4c0d-b9f5-4266bdeac29b";   // host's and clients' ServiceUuid default
     public int MaxPayloadSize { get; set; }      // 256 KB
     public TimeSpan ReassemblyTimeout { get; set; }   // 30s
     public TimeSpan RequestTimeout { get; set; } // 30s - per hub call, streams excluded
     public int MaxPartialMessages { get; set; }  // 16 per peer
 }
 
-public interface IBleHubSerializer             // register your own before AddBleHub/AddBleHubClient to replace JSON
+public interface IBleHubSerializer             // register your own before AddBleHubServer/AddBleHubClient to replace JSON
 {
     byte[] Serialize<T>(T value);
     T Deserialize<T>(ReadOnlySpan<byte> data);
@@ -42,7 +43,11 @@ public sealed record HandshakeInfo(int ProtocolVersion, string? Name, string? Ap
 
 public class BleHubException : Exception;
 public class BleHubProtocolException : BleHubException { ushort? MessageId; }
-public class BleHubRemoteException : BleHubException { string RemoteErrorType; }   // hub method threw
+public class BleHubRemoteException : BleHubException
+{
+    string RemoteErrorType;                      // hub method threw
+    public const string RenameRefused = "HubRenameRefused";   // the host refused a Rename - Message says why
+}
 public class BleHubDisconnectedException : BleHubException { HubDisconnect? Disconnect; string? Reason; }   // Reason = Disconnect?.Description
 public class BleHubFileTransferNotSupportedException : BleHubException;
 ```
@@ -50,8 +55,16 @@ public class BleHubFileTransferNotSupportedException : BleHubException;
 ## Host (`Shiny.BluetoothLE.Hubs.Host`)
 
 ```csharp
-IServiceCollection AddBleHub<THub>(string serviceUuid, string characteristicUuid, Action<BleHubOptions>? configure = null);
-IServiceCollection ConfigureBleHubHost(Action<BleHubHostOptions> configure);
+// once per app, at least one hub; adds AddBluetoothLeHosting() on Android/iOS/Mac Catalyst
+IServiceCollection AddBleHubServer(Action<BleHubServerBuilder> configure);
+
+public sealed class BleHubServerBuilder
+{
+    BleHubServerBuilder ServiceUuid(string serviceUuid);                      // sets BleHubHostOptions.ServiceUuid
+    BleHubServerBuilder Host(Action<BleHubHostOptions> configure);
+    BleHubServerBuilder Protocol(Action<BleHubProtocolOptions> configure);   // app-wide
+    BleHubServerBuilder AddHub<THub>(string characteristicUuid, Action<BleHubOptions>? configure = null);   // throws on a duplicate hub/characteristic or bad UUID
+}
 
 public class BleHubOptions
 {
@@ -61,6 +74,7 @@ public class BleHubOptions
 
 public class BleHubHostOptions
 {
+    public string ServiceUuid { get; set; }                      // BleHubProtocolOptions.DefaultServiceUuid - the one service holding every hub; advertised
     public string? LocalName { get; set; }
     public TimeSpan ClientSweepInterval { get; set; }            // 10s
     public BleHubHostOptions EnableFileTransfers(string rootDirectory, Action<BleHubFileTransferOptions>? configure = null);
@@ -89,6 +103,7 @@ public interface IBleHubHost
     event EventHandler<BleHubFileProgressEventArgs>? FileTransferProgress;
     Task Start(CancellationToken cancellationToken = default);   // every hub
     Task Stop(string? reason = null);                            // every hub
+    Task Rename(string? localName, CancellationToken cancellationToken = default);   // sets LocalName, re-advertises, tells clients - no stop
 }
 
 public abstract class BleHub<TContract> where TContract : class
@@ -99,6 +114,7 @@ public abstract class BleHub<TContract> where TContract : class
     public virtual Task OnConnectedAsync();
     public virtual Task OnDisconnectedAsync(string? reason);
     public virtual Task OnDisconnectedAsync(HubDisconnect disconnect);   // default: OnDisconnectedAsync(disconnect.Description)
+    public virtual Task OnRenamedAsync(string? previousName);            // Context.Client.Name is the new name; throw to refuse
 }
 
 public sealed class BleHubCallerContext
@@ -113,7 +129,7 @@ public sealed class BleHubCallerContext
 public sealed class BleHubConnectedClient
 {
     public string Id { get; }
-    public string? Name { get; }
+    public string? Name { get; }                 // handshake name, or the latest rename
     public string? AppVersion { get; }
     public IReadOnlyDictionary<string, string> Properties { get; }
     public int Mtu { get; }
@@ -156,6 +172,7 @@ public interface IHubContext<THub>
     IReadOnlyList<BleHubConnectedClient> ConnectedClients { get; }
     event EventHandler<BleHubConnectedClient>? ClientConnected;
     event EventHandler<BleHubClientDisconnectedEventArgs>? ClientDisconnected;
+    event EventHandler<BleHubClientRenamedEventArgs>? ClientRenamed;
     Task Disconnect(string connectionId, string? reason = null);
     // generated per hub: IHubClients<BleHubPush<TContract>> Clients { get; }   (C# 14 extension property)
 }
@@ -165,6 +182,8 @@ public sealed record BleHubClientDisconnectedEventArgs(BleHubConnectedClient Cli
     public string Reason { get; }                // Disconnect.Description
 }
 
+public sealed record BleHubClientRenamedEventArgs(BleHubConnectedClient Client, string? PreviousName);   // Client.Name = new name
+
 // generated per contract, eg. for event Action<GameState> StateChanged:
 public static Task StateChanged(this BleHubPush<IGameHub> push, GameState gameState, CancellationToken cancellationToken = default);
 ```
@@ -172,21 +191,31 @@ public static Task StateChanged(this BleHubPush<IGameHub> push, GameState gameSt
 ## Client (`Shiny.BluetoothLE.Hubs.Client`)
 
 ```csharp
-IServiceCollection AddBleHubClient<TContract>(string serviceUuid, string characteristicUuid);
+// once per contract; adds AddBluetoothLE() on Android/iOS/Mac Catalyst (Apple: background alerts off)
+IServiceCollection AddBleHubClient<TContract>(string characteristicUuid, Action<BleHubClientOptions>? configure = null);
 // resolves as IBleHubClient<TContract>, TContract and the generated proxy
+
+public sealed class BleHubClientOptions
+{
+    public string ServiceUuid { get; set; }                       // BleHubProtocolOptions.DefaultServiceUuid - must match the host's
+    public BleHubClientOptions Protocol(Action<BleHubProtocolOptions> configure);   // app-wide
+}
 
 public interface IBleHubConnection
 {
     BleHubClientStatus Status { get; }            // Disconnected, Connecting, Connected, Disconnecting
     BleHubHostInfo? Host { get; }
-    string? HostName { get; }
+    string? HostName { get; }                    // kept up to date when the host renames
+    string? ClientName { get; }                  // BleHubConnectOptions.Name or the latest Rename; null while disconnected
     bool CanTransferFiles { get; }
     event EventHandler<BleHubStatusChangedEventArgs>? StatusChanged;
     event EventHandler? Connected;
     event EventHandler<HubDisconnect>? Disconnected;   // not raised for ConnectionFailed
-    IObservable<BleHubHostInfo> Discover();       // scan by the hub's service UUID; dispose to stop
+    event EventHandler<string?>? HostRenamed;     // HostName already updated; in order with hub events
+    IObservable<BleHubHostInfo> Discover();       // scan by BleHubClientOptions.ServiceUuid; dispose to stop
     Task Connect(BleHubHostInfo host, BleHubConnectOptions? options = null, CancellationToken cancellationToken = default);
     Task Disconnect();
+    Task Rename(string? name, CancellationToken cancellationToken = default);   // no-op if unchanged; refusal = BleHubRemoteException (RenameRefused)
     Task<L2CapTransferResult> UploadFile(string localFilePath, string? remoteFileName = null, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
     Task<L2CapTransferResult> UploadStream(Stream source, long length, string remoteFileName, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
     Task<L2CapTransferResult> DownloadFile(string remoteFileName, string localFilePath, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
@@ -208,14 +237,18 @@ public sealed record BleHubConnectOptions(string? Name = null, string? AppVersio
 ## Other transports (hidden seams)
 
 `[EditorBrowsable(Never)]` - for transport packages, not app code. To serve hubs over Wi-Fi as well, use
-**Shiny.SwitchboardR** (`AddSwitchboardR().AddHub<THub>()` on the host, `AddSwitchboardRClient<TContract>()` on the client)
+**Shiny.UniversalHubs** (`AddUniversalServer(server => server.AddHub<THub>(...))` on the host, `AddUniversalHubClient<TContract>(...)` on the client)
 rather than these directly.
 
 - `IHubContext<THub>.TransportEndpoint` → `IBleHubTransportEndpoint`: `Connect(connectionId, HandshakeInfo, IBleHubPeerChannel, ct)`
   (returns a rejection or null), `GetMethodKind`, `Invoke` → `BleHubInvocationResult(Result, AbortRequested, AbortReason)`,
-  `Stream`, `Disconnected(connectionId, HubDisconnect)`, `Disconnect(connectionId, HubDisconnect)`, `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
+  `Stream`, `Disconnected(connectionId, HubDisconnect)`, `Disconnect(connectionId, HubDisconnect)`,
+  `Rename(connectionId, name, ct)` (null, or the refusal reason to relay as `RenameRefused`), `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
   IHubContext with BLE clients.
-- `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(HubDisconnect, ct)` - implemented by the transport.
+- `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(HubDisconnect, ct)`, `HostRenamed(hostName, ct)`
+  (default no-op, called in order with `Push`) - implemented by the transport.
 - `BleHubClient.ConnectExternal(events => IBleHubClientTransport, options, ct)`, `BleHubClient.ExternalTransport`.
-- `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `CanTransferFiles`, `Upload`, `Download`, `Close`.
-  `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `Closed(HubDisconnect)`.
+- `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `Rename` (default throws `NotSupportedException`),
+  `CanTransferFiles`, `Upload`, `Download`, `Close`.
+  `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `HostRenamed(hostName)` (in order with `Pushed`),
+  `Closed(HubDisconnect)`.
