@@ -20,10 +20,14 @@ triggers:
   - IBleHubHost
   - IHubContext
   - BleHubPush
-  - AddBleHub
+  - AddBleHubServer
+  - BleHubServerBuilder
   - AddBleHubClient
-  - ConfigureBleHubHost
-  - ConfigureBleHubProtocol
+  - BleHubClientOptions
+  - BleHubHostOptions
+  - BleHubProtocolOptions
+  - ServiceUuid
+  - DefaultServiceUuid
   - BleHubConnectOptions
   - BleHubHostInfo
   - BleHubCallerContext
@@ -40,6 +44,16 @@ triggers:
   - OnDisconnectedAsync
   - disconnect reason
   - why a client disconnected
+  - rename
+  - change name
+  - rename client
+  - host rename
+  - OnRenamedAsync
+  - ClientRenamed
+  - BleHubClientRenamedEventArgs
+  - HostRenamed
+  - ClientName
+  - RenameRefused
   - IBleHubTransportEndpoint
   - IBleHubClientTransport
   - ConnectExternal
@@ -69,6 +83,7 @@ Invoke this skill when the user wants to:
 - Stream results from the host (`IAsyncEnumerable<T>`)
 - Start or stop a hub, disconnect a client, limit or validate clients
 - Tell why a connection ended (client left, link lost, kicked, host stopped) with `HubDisconnectReason`
+- Rename a client or the host without reconnecting, and tell other clients about it
 - Upload or download files between devices over L2CAP
 
 Do NOT use this skill for talking to third party BLE peripherals (use `shiny-bluetoothle`) or for raw GATT servers
@@ -85,8 +100,11 @@ Do NOT use this skill for talking to third party BLE peripherals (use `shiny-blu
 - **Namespace**: `Shiny.BluetoothLE.Hubs`
 - **Platforms**: iOS and Android in both roles, and Mac Catalyst. Windows can be a client but can't host. L2CAP needs
   Android API 29+.
-- **Libraries target `net10.0`**. The app registers the platform BLE stacks itself (`AddBluetoothLE()` /
-  `AddBluetoothLeHosting()`).
+- **Platform BLE stacks are registered for you.** On Android, iOS and Mac Catalyst, `AddBleHubServer` calls
+  `AddBluetoothLeHosting()` and `AddBleHubClient` calls `AddBluetoothLE()`, so don't add them yourself. On Apple the
+  client turns off iOS's background alerts, because hubs are foreground only; to use your own `AppleBleConfiguration`,
+  call `AddBluetoothLE(config)` *before* `AddBleHubClient` (the first registration wins). On plain `net10.0`, register an
+  `IBleHostingManager` / `IBleManager` yourself.
 
 ## Code Generation Instructions
 
@@ -191,27 +209,39 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
   - `ClientTimeout`: the link dropped (an unsubscribe without a goodbye, or the cleanup sweep).
   - `ServerDisconnect`: `Context.Abort(reason)` or `IHubContext.Disconnect(id, reason)`.
   - `ServerShutdown`: `IBleHubHost.Stop(reason)` or `IHubContext.Stop(reason)`.
+- **Renames**: override `OnRenamedAsync(string? previousName)` to react when a connected client calls `Rename`. It
+  runs after `ValidateClient` accepted the new name; `Context.Client.Name` is already the new name. Throw to refuse
+  (the name is put back and the client gets the message). The library doesn't tell other clients, so push it yourself:
+  ```csharp
+  public override Task OnRenamedAsync(string? previousName)
+      => this.Clients.Others.PlayerRenamed(previousName, this.Context.Client.Name);   // contract: event Action<string?, string?> PlayerRenamed
+  ```
 - **Exceptions** thrown in a hub method reach the caller as `BleHubRemoteException` (with `RemoteErrorType` and
   `Message`).
 
 ### 3. Host registration and lifetime
 
 ```csharp
-builder.Services.AddBluetoothLeHosting();
-builder.Services.AddBleHub<GameHub>(ServiceUuid, GameHubCharacteristicUuid, o =>
-{
-    o.MaxClients = 6;
-    o.ValidateClient = info => String.IsNullOrWhiteSpace(info.Name) ? "A name is required" : null;  // return a reason to refuse
-});
-builder.Services.ConfigureBleHubHost(o =>
-{
-    o.LocalName = "TTT";                                                  // keep short - see best practices
-    o.EnableFileTransfers(Path.Combine(FileSystem.AppDataDirectory, "files"), ft =>
+// one call, once - every hub, host settings and protocol limits (adds the platform BLE hosting stack too)
+builder.Services.AddBleHubServer(server => server
+    .ServiceUuid(ServiceUuid)                                             // optional - clients must use the same one
+    .Host(o =>
     {
-        ft.MaxUploadSize = 1024 * 1024;
-        ft.Authorize = req => req.Request.FileName.EndsWith(".jpg");
-    });
-});
+        o.LocalName = "TTT";                                              // keep short - see best practices
+        o.EnableFileTransfers(Path.Combine(FileSystem.AppDataDirectory, "files"), ft =>
+        {
+            ft.MaxUploadSize = 1024 * 1024;
+            ft.Authorize = req => req.Request.FileName.EndsWith(".jpg");
+        });
+    })
+    .Protocol(o => o.RequestTimeout = TimeSpan.FromSeconds(10))          // optional, app-wide
+    .AddHub<GameHub>(GameHubCharacteristicUuid, o =>
+    {
+        o.MaxClients = 6;
+        o.ValidateClient = info => String.IsNullOrWhiteSpace(info.Name) ? "A name is required" : null;  // return a reason to refuse
+    })
+    .AddHub<ChatHub>(ChatHubCharacteristicUuid)
+);
 
 // start everything
 await services.GetRequiredService<IBleHubHost>().Start();
@@ -225,10 +255,20 @@ public class Lobby(IHubContext<GameHub> hub)
 }
 ```
 
-- **UUIDs**: always use full 128-bit UUIDs. Every hub needs its **own characteristic UUID**. Hubs should **share one
-  service UUID**, because more than one advertised 128-bit UUID overflows the 31 byte advertisement.
-- **Stopping a hub** disconnects its clients and refuses new handshakes. A service shared by several hubs stays up
-  while any of them runs, and the advertisement follows the running hubs.
+- **UUIDs**: always use full 128-bit UUIDs. Every hub needs its **own characteristic UUID**. There is **one service
+  UUID** for every hub: `server.ServiceUuid(...)` on the host and `o.ServiceUuid` in each `AddBleHubClient` (they must
+  match). `AddHub` / `AddBleHubClient` take only the characteristic. Leaving the default
+  (`BleHubProtocolOptions.DefaultServiceUuid`) means other apps using this library show up in scans, so set your own in
+  a real app.
+- **Call `AddBleHubServer` once** with every hub. A second call, no hubs, a hub or characteristic added twice, or a
+  malformed UUID throws at registration. There is no `AddBleHub` / `ConfigureBleHubHost` / `ConfigureBleHubProtocol`.
+- **A scan can't tell which hubs a host runs** (it only sees the one service UUID). Joining a stopped hub is refused
+  by the handshake (`BleHubException` "Host refused..."), so handle that when a host runs some hubs only on demand.
+- **Stopping a hub** disconnects its clients and refuses new handshakes. The service and the advertisement stay up
+  while any hub runs.
+- **Renaming the host**: `await host.Rename("TTT 2")` (`IBleHubHost`) changes the name without stopping: it
+  re-advertises under the new name and tells every connected client (`HostRenamed`). While stopped it just sets
+  `LocalName` for the next `Start`. Don't stop and restart to rename.
 
 ### 4. Pushing from outside a hub
 
@@ -241,14 +281,14 @@ public class Ticker(IHubContext<GameHub> hub)
 }
 ```
 
-`IHubContext<THub>` also exposes `ClientConnected` / `ClientDisconnected` events and `Groups`. `ClientDisconnected` gives
+`IHubContext<THub>` also exposes `ClientConnected` / `ClientDisconnected` / `ClientRenamed` events and `Groups`.
+`ClientRenamed` gives `BleHubClientRenamedEventArgs(Client, PreviousName)`; `Client.Name` is the new name. `ClientDisconnected` gives
 `BleHubClientDisconnectedEventArgs(Client, Disconnect)`; `e.Disconnect.Reason` says why, and `e.Reason` is the text.
 
 ### 5. Client
 
 ```csharp
-builder.Services.AddBluetoothLE();
-builder.Services.AddBleHubClient<IGameHub>(ServiceUuid, GameHubCharacteristicUuid);
+builder.Services.AddBleHubClient<IGameHub>(GameHubCharacteristicUuid, o => o.ServiceUuid = ServiceUuid);  // same as the host's; adds the platform BLE stack
 // inject IBleHubClient<IGameHub> (connection + .Hub), the generated GameHubClient, or IGameHub
 
 public class JoinViewModel(IBleHubClient<IGameHub> client)
@@ -296,6 +336,10 @@ public class JoinViewModel(IBleHubClient<IGameHub> client)
   - A call times out with `TimeoutException` after `BleHubProtocolOptions.RequestTimeout` (default 30s). Streams aren't
     timed out.
   - Cancelling a call's `CancellationToken` cancels the hub method on the host.
+- **Renaming**: `await client.Rename("Allan B")` changes the name the host knows this client by, without reconnecting.
+  A refusal (`ValidateClient` or `OnRenamedAsync`, or a host older than renames) throws `BleHubRemoteException`; check
+  `RemoteErrorType == BleHubRemoteException.RenameRefused`. Needs a connection. `ClientName` is the current name.
+  `HostRenamed` (`EventHandler<string?>`) is raised, in order with hub events, after `HostName` has been updated.
 - **Shared connections**: several hub clients connected to the same host share one BLE connection.
 
 ### 6. File transfers (L2CAP)
@@ -335,9 +379,10 @@ Testing needs **two physical devices**: simulators and emulators have no usable 
 ## Wi-Fi as well as BLE
 
 When the app should also work over Wi-Fi (players at home rather than on a plane), don't hand-roll a second transport:
-use **Shiny.SwitchboardR**. The hub and contract stay as they are; the host adds `AddShinyHttpServer(http => http.AddSwitchboardR().AddHub<THub>())`
-and starts with `ISwitchboardRHost.Start(HubTransports.All)`, the client registers `AddSwitchboardRClient<TContract>(...)` and
-uses `ISwitchboardRClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
+use **Shiny.UniversalHubs**. The hub and contract stay as they are; the host registers
+`AddUniversalServer(server => server.AddHub<THub>(characteristicUuid, "_myapp._tcp"))` in place of `AddBleHubServer` and
+starts with `IUniversalHubHost.Start(HubTransports.All)`, the client registers `AddUniversalHubClient<TContract>(...)` and
+uses `IUniversalHubClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
 
 ## Best Practices
 
@@ -349,7 +394,8 @@ uses `ISwitchboardRClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
    fails at runtime, not at compile time.
 4. **Keep messages small.** Hub messages are chunked over GATT (a few KB/s, 256 KB max by default). Move anything
    large, such as images or logs, with `UploadFile` / `DownloadFile`.
-5. **Keep `LocalName` short** (about 8 characters) and share one service UUID across hubs.
+5. **Keep `LocalName` short** (about 8 characters), and set your app's own `ServiceUuid` on both sides
+   (`server.ServiceUuid(...)` and `AddBleHubClient(..., o => o.ServiceUuid = ...)`).
 6. **Marshal hub events to the UI thread.**
 7. **Disconnecting is cooperative.** iOS peripherals can't drop a central, so `Abort` / `Disconnect` /
    `Stop` ask the client library to leave. Clients built with Shiny.BluetoothLE.Hubs always comply.
