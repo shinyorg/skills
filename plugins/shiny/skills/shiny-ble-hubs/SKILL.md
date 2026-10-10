@@ -194,7 +194,7 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
 - **Hub lifetime**: a new hub instance is created, in its own DI scope, for every call, as in SignalR. Never keep
   state in hub fields. Use singletons, or `Context.Items` for per-connection state.
 - **No `partial` needed.** The generator checks the hub against the contract.
-- **`Context`**: `ConnectionId`, `Client` (`Name`, `AppVersion`, `Properties`, `Mtu`, `ConnectedAt`, `Items`),
+- **`Context`**: `ConnectionId`, `Client` (`Name`, `AppVersion`, `Properties`, `Mtu` (ATT MTU), `ConnectedAt`, `Items`),
   `ConnectionAborted`, and `Abort(reason)`. When called from a hub method, `Abort` takes effect after that method's
   reply is sent.
 - **`Clients`**: `All`, `Others`, `Caller`, `Client(id)`, `Clients(ids)`, `AllExcept(ids)`, `Group(name)`,
@@ -295,6 +295,7 @@ public class JoinViewModel(IBleHubClient<IGameHub> client)
 {
     IDisposable? scan;
 
+    // an app that also hosts never sees its own host here - Discover leaves it out (matched by advertised name)
     public void StartScan() => this.scan = client.Discover().Subscribe(host => /* host.Name, host.Rssi */);
 
     public async Task Join(BleHubHostInfo host)

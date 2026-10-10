@@ -132,7 +132,7 @@ public sealed class BleHubConnectedClient
     public string? Name { get; }                 // handshake name, or the latest rename
     public string? AppVersion { get; }
     public IReadOnlyDictionary<string, string> Properties { get; }
-    public int Mtu { get; }
+    public int Mtu { get; }                       // ATT MTU of the client's BLE link (frames are Mtu - 3); 0 on another transport
     public DateTimeOffset ConnectedAt { get; }
     public ConcurrentDictionary<string, object> Items { get; }
     public Shiny.BluetoothLE.Hosting.IPeripheral? Peripheral { get; }   // the BLE central; null on another transport
@@ -212,7 +212,7 @@ public interface IBleHubConnection
     event EventHandler? Connected;
     event EventHandler<HubDisconnect>? Disconnected;   // not raised for ConnectionFailed
     event EventHandler<string?>? HostRenamed;     // HostName already updated; in order with hub events
-    IObservable<BleHubHostInfo> Discover();       // scan by BleHubClientOptions.ServiceUuid; dispose to stop
+    IObservable<BleHubHostInfo> Discover();       // scan by BleHubClientOptions.ServiceUuid; dispose to stop; skips this app's own host (same UUID + advertised name)
     Task Connect(BleHubHostInfo host, BleHubConnectOptions? options = null, CancellationToken cancellationToken = default);
     Task Disconnect();
     Task Rename(string? name, CancellationToken cancellationToken = default);   // no-op if unchanged; refusal = BleHubRemoteException (RenameRefused)
