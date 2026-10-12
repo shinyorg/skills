@@ -1,6 +1,6 @@
 # Shiny AI Skills
 
-AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, beacons, GPS, geofencing, background jobs, push notifications, Live Activities, HTTP transfers, embedded HTTP server, screen recording, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, web apps hosted inside MAUI, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, hosting modules, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
+AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, beacons, GPS, geofencing, background jobs, push notifications, Live Activities, HTTP transfers, embedded HTTP server, screen recording, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, web apps hosted inside MAUI, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
 
 ## The `shiny` Plugin
 
@@ -91,9 +91,6 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-serialization` | Centralized AOT-safe JSON serializer with source-generated contexts |
 | `shiny-extensions-push` | Server-side push dispatch — APNs, FCM, Web Push, WNS |
 | `localizegen` | Strongly-typed localization from .resx files |
-| `shiny-maui-hosting` | Modular `IMauiModule` configuration, lifecycle hooks |
-| `shiny-web-hosting` | Modular `IWebModule` configuration for ASP.NET Core |
-| `shiny-blazor-hosting` | `IAppSupport` for Blazor WASM — version, viewport, culture/time-zone events |
 
 ## Installation
 
