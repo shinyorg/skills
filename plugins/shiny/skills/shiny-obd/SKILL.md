@@ -777,7 +777,7 @@ Three constructors:
 - `BleObdTransport(IPeripheral peripheral, BleObdConfiguration config)` — uses pre-discovered peripheral
 - `BleObdTransport(ObdDiscoveredDevice device, BleObdConfiguration config)` — uses device from scanner
 
-Uses Shiny.BluetoothLE v4 APIs:
+Uses Shiny.BluetoothLE v6 APIs (Shiny.Obd 1.4.0+ requires Shiny 6.0.0 — an app referencing other Shiny packages must move them to 6.x too):
 - `ConnectAsync` for task-based connection
 - `NotifyCharacteristic` for RX notifications — `Connect` waits on `WhenCharacteristicSubscriptionChanged` until they are confirmed on, so the first command cannot overtake the CCCD write
 - `WriteCharacteristicAsync` for TX writes
