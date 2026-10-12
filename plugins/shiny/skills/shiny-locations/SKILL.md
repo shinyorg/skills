@@ -1,6 +1,6 @@
 ---
 name: shiny-locations
-description: GPS tracking, geofence monitoring (enter/exit/dwell), reverse geocoding, and motion activity recognition for .NET MAUI, iOS, and Android using Shiny.Gps and Shiny.Geofencing (Shiny.Locations meta-package)
+description: GPS tracking, geofence monitoring (enter/exit/dwell), reverse geocoding, and motion activity recognition for .NET MAUI, iOS, and Android using Shiny.Gps and Shiny.Geofencing (Shiny.Locations meta-package), plus unlimited GPS-driven region geofencing (Shiny.Geofencing.Regions) over SQLite documents or the reverse geocoder
 auto_invoke: true
 triggers:
   - gps
@@ -62,6 +62,32 @@ triggers:
   - Shiny.Geofencing
   - Shiny.Locations
   - GeofenceExtensions
+  - region geofencing
+  - unlimited geofences
+  - polygon geofence
+  - Shiny.Geofencing.Regions
+  - Shiny.Geofencing.Regions.DocumentDb
+  - AddRegionGeofencing
+  - IRegionGeofenceManager
+  - IRegionGeofenceDelegate
+  - RegionGeofenceConfig
+  - RegionChange
+  - CurrentRegion
+  - IRegionSource
+  - RegionMatch
+  - AddRegionSet
+  - AddGeocoderRegionSet
+  - GeocoderRegionLevel
+  - GeocoderRegionSource
+  - AddDocumentRegionSet
+  - DocumentRegionSource
+  - MapNorthAmericaData
+  - AddNorthAmericaSeeder
+  - AddNorthAmericanRegions
+  - AddNorthAmericanCities
+  - NorthAmericaData
+  - GeoRegion
+  - GeoCity
 ---
 
 # Shiny Locations
@@ -88,7 +114,7 @@ Use this skill when the user needs to:
 
 | Property   | Value                        |
 |------------|------------------------------|
-| NuGet      | `Shiny.Gps` (GPS, motion activity, geocoding), `Shiny.Geofencing` (geofences), `Shiny.Locations` (meta-package referencing both - no code of its own), `Shiny.Locations.Blazor` (Blazor WASM GPS, depends on `Shiny.Gps`) |
+| NuGet      | `Shiny.Gps` (GPS, motion activity, geocoding), `Shiny.Geofencing` (geofences), `Shiny.Locations` (meta-package referencing both - no code of its own). Blazor WASM GPS is in `Shiny.Gps`'s `net10.0` build (chosen with `OperatingSystem.IsBrowser()`); `Shiny.Locations.Blazor` no longer exists |
 | Namespace  | `Shiny.Locations`            |
 | Platforms  | iOS, Android, Windows, Blazor WebAssembly (foreground GPS only). **No tvOS target** — `CLMonitor`, `CLMonitorConfiguration` and `CLRegionState` are absent on tvOS, so geofencing cannot be implemented there |
 | DI Namespace | `Shiny` (extension methods on `IServiceCollection`) |
@@ -125,9 +151,9 @@ builder.Services.AddGps();
 builder.Services.AddGps<MyGpsDelegate>();
 ```
 
-Geofencing (`AddGeofencing`) is **not** available in
-`Shiny.Locations.Blazor`. For region-entry behavior on the web, evaluate regions
-server-side from GPS reports and notify the client via `Shiny.Push.Blazor`.
+Geofencing (`AddGeofencing`) is **not** available on
+Blazor WebAssembly. For region-entry behavior on the web, evaluate regions
+server-side from GPS reports and notify the client via `Shiny.Push` (Web Push).
 
 ### Geofence Registration
 
@@ -225,6 +251,54 @@ When generating code for Shiny.Locations:
 - On Android, configure `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, and `ACCESS_BACKGROUND_LOCATION` permissions in `AndroidManifest.xml`.
 - On iOS, add `NSMotionUsageDescription` to `Info.plist` when using motion activity recognition.
 - On Android, motion activity recognition requires `com.google.android.gms.permission.ACTIVITY_RECOGNITION` permission and Google Play Services.
+
+## Region Geofencing (Shiny.Geofencing.Regions)
+
+GPS-driven geofencing with **no region limit** and any shape - use it instead of `AddGeofencing` when the app needs
+more than 20 (iOS) / 60 (Android) regions, polygons, or address-level regions (country/state/city). It runs background GPS
+(it **owns** the `IGpsManager` listener - don't also start GPS yourself with a different request), filters readings
+(`MinimumDistance` 300m / `MinimumTime` 1 min by default, optional `MaximumDistance`/`MaximumTime` safety nets), and asks
+each **region set**'s `IRegionSource` which region the reading is in. Each set tracks one current region, persisted, so
+restarts don't replay entries. iOS, Android, Mac Catalyst (`AddRegionGeofencing` is `#if APPLE || ANDROID`; the types
+compile on `net10.0`). Namespace `Shiny.Locations`; registration in `Shiny`.
+
+```csharp
+builder.Services.AddRegionGeofencing<MyRegionDelegate>(cfg => cfg
+    // built in: reverse geocoding through IGeocoder - online only; AddRegionGeofencing registers AddGeocoding() if missing
+    .AddGeocoderRegionSet("states", GeocoderRegionLevel.AdministrativeArea)   // id "US-Colorado", region = Placemark
+    .AddGeocoderRegionSet("cities", GeocoderRegionLevel.Locality)             // id "US-Colorado-Denver"
+    // Shiny.Geofencing.Regions.DocumentDb - SQLite document store registered with AddDocumentStore
+    .AddDocumentRegionSet<Zone>("zones", z => z.Id, z => z.Name, filter: z => z.Active)   // polygons: containment
+    .AddDocumentRegionSet<Store>("stores", s => s.Id, s => s.Name, withinMeters: 500)    // points: proximity
+    // custom source
+    .AddRegionSet("custom", sp => new MyRegionSource(sp.GetRequiredService<IMyApi>()))
+);
+
+public class MyRegionDelegate : IRegionGeofenceDelegate
+{
+    public Task OnRegionChanged(RegionChange change)   // exit before entry when moving A -> B in one set
+    {
+        var zone = change.RegionAs<Zone>();             // the document / Placemark / your object
+        return Task.CompletedTask;
+    }
+}
+
+// IRegionGeofenceManager: RequestAccess(), Start() (idempotent), Stop() (forgets current regions), IsStarted,
+// GetCurrent() (resolves every set from the last reading; no events, no state change)
+```
+
+- Document regions need `opts.ConfigureDocument<T>(cfg => cfg.MapSpatialProperty(nameof(T.Geo), x => x.Geo))` in a
+  SQLite `AddDocumentStore` (`SqliteDatabaseProvider`). `idSelector` must return the document's store id (exits after a
+  restart re-read the region by it). `storeName:` picks a keyed store.
+- US/Canada dataset (in `.DocumentDb`): `opts.MapNorthAmericaData()`, `services.AddNorthAmericaSeeder()`, then
+  `cfg.AddNorthAmericanRegions()` (set "regions", ids `US-CO`/`CA-ON`) and `cfg.AddNorthAmericanCities(withinMeters: 25_000)`
+  (set "cities", ids `US-CO-denver`). Types `GeoRegion`/`GeoCity`/`NorthAmericaData` live in `Shiny.Locations.NorthAmerica`.
+- Geocoder sets: a failed lookup keeps the current region (no false exit while offline); sets share one lookup per
+  reading; exits after a restart carry only `RegionId` (`Region`/`RegionName` null). Respect geocoder rate limits -
+  keep `MinimumTime` >= 1 minute.
+- A throwing `IRegionSource.FindRegion` is logged and leaves that set unchanged; other sets still evaluate.
+- Replaces `Shiny.DocumentDb.Geofencing` (`AddDocumentGeofencing` -> `AddRegionGeofencing`, `AddRegionSet<T>` ->
+  `AddDocumentRegionSet<T>`), `Shiny.DocumentDb.Geo` and `Shiny.Spatial.Geofencing`.
 
 ## AI Tool Integration (Shiny.Locations.Extensions.AI)
 

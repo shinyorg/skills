@@ -9,10 +9,46 @@ triggers:
   - HostBuilder
   - IHost
   - IPlatform
+  - IAppStartupInstaller
+  - AddAppStartupInstaller
+  - AppStartupOptions
+  - AppStartupState
+  - LinuxStartupMode
+  - IStartupService
+  - run at startup
+  - launch at login
+  - login item
+  - autostart
+  - systemd unit
+  - DeviceIdiom
+  - CultureChanged
+  - TimeZoneChanged
+  - OpenAppSettings
+  - DeviceManufacturer
+  - DeviceModel
+  - AppVersion
+  - UserAgent
+  - UserAgentVersion
   - IKeyValueStore
   - IKeyValueStoreFactory
   - StoreKeys
   - AccessState
+  - IScreenInfo
+  - ScreenMetrics
+  - DeviceOrientation
+  - OrientationChanged
+  - SetOrientation
+  - ResetOrientation
+  - IosOrientationLock
+  - screen size
+  - screen orientation
+  - lock orientation
+  - ShinyPermissions
+  - ShinyPermission
+  - maui permission
+  - Permissions.RequestAsync
+  - Permissions.CheckStatusAsync
+  - BasePermission
   - IShinyStartupTask
   - ShinyLifecycleTask
   - IAndroidLifecycle
@@ -98,11 +134,8 @@ Modules with a `net10.0-tvos` target: `Shiny.Core`, `Shiny.Hosting.Native`, `Shi
 |-------|-----------|---------|
 | `Shiny.Hosting.Maui` | `Shiny` | MAUI hosting integration (`UseShiny`) |
 | `Shiny.Hosting.Native` | `Shiny` | Native hosting base classes (`ShinyAppDelegate`, `ShinyAndroidApplication`, `ShinyAndroidActivity`) |
-| `Shiny.Core.Linux` | `Shiny` | Linux platform implementation + `AddConnectivity()` / `AddBattery()` |
-| `Shiny.Core.Blazor` | `Shiny` | Blazor WebAssembly platform implementation + `AddConnectivity()` / `AddBattery()` |
 | `Shiny.Extensions.DependencyInjection` | `Shiny` | Source-generated `[Service]` / `[Singleton]` / `[Scoped]` / `[Transient]` DI registration. Pulled in by `Shiny.Core`. |
 | `Shiny.Extensions.Stores` | `Shiny.Extensions.Stores` | `IKeyValueStore`, `IRepository`, source-generated `[Bind]` partial-property persistence, static `Shiny.Stores.Default/Secure` accessor. Pulled in by `Shiny.Core`. |
-| `Shiny.Extensions.Stores.Web` | `Shiny.Extensions.Stores` | Blazor WebAssembly `localStorage` / `sessionStorage` adapters (`AddShinyWebAssemblyStores()`) |
 | `Shiny.Extensions.Serialization` | `Shiny.Extensions.Serialization` | AOT-safe System.Text.Json serializer extensions used by Shiny modules |
 | `Shiny.Extensions.Configuration` | `Shiny.Extensions.Configuration` | Remote configuration provider and platform preferences |
 
@@ -136,6 +169,49 @@ public static class MauiProgram
     }
 }
 ```
+
+`UseShiny()` also covers macOS (AppKit) MAUI apps built on `Microsoft.Maui.Platforms.MacOS` - `Shiny.Hosting.Maui` ships a `net10.0-macos` target, so call it after `UseMauiAppMacOS<App>()` like any other head. Never hand-roll an `IMauiInitializeService` that news up `Shiny.Hosting.Host` or call `AddShinyCoreServices()` yourself - that is what `UseShiny()` does. (Doing both is harmless - `Host.Run()` ignores a second run over the same service provider and `AddShinyCoreServices()` is idempotent - but it is dead code.) The macOS MAUI backend has no lifecycle events for remote notifications, so a macOS head that **uses push** forwards `application:didRegisterForRemoteNotificationsWithDeviceToken:` and friends from its `MacOSMauiApplication` subclass to `Host.Lifecycle` (see `samples/Sample.MacOS/Main.cs`). Only add those methods when the app actually uses push - implementing them is what tells Apple the app uses push, and App Review flags apps that implement them without it. Shiny deliberately ships no base delegate that overrides them.
+
+### MAUI Permission Checks (`ShinyPermissions`)
+
+`Shiny.Hosting.Maui` ships `ShinyPermissions` - MAUI `Permissions.BasePermission` subclasses that ask the OS for exactly what each Shiny module needs, **without referencing the module**. Use them when you want MAUI's permission flow (a permissions screen, onboarding) instead of, or ahead of, the module's own `RequestAccess`.
+
+```csharp
+using Shiny;
+
+// prefer the instance form - with `using Shiny;`, an unqualified `Permissions` is ambiguous on Windows
+var status = await new ShinyPermissions.BluetoothLE().RequestAsync();
+var current = await new ShinyPermissions.GpsBackground().CheckStatusAsync();
+
+// the MAUI static form works too when written out
+var push = await Microsoft.Maui.ApplicationModel.Permissions.RequestAsync<ShinyPermissions.Push>();
+```
+
+| Check | Mirrors | Android | Apple | Windows |
+|-------|---------|---------|-------|---------|
+| `BluetoothLE` | `IBleManager.RequestAccess` | SCAN + CONNECT (12+) / BLUETOOTH + ADMIN + FINE (below), then adapter on | CoreBluetooth central authorization + power state | LE radio on |
+| `BluetoothLEHosting` | `IBleHostingManager.RequestAccess` | ADVERTISE + CONNECT (12+), adapter | CoreBluetooth peripheral authorization + power | peripheral role supported, radio on |
+| `Beacons` | ranging | = `BluetoothLE` | when-in-use location (ranging available) | = `BluetoothLE` |
+| `BeaconMonitoring` | monitoring | BLE + connected-device FGS (14+) + POST_NOTIFICATIONS (13+) | "always" location (not macOS) | = `BluetoothLE` |
+| `Gps` | `GpsRequest.Foreground` | coarse + fine | when-in-use | `location` capability |
+| `GpsBackground` | `GpsBackgroundMode.Standard` | coarse + fine, then background location on its own (10+) | when-in-use, then "always" | not supported |
+| `GpsRealtime` | `GpsBackgroundMode.Realtime` | coarse + fine + FGS + POST_NOTIFICATIONS + FGS location (bg location on 10/11) | "always" | not supported |
+| `Geofencing` | `IGeofenceManager.RequestAccess` | coarse + fine, then background location | "always" | `location` capability |
+| `MotionActivity` | `IMotionActivityManager` | ACTIVITY_RECOGNITION (10+) | CoreMotion (not macOS) | not supported |
+| `Notifications` | `RequestAccess()` | POST_NOTIFICATIONS (13+) + app notifications on | alert/badge/sound | toast setting |
+| `TimeSensitiveNotifications` | `AccessRequestFlags.TimeSensitivity` | + exact alarms (12+, opens Settings) | = `Notifications` | = `Notifications` |
+| `Push` | user-facing half of push | POST_NOTIFICATIONS (13+) | alert/badge/sound | toast setting |
+| `HttpTransfers`, `DataSync` | foreground service | FGS + POST_NOTIFICATIONS | granted | granted |
+| `Jobs` | `IJobManager.RequestAccess` | granted | `processing` mode + BGTask identifiers declared, Background App Refresh | not supported |
+| `Wifi` | `IWifiManager.RequestAccess` | fine (+ NEARBY_WIFI_DEVICES 13+) | when-in-use | `wiFiControl` |
+| `Contacts` | `IContactStore.RequestAccess` | READ + WRITE_CONTACTS | CNContactStore (iOS 18 limited = `Limited`) | not supported |
+| `Calendar` | `ICalendarStore.RequestAccess(ReadWrite)` | READ + WRITE_CALENDAR | full access (iOS 17 / macOS 14+) | appointments store |
+| `ScreenRecorder` | without audio | FGS + POST_NOTIFICATIONS | ReplayKit available / macOS screen capture (relaunch to apply) | capture supported |
+
+- **Results**: partial grants (approximate location, when-in-use for a background check, iOS 18 limited contacts, calendar write-only, notifications denied for a foreground service, no exact alarms) are `PermissionStatus.Limited`. iOS parental-control restrictions are `Restricted`. A switched-off service or radio is `Disabled`.
+- **Throws**: `FeatureNotSupportedException` when the platform or device can't do the feature (and on the plain `net10.0` / Linux GTK build, which has no checks); `Microsoft.Maui.ApplicationModel.PermissionException` when the manifest, Info.plist or (packaged) Windows capability entry is missing.
+- **Android needs the Shiny host running** - `UseShiny()` - because requests go through `AndroidPlatform`.
+- Pair `ScreenRecorder` with MAUI's `Permissions.Microphone` for audio. LiveActivities (iOS needs the Swift bridge), GameCenter, Wearables and Network Discovery have no check here.
 
 ### Native (Non-MAUI) Setup
 
@@ -176,15 +252,15 @@ public class MainActivity : ShinyAndroidActivity { }
 
 ### Linux / macOS / plain .NET Setup
 
-`Shiny.Core.Linux` provides the Linux `IConnectivity` and `IBattery` implementations and is targeted at console / GTK apps. Use the same `HostBuilder.Create()` flow and call `AddConnectivity()` / `AddBattery()` from `Shiny.Core.Linux` if you need device monitoring. On plain .NET, modules that need them (`AddJob`, `AddHttpClientTransfers`, `AddDataSync`) can't reference the Linux package and do **not** add them — you must call these yourself.
+There are **no** `Shiny.Core.Linux` or `Shiny.Core.Blazor` packages any more - `Shiny.Core`'s plain `net10.0` build carries the Linux and Blazor WebAssembly implementations and `AddConnectivity()` / `AddBattery()` pick one at runtime with `OperatingSystem.IsBrowser()` / `OperatingSystem.IsLinux()`. On plain .NET, `IConnectivity` is the browser monitor on Blazor and `System.Net.NetworkInformation` everywhere else; `IBattery` is the browser Battery Status API on Blazor, sysfs on Linux, and **not registered** on plain .NET for Windows or macOS (register your own if a module such as `AddJob` needs one). A Linux GTK **MAUI** app (`Microsoft.Maui.Platforms.Linux.Gtk4`) uses `UseShiny()` from `Shiny.Hosting.Maui` like any other MAUI head - call it after `AddLinuxGtk4Essentials()`; it runs the host and points `NetPlatform.MainThreadHandler` at the GTK MAUI dispatcher. A console, service or non-MAUI GTK app uses the same `HostBuilder.Create()` flow. Modules that need device monitoring (`AddJob`, `AddHttpClientTransfers`, `AddDataSync`) add it themselves on every target.
 
 ### Blazor WebAssembly Setup
 
-For Blazor WASM, reference `Shiny.Core.Blazor` and call `AddConnectivity()` / `AddBattery()` to wire navigator-based monitoring. Both monitors load a JS module before they can report anything, so they self-start on the first property read or `Changed` subscription and report `Unknown` until that completes; `await host.Services.UseShinyCore()` after `Build()` starts them up front when the first read must be accurate. Only Chromium-based browsers expose the Network Information and Battery Status APIs — elsewhere `ConnectionTypes` and `BatteryState` stay `Unknown` (`Access` still works, it is `navigator.onLine`). Storage requires `Shiny.Extensions.Stores.Web` and a call to `host.Services.UseShinyStores()` after `Build()` so the static `Shiny.Stores` accessor snapshots the `IJSRuntime`-backed `LocalStorageKeyValueStore`.
+For Blazor WASM, reference `Shiny.Core` (its JS modules are served from `_content/Shiny.Core/`), call `builder.Services.AddShinyCoreServices()` (namespace `Shiny.Infrastructure`) to register `IPlatform` (`NetPlatform`) - nothing else does on plain `net10.0` - and call `AddConnectivity()` / `AddBattery()` to wire navigator-based monitoring. `NetPlatform.UserAgent` / `UserAgentVersion` give the browser user agent and a best-effort parsed browser version (null outside a browser); inject `NetPlatform` for them. These, plus `IPlatform.AppVersion` / `CultureChanged` / `TimeZoneChanged`, replace the members of `Shiny.Extensions.BlazorHosting`'s `IAppSupport`; its screen and viewport sizes are now `IScreenInfo.Metrics` and `BrowserScreenInfo.ViewportWidth` / `ViewportHeight` (namespace `Shiny.Infrastructure`), so nothing is left of it. Both monitors load a JS module before they can report anything, so they self-start on the first property read or `Changed` subscription and report `Unknown` until that completes. **Always** call `await host.Services.UseShiny()` after `Build()` and before `RunAsync()` - it runs the Shiny host (every `IShinyStartupTask`, including the in-process job runner, which otherwise never starts) and then starts the monitors up front. Only Chromium-based browsers expose the Network Information and Battery Status APIs — elsewhere `ConnectionTypes` and `BatteryState` stay `Unknown` (`Access` still works, it is `navigator.onLine`). Storage comes from `Shiny.Extensions.Stores` (its `net10.0` build includes the localStorage stores - `AddLocalStorageKeyValueStore()` / `AddLocalStorageRepository()`; `Shiny.Extensions.Stores.Web` no longer exists) and needs a call to `host.Services.UseShinyStores()` after `Build()` so the static `Shiny.Stores` accessor snapshots the `IJSRuntime`-backed `LocalStorageKeyValueStore`.
 
 ### Replacing IConnectivity / IBattery
 
-Modules that depend on device monitoring add it for you: on the platform TFMs (Android, iOS, tvOS, Mac Catalyst, macOS, Windows) `AddJob` adds both, and `AddHttpTransfers` / `AddHttpClientTransfers` / `AddDataSync` add `IConnectivity`; the Blazor `AddBlazorHttpTransfers` / `AddBlazorDataSync` add both from `Shiny.Core.Blazor`. Every one of these registrations is a `TryAdd`, so to substitute your own implementation register it **before** the module call:
+Modules that depend on device monitoring add it for you on every target: `AddJob` adds both, `AddHttpTransfers` / `AddHttpClientTransfers` / `AddDataSync` add `IConnectivity`, and the Blazor `AddBlazorHttpTransfers` / `AddBlazorDataSync` add both. None of them replace an existing registration, so to substitute your own implementation register it **before** the module call:
 
 ```csharp
 builder.Services.AddSingleton<Shiny.Net.IConnectivity, MyConnectivity>(); // first - wins
@@ -206,11 +282,13 @@ When generating code that uses Shiny.Core, follow these conventions:
 6. **Implement `IAndroidLifecycle.*`, `IIosLifecycle.*`, or `IMacLifecycle.*` sub-interfaces** for platform-specific lifecycle hooks. Register them in DI and the lifecycle executor dispatches to them automatically.
 7. **Inject a keyed `IKeyValueStore` from `Shiny.Extensions.Stores`** via `[FromKeyedServices(StoreKeys.Default)] IKeyValueStore store` (or `StoreKeys.Secure`). The store factory is also available via `IKeyValueStoreFactory.Get(alias)`.
 8. **Use the static `Shiny.Stores.Default` / `Shiny.Stores.Secure` accessors** for one-off reads/writes outside DI contexts — the accessor self-bootstraps on first use after `AddShinyStores()` has run (call `host.Services.UseShinyStores()` after `Build()` on Blazor WASM).
-9. **Use `IPlatform`** to access `AppData`, `Cache`, `Public` directories and `InvokeOnMainThread()`.
-10. **Use `AccessState` enum** and `state.Assert()` extension method to validate permissions before proceeding with platform operations.
-11. **Use the `Changed` C# events on `IConnectivity` and `IBattery`** to react to network or battery state — these are no longer observable. Rx has been removed from `Shiny.Core` and `Shiny.Jobs`; only `Shiny.BluetoothLE` retains reactive streams. Subscribe with `+= handler` and unsubscribe in your `Dispose` / page-leave hook.
-12. **Use `IRepository`** for entity persistence, with entities implementing `IRepositoryEntity` (must have an `Identifier` property). The default implementation is a filesystem JSON store registered by `services.AddDefaultRepository()` and used internally by Locations, Notifications, and HTTP Transfers.
-13. **For Blazor WASM**, call `host.Services.UseShinyStores()` immediately after `builder.Build()` so the static `Shiny.Stores` accessor captures the DI-resolved `LocalStorageKeyValueStore` (it needs `IJSRuntime`).
+9. **Use `IPlatform`** to access `AppData`, `Cache`, `Public` directories and `InvokeOnMainThread()`, and for device/app info: `AppVersion`, `DeviceManufacturer`, `DeviceModel`, `PlatformVersion`, `Platform` (`Android`, `iOS`, `MacCatalyst`, `tvOS`, `macOS`, `Windows`, `Linux`, `Browser`), `DeviceIdiom` (`Shiny.DeviceIdiom` - never MAUI's `Microsoft.Maui.Devices.DeviceIdiom`; qualify it when both namespaces are imported), `CurrentCulture` / `CultureChanged`, `CurrentTimeZone` / `TimeZoneChanged` (native listeners start with the first subscriber; raised off the UI thread - marshal before touching UI) and `OpenAppSettings()`. These are implemented natively with no MAUI, and replace the members removed from `Shiny.Extensions.MauiHosting`'s `IAppSupport` - never generate them against `IAppSupport`.
+10. **Use `IScreenInfo`** (registered by every host, like `IPlatform`) for the main display and orientation - it replaces `IAppSupport.CurrentOrientation` / `OrientationChanged` / `SetOrientation` / `ResetOrientation` from `Shiny.Extensions.MauiHosting` and the Blazor screen sizes. `Metrics` is a `ScreenMetrics(Width, Height, Density, Orientation, RefreshRate)` snapshot in physical pixels (`WidthIndependent` / `HeightIndependent` divide by density); `MetricsChanged` / `OrientationChanged` start watching with the first subscriber and may be raised off the UI thread. The orientation enum is `Shiny.DeviceOrientation` (`Unknown`, `Portrait`, `Landscape`) - **not** MAUI's `DisplayOrientation` and not Android's `ScreenOrientation`. `SetOrientation(...)` returns whether it applied: Android uses the current Activity; iOS 16+ needs the app delegate to return `Shiny.IosOrientationLock.Supported` from `application:supportedInterfaceOrientationsForWindow:` to hold it; Windows sets the auto-rotation preference (tablets only); Blazor only locks a full-screen page or installed app; Mac Catalyst, macOS, tvOS and Linux return false. Linux and console hosts report `ScreenMetrics.Empty`.
+10. **Use `IAppStartupInstaller`** (register with `services.AddAppStartupInstaller(o => ...)`) to put the app in the OS launch-at-login list: `HKCU\...\Run` on unpackaged Windows, `SMAppService` login items on macOS 13+ / Mac Catalyst 16+, and on Linux an XDG autostart entry or a systemd unit chosen by `AppStartupOptions.LinuxMode` (`XdgAutostart`, `SystemdGraphicalSession`, `SystemdUser`, `SystemdSystem` - the last needs root). Check `IsSupported` before showing a toggle; `Register()` returns the state the OS settled on (`Enabled`, `DisabledByUser`, `DisabledByPolicy`, `RequiresApproval` on macOS) - bind UI to that or a fresh `GetState()`, never cache it, and call `OpenSettings()` when the user has to finish in the OS. Android/iOS/tvOS report `NotSupported`. It replaces `Shiny.Extensions.MauiHosting`'s `IStartupService` / `AddStartupService` - never generate those.
+11. **Use `AccessState` enum** and `state.Assert()` extension method to validate permissions before proceeding with platform operations.
+12. **Use the `Changed` C# events on `IConnectivity` and `IBattery`** to react to network or battery state — these are no longer observable. Rx has been removed from `Shiny.Core` and `Shiny.Jobs`; only `Shiny.BluetoothLE` retains reactive streams. Subscribe with `+= handler` and unsubscribe in your `Dispose` / page-leave hook.
+13. **Use `IRepository`** for entity persistence, with entities implementing `IRepositoryEntity` (must have an `Identifier` property). The default implementation is a filesystem JSON store registered by `services.AddDefaultRepository()` and used internally by Locations, Notifications, and HTTP Transfers.
+14. **For Blazor WASM**, call `host.Services.UseShinyStores()` immediately after `builder.Build()` so the static `Shiny.Stores` accessor captures the DI-resolved `LocalStorageKeyValueStore` (it needs `IJSRuntime`).
 
 ### Conventions
 
@@ -233,6 +311,8 @@ When using Shiny in a MAUI app, several Shiny types collide with MAUI implicit u
 | `IBattery` | `Shiny.Power` | `Microsoft.Maui.Devices` | Use `Shiny.Power.IBattery` FQN |
 | `BatteryState`, `BatteryPowerSource`, `EnergySaverStatus` | `Shiny.Power` | `Microsoft.Maui.Devices` | Use `Shiny.Power.*` FQN (in the global namespace in 5.7.1 only — see below) |
 | `DeviceInfo` | `Shiny.BluetoothLE` | `Microsoft.Maui.Devices` | Use FQN for whichever you need |
+| `PermissionException` | `Shiny` | `Microsoft.Maui.ApplicationModel` | `ShinyPermissions` checks throw the MAUI one - catch `Microsoft.Maui.ApplicationModel.PermissionException` |
+| `Permissions` (Windows only) | `Shiny` | `Microsoft.Maui.ApplicationModel` | Use `new ShinyPermissions.X().RequestAsync()` or the `Microsoft.Maui.ApplicationModel.Permissions` FQN |
 
 **Safe global usings** (won't conflict with MAUI):
 ```csharp

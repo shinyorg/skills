@@ -97,7 +97,8 @@ Do NOT use this skill for BLE hosting/peripheral mode (advertising, GATT server)
 
 ## Library Overview
 
-- **NuGet Package**: `Shiny.BluetoothLE` (Android, iOS/tvOS/macOS, Windows), `Shiny.BluetoothLE.Linux` (Linux via BlueZ), `Shiny.BluetoothLE.Blazor` (Blazor WebAssembly via Web Bluetooth API)
+- **NuGet Package**: `Shiny.BluetoothLE` (Android, iOS/tvOS/macOS, Windows, and Blazor WebAssembly via the Web Bluetooth API - `Shiny.BluetoothLE.Blazor` no longer exists), `Shiny.BluetoothLE.Linux` (Linux via BlueZ - a separate package so its D-Bus dependency never reaches WebAssembly)
+- **Registration**: `services.AddBluetoothLE()` everywhere except Linux, where it is `services.AddLinuxBluetoothLE()` from `Shiny.BluetoothLE.Linux`. The Web Bluetooth classes are `BrowserBleManager` / `BrowserPeripheral` / `BrowserAdvertisementData`
 - **Primary Namespace**: `Shiny.BluetoothLE`
 - **Managed Scan Namespace**: `Shiny.BluetoothLE.Managed`
 - **Platforms**: Android, iOS/tvOS/macOS (Apple), Windows, Linux (BlueZ), WebAssembly (Web Bluetooth)
@@ -227,7 +228,7 @@ When generating BLE client code, follow these conventions:
 
 A single write or notification carries at most `peripheral.Mtu` bytes - 20 until a larger MTU is negotiated. When a
 command, reply or event can be longer (JSON, a certificate, a scan result) and the peripheral is a
-`Shiny.BluetoothLE.Hosting` service using `[RequestResponseCharacteristic(Framed = true)]` or `NotifyMessage`, use the
+`Shiny.BluetoothLE.Hosting` service using `NotifyMessage` and a `BleMessageReassembler`, use the
 message helpers (`MessageExtensions`). Do not hand-roll a chunking protocol, and do not use `WriteCharacteristicBlob`
 for this - the blob write has no message boundaries.
 
