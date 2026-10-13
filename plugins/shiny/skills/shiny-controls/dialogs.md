@@ -108,7 +108,7 @@ await dialogs.Confirm("Delete?", "This cannot be undone.", configure: c =>
 
 Four levels, smallest to largest:
 
-1. **Per-call config** — the `configure` delegate. Common `DialogConfig` members: `Animation`, `BackgroundColor`, `TitleColor`, `MessageColor`, `OkButtonColor`, `OkButtonTextColor`, `CancelButtonColor`, `CancelButtonTextColor`, `CornerRadius`, `BackdropOpacity`, `DismissOnBackdrop`, `MaxWidth` (MAUI), `DismissOnEscape`/`CssClass`/`InputType` (Blazor). Colors are MAUI `Color` on MAUI and CSS strings on Blazor.
+1. **Per-call config** — the `configure` delegate. Common `DialogConfig` members: `Animation`, `BackgroundColor`, `TitleColor`, `MessageColor`, `OkButtonColor`, `OkButtonTextColor`, `CancelButtonColor`, `CancelButtonTextColor`, `ActionSheetButtonColor`, `ActionSheetButtonTextColor`, `DestructiveButtonTextColor` (ActionSheet options), `CornerRadius`, `BackdropOpacity`, `DismissOnBackdrop`, `MaxWidth` (MAUI), `DismissOnEscape`/`CssClass`/`InputType` (Blazor). Colors are MAUI `Color` on MAUI and CSS strings on Blazor. Leave a colour null to follow the theme token (it restyles live on a theme switch); never hard-code the theme's own colours here just to make them "apply".
 
    ```csharp
    await dialogs.Confirm("Custom", "Brand colors + zoom.", configure: c =>

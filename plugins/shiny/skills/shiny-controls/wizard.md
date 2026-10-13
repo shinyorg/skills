@@ -182,7 +182,9 @@ navigation bar in `<shiny:Wizard.NavigationBar>`.
 ### Validation — pick the cheapest thing that works
 
 1. **`IsValid`** — a bool the step exposes. Bind it to a view-model validity property. Next is disabled and
-   refuses to move while it is false.
+   refuses to move while it is false. Binding it to a property derived from text typed *inside the step*
+   (`IsValid="{Binding EmailIsValid}"` + `TextEntry Text="{Binding Email}"`) is fine — metadata changes
+   never re-host the step's view.
 2. **`IsOptional`** — bypasses `IsValid` entirely for that step.
 3. **`ValidateCommand` (MAUI)** — run *before* `IsValid` is read, so a command that validates and sets the
    flag is enough; no event wiring:

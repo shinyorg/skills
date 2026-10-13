@@ -28,11 +28,11 @@ A PIN/OTP entry control with individually rendered cells. Input is captured by a
 | `CellSize` | `double` | `50` | OneWay | Width and height of each cell |
 | `CellSpacing` | `double` | `8` | OneWay | Horizontal spacing between cells |
 | `CellCornerRadius` | `double` | `8` | OneWay | Corner radius of the cell border |
-| `CellBorderColor` | `Color?` | `null` | OneWay | Border stroke color |
-| `CellFocusedBorderColor` | `Color?` | `null` | OneWay | Border stroke color for the currently active cell |
-| `CellBackgroundColor` | `Color?` | `null` | OneWay | Cell fill color |
-| `CellFocusedBackgroundColor` | `Color?` | `null` | OneWay | Background color for the currently active cell |
-| `CellTextColor` | `Color?` | `null` | OneWay | Color for the rendered digit/character |
+| `CellBorderColor` | `Color?` | `null` | OneWay | Border stroke color (unset → theme `outline`) |
+| `CellFocusedBorderColor` | `Color?` | `null` | OneWay | Border stroke color for the currently active cell (unset → theme `primary`, or `CellBorderColor` if only that is set) |
+| `CellBackgroundColor` | `Color?` | `null` | OneWay | Cell fill color (unset → theme `surface-container-low`) |
+| `CellFocusedBackgroundColor` | `Color?` | `null` | OneWay | Background color for the currently active cell (unset → `CellBackgroundColor`) |
+| `CellTextColor` | `Color?` | `null` | OneWay | Color for the rendered digit/character (unset → theme `on-surface`) |
 | `FontSize` | `double` | `24` | OneWay | Font size for the rendered character |
 | `UseFeedback` | `bool` | `true` | OneWay | Haptic click on digit entry, long press on completion |
 
