@@ -46,8 +46,10 @@ A slider control where the entire track displays a single solid color that is th
 | TooltipFontSize | double | 12 | OneWay | Tooltip font size |
 | ValueFormat | string? | null | OneWay | .NET format string for display value |
 | TooltipTemplate | DataTemplate? | null | OneWay | Custom tooltip content template (BindingContext = Value) |
-| ValueChangedCommand | ICommand? | null | OneWay | Command fired on value change |
+| ValueChangedCommand | ICommand? | null | OneWay | Command fired on value change (every step of a drag) |
+| DragCompletedCommand | ICommand? | null | OneWay | Command fired once with the final value on drag release / tap; not fired if the value is unchanged |
 | Marks | IList\<SliderMark\> | empty | — | Stop points, as `<shiny:Slider.Marks>` children |
+| MarksSource | IEnumerable? | null | OneWay | Stop points from data: `SliderMark`s or numbers (number = unlabelled mark); drawn alongside `Marks`; follows INotifyCollectionChanged |
 | SnapToMarks | bool | true | OneWay | Thumb comes to rest on the nearest mark |
 | MarkShape | SliderMarkShape | Dot | OneWay | `Dot`, `Bubble` or `Line` |
 | MarkSize | double | 10 | OneWay | Dot diameter / tick thickness |
@@ -60,7 +62,8 @@ A slider control where the entire track displays a single solid color that is th
 
 | Event | Args | Description |
 |---|---|---|
-| ValueChangedEvent | double | Fired when value changes |
+| ValueChangedEvent | double | Fired when value changes (every step of a drag) |
+| DragCompleted | double | Fired once with the final value when a drag is released (or cancelled) or a tap moves the thumb; not fired if the value is unchanged. Use it for save/network/device calls instead of debouncing `ValueChangedCommand` |
 
 ### Behavior
 
@@ -85,6 +88,17 @@ A slider control where the entire track displays a single solid color that is th
 
 `SliderMark` properties: `Value`, `Text`, `Color`, `TextColor`, `Shape` (`SliderMarkShape?`, null
 inherits `MarkShape`), `Size` (`-1` inherits `MarkSize`), `IsVisible`.
+
+When the marks come from a view model, bind `MarksSource` — never clear and refill `Marks` from
+code-behind:
+
+```xml
+<shiny:Slider Value="{Binding Position}" MarksSource="{Binding Bookmarks}" MarkShape="Line" SnapToMarks="False" />
+```
+
+```csharp
+public ObservableCollection<SliderMark> Bookmarks { get; } = [ new() { Value = 20, Text = "Intro" } ];
+```
 
 ### Vertical
 
@@ -174,6 +188,7 @@ anything is laid out. Size it with `ThumbWidth`/`ThumbHeight` when the content i
 | ValueFormat | string? | null | Format string for value display |
 | TooltipTemplate | RenderFragment\<double\>? | null | Custom tooltip render fragment |
 | IsEnabled | bool | true | Enable/disable interaction |
+| DragCompleted | EventCallback\<double\> | — | Fired once with the final value when a drag is released or a click moves the thumb; not fired if the value is unchanged. `ValueChanged` still fires every step |
 | CssClass | string? | null | Additional CSS class |
 | ChildContent | RenderFragment? | null | The `<SliderMark>` stop points |
 | SnapToMarks | bool | true | Thumb comes to rest on the nearest mark |
@@ -197,6 +212,9 @@ anything is laid out. Size it with `ThumbWidth`/`ThumbHeight` when the content i
 
 `SliderMark` parameters: `Value`, `Text`, `Color`, `TextColor`, `Shape` (`SliderMarkShape?`),
 `Size` (`-1` inherits `MarkSize`), `IsVisible`.
+
+Marks from data: there is no `MarksSource` on Blazor — `@foreach` over the data inside `<Slider>`,
+emitting `<SliderMark @key="item" Value="item.Value" Text="@item.Text" />`.
 
 ### Vertical
 

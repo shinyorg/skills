@@ -71,6 +71,8 @@ has chips for.
 - The bound `SelectedItems` list is written **into** rather than replaced, so an `ObservableCollection`
   on a view model keeps its identity. A read-only or fixed-size list (an array) is left alone.
 - Anything selected that the source no longer offers is dropped.
+- `SelectedItem` may arrive before `ItemsSource` (attribute order, lazy view-model lists): it is applied as
+  soon as the items contain it. No need to call `Select` after binding.
 - A `null` item gets no chip.
 
 ## What a chip shows
@@ -79,7 +81,9 @@ has chips for.
 over reflection: the path is compiled, so it survives trimming (`DisplayMemberPath` does not — use the binding in a full-trim/NativeAOT app), and a converter or `StringFormat` comes
 free.
 
-`ItemTemplate` replaces the **label only** — the check and the ✕ are never part of it.
+`ItemTemplate` replaces the **label only** — the check and the ✕ are never part of it. Every `Label` in the
+template takes the chip's selected/unselected ink automatically; don't set `TextColor` on it unless you want
+it fixed (a local `TextColor` or the label's own `Style` opts out; a `TextColor` binding is overwritten).
 
 ```xml
 <shiny:ChipGroup ItemsSource="{Binding Teams}" SelectionMode="Multiple">

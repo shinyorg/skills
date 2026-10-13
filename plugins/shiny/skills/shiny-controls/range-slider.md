@@ -55,13 +55,15 @@ Constraints apply to interaction (drag/tap). Programmatically-set / data-bound v
 | TooltipFontSize | double | 12 | OneWay | Tooltip font size |
 | ValueFormat | string? | null | OneWay | .NET format string for display values |
 | TooltipTemplate | DataTemplate? | null | OneWay | Custom tooltip content (BindingContext = the thumb's value); applied to both thumbs |
-| RangeChangedCommand | ICommand? | null | OneWay | Command fired with a `SliderRange(Lower, Upper)` on change |
+| RangeChangedCommand | ICommand? | null | OneWay | Command fired with a `SliderRange(Lower, Upper)` on change (every step of a drag) |
+| DragCompletedCommand | ICommand? | null | OneWay | Command fired once with the final `SliderRange` on drag release / tap; not fired if the range is unchanged |
 
 ### Events
 
 | Event | Args | Description |
 |---|---|---|
 | RangeChanged | SliderRange (record struct: Lower, Upper) | Fired when either value changes through interaction |
+| DragCompleted | SliderRange | Fired once with the final range when a thumb drag is released (or cancelled) or a tap moves a thumb; not fired if the range is unchanged |
 
 ### Behavior
 
@@ -133,6 +135,7 @@ Constraints apply to interaction (drag/tap). Programmatically-set / data-bound v
 | LowerValueChanged | EventCallback\<double\> | Two-way binding callback for the lower thumb |
 | UpperValueChanged | EventCallback\<double\> | Two-way binding callback for the upper thumb |
 | RangeChanged | EventCallback\<(double Lower, double Upper)\> | Fired with both values on change |
+| DragCompleted | EventCallback\<(double Lower, double Upper)\> | Fired once with the final range when a drag is released or a click moves a thumb; not fired if the range is unchanged |
 
 ### Custom Thumb Content
 

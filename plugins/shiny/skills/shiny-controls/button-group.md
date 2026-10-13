@@ -72,8 +72,11 @@ Methods: `Select(int)`, `Deselect(int)`, `ClearSelection()`. Events: `SelectionC
 - `SelectionMode="None"` (the default) means the group touches **nothing** — no selected index, and
   every segment keeps the appearance it was given.
 - While a selection mode is on, the group owns each segment's `Appearance`. A segment that set its own
-  `Appearance` keeps it as the *unselected* look, so one odd segment in a picker stays odd. Leaving the
-  selection mode hands every appearance back.
+  `Appearance` keeps it as the *unselected* look, so one odd segment in a picker stays odd. Only a
+  **local** value counts — an `Appearance` from a Style is replaced, so app-wide button styles never hide
+  the selection. Leaving the selection mode hands every appearance back.
+- MAUI: `HorizontalOptions` defaults to `Start` and `VerticalOptions` to `Center` *without* local values,
+  so `HorizontalOptions` from a Style (e.g. `Center`) applies. No wrapper layout needed.
 - `Single` ignores a tap on the already-selected segment unless `AllowDeselect` is set. `Multiple`
   always toggles.
 - Only `ShinyButton`s are selectable. `ButtonGroupText` and `ButtonGroupSeparator` are chrome and are
