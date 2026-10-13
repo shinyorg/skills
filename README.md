@@ -1,6 +1,6 @@
 # Shiny AI Skills
 
-AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE, beacons, GPS, geofencing, background jobs, push notifications, Live Activities, HTTP transfers, embedded HTTP server, screen recording, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, web apps hosted inside MAUI, contact & calendar stores, shared UI controls, mediator/CQRS, document store, spatial data, DI, localization, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
+AI skills for [Shiny Libraries](https://shinylib.net) — providing rich context and code generation guidance for Bluetooth LE (client, peripheral & hubs), beacons, GPS, geofencing, background jobs, push notifications, Live Activities, HTTP transfers, embedded HTTP server, Wi-Fi & local network discovery, screen recording, printing, game controllers, Game Center/Play Games, in-app purchases, app store checks, Siri/App Intents & Android AppFunctions, wearables, OBD-II diagnostics, music, speech recognition and synthesis, AI conversation, health data, MAUI Shell navigation, web apps hosted inside MAUI, contact & calendar stores, shared UI controls, mediator/CQRS, virtual actors, document store, DI, localization, ASP.NET Core extensions, and .NET Aspire integrations across .NET MAUI, Blazor, and ASP.NET Core.
 
 ## The `shiny` Plugin
 
@@ -27,6 +27,8 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-core` | Hosting, DI, key-value stores, lifecycle hooks, platform abstractions |
 | `shiny-bluetoothle` | BLE scanning, connecting, GATT operations, managed scanner |
 | `shiny-ble-hosting` | BLE peripheral GATT server, advertising, L2CAP CoC channels |
+| `shiny-ble-hubs` | SignalR-style hubs over Bluetooth LE — generated client proxies, groups, streaming, L2CAP file transfers |
+| `shiny-universal-hubs` | BLE hubs also served over Wi-Fi (HttpServer + mDNS) with Wi-Fi-first connect and BLE fallback |
 | `shiny-beacons` | iBeacon & Eddystone ranging, background region monitoring, broadcasting |
 | `shiny-jobs` | Background job scheduling — native iOS/Android schedulers plus in-process jobs |
 | `shiny-locations` | GPS tracking, geofencing, motion activity recognition |
@@ -44,9 +46,17 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-health` | HealthKit / Health Connect queries, writes, real-time observers |
 | `shiny-contactstore` | Contact CRUD, fluent async query builder, permissions |
 | `shiny-calendarstore` | Calendar & event CRUD, fluent async query builder, permissions |
+| `shiny-gamepad` | Game controller input — sticks, triggers, buttons, rumble, battery, motion, light bars |
+| `shiny-gamecenter` | Achievements, leaderboards and friends over Apple Game Center and Google Play Games |
+| `shiny-inapppurchases` | In-app purchases (StoreKit 2 / Play Billing) and server-side purchase verification |
+| `shiny-appstore` | Store version checks, store/review deep links, native in-app review prompt |
+| `shiny-appfunctions` | Expose app functions to Siri, Spotlight, Shortcuts, Apple Intelligence and Android AppFunctions |
+| `shiny-wearables` | Companion Apple Watch / Wear OS messaging, shared context, data and file transfers |
+| `shiny-printing` | Thermal/receipt printing (ESC/POS, TSPL) over BLE/WiFi/web, plus OS-native printing |
 | `shiny-screenrecorder` | Screen recording to MP4 with mic/system audio, display/window selection, pause/resume |
 | `shiny-speech` | Speech-to-text, text-to-speech, audio capture and playback |
 | `shiny-aiconversation` | Chat client, wake word, STT/TTS, persistent message store |
+| `shiny-actors` | Orleans-style virtual actors anywhere .NET runs — state, event sourcing, streams, reminders, remoting |
 
 ### MAUI
 
@@ -71,9 +81,15 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 
 | Skill | What It Helps With |
 |---|---|
-| `shiny-documentdb` | Schema-free JSON document store — queries, joins, CRUD, indexes & unique indexes, AOT configuration |
+| `shiny-documentdb` | Schema-free JSON document store — queries, joins, CRUD, indexes & unique indexes, spatial/geo queries, AOT configuration |
 | `shiny-firestore-mobile` | On-device native Firestore provider with offline persistence and snapshot listeners |
-| `shiny-spatial` | Spatial queries, geometry types, R\*Tree indexing |
+
+### ASP.NET Core
+
+| Skill | What It Helps With |
+|---|---|
+| `shiny-web-hosting` | Modular ASP.NET Core configuration with `IWebModule` |
+| `shiny-aspnet` | WebDAV, CalDAV/CardDAV, tus uploads, NuGet/npm feeds, DocumentDb endpoints, webhooks, idempotency, ACME TLS, tunnels |
 
 ### Aspire
 
