@@ -174,7 +174,7 @@ Example: theme a whole page section without touching each component:
 | `ItemsSource` | `IList` | `null` | Both | Suggestion items |
 | `SelectedItem` | `object?` | `null` | Both | Selected item (TwoWay) |
 | `SearchCommand` | ICommand/EventCallback | `null` | Both | Async search trigger |
-| `TextMemberPath` | `string?` | `null` | Both | Display property name |
+| `TextMemberPath` | `string?` | `null` | Both | Display property name (MAUI reads it by reflection — for a full-trim/NativeAOT app leave it unset and override the item's `ToString()`) |
 | `ItemTemplate` | DataTemplate/RenderFragment | `null` | Both | Custom item template |
 | `IsBusy` | `bool` | `false` | Both | Show spinner (TwoWay) |
 | `DebounceInterval` | `int` | `300` | Both | Debounce delay (ms) |

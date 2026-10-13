@@ -176,6 +176,21 @@ Declare it once on the Shell (or `NavigationPage`, or a single page) and every p
   tab bar, and `Push` pushes the page content, not Shell's chrome. Add `Shell.NavBarIsVisible="False"`
   if the panel should run the full height of the window.
 - A page that declares its own `ShinyFlyoutPage` is skipped — it already has one.
+- **View options go on the host**, as attached properties next to the templates:
+  `ShinyFlyout.PushMode`, `ShinyFlyout.ScrimColor`, `ShinyFlyout.ScrimOpacity`,
+  `ShinyFlyout.IsAnimationEnabled`. They are copied onto every installed `FlyoutView`, and a change
+  later reaches the pages already showing. Never generate code that calls
+  `ShinyFlyout.GetFlyoutView(page).PushMode = …` after each navigation. Panel options
+  (`IsSwipeEnabled`, `Presentation`, widths) belong on the `FlyoutPanel` inside the template.
+
+```xml
+<Shell xmlns:shiny="http://shiny.net/maui/controls"
+       FlyoutBehavior="Disabled"
+       shiny:ShinyFlyout.PushMode="Resize"
+       shiny:ShinyFlyout.ScrimOpacity="0.5">
+    <shiny:ShinyFlyout.StartTemplate>…</shiny:ShinyFlyout.StartTemplate>
+</Shell>
+```
 
 ## Driving it from code
 

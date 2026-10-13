@@ -222,7 +222,8 @@ Opens hour/minute pickers with hr/min labels in a FloatingPanel on tap. Requires
 Opens native dropdown/spinner picker on tap. Bind by index (`SelectedIndex`) or by value (`SelectedItem`,
 two-way) — a `SelectedItem` set from code/binding is reflected in the cell's value label and picker selection
 (it stays in sync even when `ItemsSource` is populated asynchronously). Use `DisplayMember` to show a property
-of complex items.
+of complex items. `DisplayMember`/`SubDisplayMember` (here and on `PickerCell`) are read by reflection, so for a
+full-trim/NativeAOT app leave them unset and override the item's `ToString()` instead.
 
 ```xml
 <!-- by value, with a display member -->
@@ -374,6 +375,10 @@ All cells inherit these properties:
 | `ItemsSource` | `IEnumerable?` | `null` |
 | `ItemTemplate` | `DataTemplate?` | `null` |
 
+`HeaderView`/`FooterView` are moved into every re-render, so they survive styling changes and cell
+collection changes. Give each section its own view instance; never share one between sections or with
+another part of the page.
+
 `IsVisible` is live and safe to bind — a section that flips re-renders the table, and a hidden section
 draws nothing at all: no header, no cells, and **no section separator on either side of it**. Binding
 it to a feature flag or a mode switch is the intended use, **including to a `SwitchCell.On` in the same
@@ -400,6 +405,23 @@ Generate cells from a data source:
 ```
 
 The `ItemsSource` supports `INotifyCollectionChanged` for live updates.
+
+`TableView` also has `ItemsSource`/`ItemTemplate`, which generate whole **sections** (the template returns a
+`TableSection`). Each generated section, and every fixed cell, header and footer view declared inside its
+template, binds to the item - so `{Binding Name}` on a fixed cell in the template reads the item, not the
+page. No need to pin `BindingContext` on those cells.
+
+```xml
+<shiny:TableView ItemsSource="{Binding Groups}">
+    <shiny:TableView.ItemTemplate>
+        <DataTemplate>
+            <shiny:TableSection Title="{Binding Name}">
+                <shiny:LabelCell Title="{Binding Name}" ValueText="{Binding Count}" />
+            </shiny:TableSection>
+        </DataTemplate>
+    </shiny:TableView.ItemTemplate>
+</shiny:TableView>
+```
 
 ## Global Styling (TableView Properties)
 

@@ -76,7 +76,7 @@ has chips for.
 ## What a chip shows
 
 `ToString()` unless told otherwise. `ItemDisplayBinding` wins over `DisplayMemberPath`. Prefer a binding
-over reflection: the path is compiled, so it survives trimming, and a converter or `StringFormat` comes
+over reflection: the path is compiled, so it survives trimming (`DisplayMemberPath` does not — use the binding in a full-trim/NativeAOT app), and a converter or `StringFormat` comes
 free.
 
 `ItemTemplate` replaces the **label only** — the check and the ✕ are never part of it.

@@ -52,12 +52,12 @@ Identical on both hosts unless noted.
 | `Source` | `MotionIconDefinition` | Explicit artwork. Beats `Icon` and `PathData`. |
 | `PathData` | `string` | Raw SVG path in a 24x24 box — the quickest way to animate your own glyph. |
 | `Motion` | `MotionPreset` | Defaults to `Default`. |
-| `Trigger` | `MotionTrigger` | `[Flags]`. Defaults to `Hover \| Press`. |
+| `Trigger` | `MotionTrigger` | `[Flags]`. Defaults to `Hover \| Press`. Bindable at runtime: becoming `Loop`/`Appear` after load starts the icon, leaving `Loop` stops it. |
 | `Duration` | `TimeSpan` | Overrides one cycle. Zero uses the motion's own. |
 | `Interval` | `TimeSpan` | Rests between cycles while looping. |
 | `Speed` | `double` | Rate multiplier. Negative reverses **on MAUI only**. |
 | `RepeatCount` | `int` | Cycles per triggered play. Zero or less repeats forever. |
-| `Color` | `Color` (MAUI) / `string` (Blazor) | MAUI: unset follows the theme pack's on-surface token. Blazor: `currentColor`. |
+| `Color` | `Color` (MAUI) / `string` (Blazor) | MAUI: unset follows the theme pack's on-surface token; a local value, `Style` setter, `Binding` or `AppThemeBinding` all override it. Blazor: `currentColor`. |
 | `AccentColor` | same | Secondary colour for two-tone artwork. Falls back to `Color`. |
 | `StrokeWidth` | `double` | In the icon's own 24-unit space. The set is drawn for `2`. |
 | `IsPlaying` | `bool` | Two-way. **This is the one to bind to a busy flag.** |
@@ -74,7 +74,7 @@ Methods on both: `Play()`, `Stop()`, `StopAtCycleEnd()`. MAUI adds `PlayAsync()`
 [Flags] enum MotionTrigger { Manual = 0, Loop = 1, Hover = 2, Press = 4, Appear = 8 }
 ```
 
-- **`Loop`** — runs continuously, resting for `Interval` between cycles.
+- **`Loop`** — runs continuously, resting for `Interval` between cycles. On MAUI, `IsVisible="False"` on the icon itself pauses it (and showing it resumes), so swapping one icon per state by visibility is fine. Hiding a *parent* does not pause it — put `IsVisible` on the icons, or bind `IsPlaying`.
 - **`Hover`** — runs while the pointer is over it, then **finishes the cycle in progress** so it never snaps back mid-pose. Mouse only; pair it with `Press` for touch.
 - **`Press`** — one play per tap or click. **Only presses that land on the icon itself count** — an
   icon sitting inside a larger tap target (a button, a row) should be `Manual` and played by its

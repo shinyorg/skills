@@ -256,5 +256,5 @@ For credit cards, licenses, receipts and other documents on Blazor, generate a r
 - Use `await foreach` for the plural verbs; use the singular verb rather than
   `ScanXsAsync().FirstOrDefaultAsync()`.
 - Turn `AllowZoom` off for document and OCR scans — a zoomed frame is a cropped one.
-- Barcode and OCR are a no-op on Windows and the bare `net10.0` head (no native scanner), exactly as for
-  `CameraView`.
+- Barcodes read everywhere the camera does — Apple Vision, Android ML Kit, and ZXing.Net on Windows. OCR is
+  a no-op on the bare `net10.0` head (no native engine), exactly as for `CameraView`.
