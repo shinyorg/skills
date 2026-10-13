@@ -225,5 +225,8 @@ bar?.OpenMenu(NavBarSide.Right);
   `LargeTitleDisplay="None"` on AppKit.
 - Shell is a different world — it cannot host a `NavigationPage` at all. Present this modally from a
   Shell app, or use Shell's own navigation.
+- A long `Title`/`Subtitle` truncates with "…" before the item groups (the text sits in a star
+  column of the title row). Don't wrap the title in your own `HorizontalStackLayout` via
+  `TitleView` — that measures unbounded and loses the truncation again.
 - `ShinyNavBar` can be used standalone at the top of any layout (`LeftItems`, `RightItems`, `Title`,
   `IsBackButtonVisible`), but it owns no navigation — the host does the popping.

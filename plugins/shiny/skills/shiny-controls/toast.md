@@ -195,6 +195,7 @@ await toaster.ShowAsync("Very long message that scrolls continuously", cfg =>
 ## Code Generation Guidance
 
 - Use `toaster.ShowAsync(text)` for fire-and-forget notifications (inject `IToaster` via constructor)
+- To replace the toaster, implement `IToaster` and call `UseShinyControls(c => c.SetCustomToaster<MyToaster>())` — do not also `AddSingleton<IToaster, …>` yourself
 - Use `var handle = await toaster.ShowAsync(text, cfg => { cfg.Duration = TimeSpan.Zero; })` when the caller needs to control dismiss timing
 - Default to `Pill` mode for brief notifications, `FillHorizontal` for connectivity/status bars
 - Use `Spinner` for ongoing operations (uploads, syncing)
