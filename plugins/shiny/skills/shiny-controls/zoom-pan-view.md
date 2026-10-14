@@ -41,7 +41,7 @@ Give the host a height in CSS — the component sets `overflow: hidden` and `pos
 |---|---|---|---|
 | `MinZoom` | `double` | `1` | Below 1 the content may sit smaller than its box and **stay** there. |
 | `MaxZoom` | `double` | `5` | |
-| `ZoomLevel` | `double` | `1` | Two-way. Writing it zooms; gestures report back through it. |
+| `ZoomLevel` | `double` | `1` | Two-way. Writing it zooms; gestures report back through it. A write mid-animation supersedes the running zoom. |
 | `IsZoomed` | `bool` | — | Read-only. Past natural size, i.e. there is something to pan. |
 | `IsZoomEnabled` | `bool` | `true` | Off hands the content's gestures back and drops any zoom. |
 | `DoubleTapToZoom` | `bool` | `true` | Turn off when the content wants double taps of its own. |

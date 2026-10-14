@@ -108,6 +108,8 @@ Commands raised outward: `StartedCommand`, `StepChangedCommand` (step name), `Co
 
 Methods: `Start(fromIndex)`, `Stop()`, `Next()`, `Back()`, `Skip()`, `GoTo(name|index)`, `Reset()`,
 `Restart()`. Static: `Walkthrough.ClearRun(key)`, `Walkthrough.Store`.
+On MAUI, `Start()` while a stopped run is still animating out is queued (not dropped), and a `Stop()`
+during start-up ends the run as `Stopped` (not remembered).
 
 Events: `Started`, `StepChanged`, `Ended`.
 

@@ -84,7 +84,7 @@ In addition to the main-Fab pass-throughs (`Icon`, `Text`, `FabBackgroundColor`,
 
 | Property | Type | Default | Binding Mode | Description |
 |---|---|---|---|---|
-| `IsOpen` | `bool` | `false` | TwoWay | Opens/closes the menu with animation |
+| `IsOpen` | `bool` | `false` | TwoWay | Opens/closes the menu with animation; a change mid-animation is applied when it finishes |
 | `Items` | `IList<FabMenuItem>` | empty | — | Content property; place items directly inside `<shiny:FabMenu>` |
 | `FabSize` | `double` | `56` | OneWay | Main FAB button size (diameter) |
 | `HasShadow` | `bool` | `true` | OneWay | Drop shadow on the main FAB |
