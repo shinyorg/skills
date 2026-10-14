@@ -233,6 +233,31 @@ triggers:
   - Shiny.AppDeviceBridge.InAppPurchases.Client
   - Shiny.Mobile.InAppPurchases
   - purchases.updated
+  - IGameCenterBridge
+  - AddGameCenterBridge
+  - AddGameCenterBridgeClient
+  - GameCenterBridgeClient
+  - Shiny.AppDeviceBridge.GameCenter
+  - Shiny.AppDeviceBridge.GameCenter.Client
+  - Shiny.GameCenter
+  - games.player
+  - game center
+  - play games
+  - achievements
+  - leaderboards
+  - ICallDirectoryBridge
+  - AddCallDirectoryBridge
+  - AddCallDirectoryBridgeClient
+  - CallDirectoryBridgeClient
+  - Shiny.AppDeviceBridge.CallDirectory
+  - Shiny.AppDeviceBridge.CallDirectory.Client
+  - Shiny.Mobile.CallDirectory
+  - call directory
+  - call blocking
+  - caller id
+  - PrinterSensorStatus
+  - GetPrinterStatusAsync
+  - RequiresUnlock
   - in-app purchase
   - storekit
   - google play billing
@@ -391,7 +416,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
@@ -529,8 +554,10 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.9; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
 | `.InAppPurchases` | `AddInAppPurchasesBridge()` — registers `AddInAppPurchases<WebAppPurchaseDelegate>()`; keeps an app's own delegate | `IInAppPurchasesBridge` — App Store / Google Play purchases via Shiny.Mobile.InAppPurchases 5.9; iOS and Android only, `501` elsewhere; see In-app purchases below |
+| `.GameCenter` | `AddGameCenterBridge(o => o.AddAchievement(key, appleId, googleId, totalSteps).AddLeaderboard(key, appleId, googleId))` — Shiny's `GameCenterOptions`; an app's own `AddGameCenter` wins | `IGameCenterBridge` — Game Center / Play Games via Shiny.GameCenter; Apple platforms and Android, `501` elsewhere; see Game center below |
+| `.CallDirectory` | `AddCallDirectoryBridge(o => o.DefaultCountryCode = 44)` — Shiny's `CallDirectoryOptions`; iOS also needs `<ShinyCallDirectoryExtension>true</ShinyCallDirectoryExtension>` + `<ShinyCallDirectoryAppGroup>` | `ICallDirectoryBridge` — call blocking / caller ID via Shiny.Mobile.CallDirectory; iOS and Android 10+, `501` elsewhere; see Call directory below |
 | `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
-| `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
+| `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` — channel actions are `NotificationChannelAction(Identifier, Title, ActionType, RequiresUnlock)`; set `RequiresUnlock: true` on actions with a real-world effect ("Open Garage") |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
 | `.Health` | `AddHealthBridge()` | `IHealthBridge` |
@@ -705,6 +732,43 @@ purchasing, **not** Apple Pay / Google Pay card processing.
 - Errors by `BridgeException.Code`: `503 store_unavailable|network`, `403 not_allowed`, `404 product_not_found`,
   `409 product_unavailable|no_user_interface|invalid_state`, `400 developer_error`, `502 verification_failed|purchase_failed`.
 
+## Game center
+
+`AddGameCenterBridge(o => …)` puts Apple Game Center (iOS, Mac Catalyst, macOS) and Google Play Games v2 (Android) behind
+`/_bridge/games`, backed by Shiny.GameCenter (registers `AddGameCenter` itself unless the app already did). Every other
+platform answers `501`.
+
+- **Keys, not platform ids:** register each achievement/leaderboard once natively with its Apple and Google ids, then
+  the page uses the key everywhere. Incremental achievements **must** be registered (`totalSteps` matching the Play
+  Console) — Apple counts percent.
+- `SignInAsync()` → `SignInResult { Player? }` — null is a decline, not an error. `OnPlayerChangedAsync` /
+  `games.player` for sign-in, sign-out, account switch.
+- **Writes never fail offline:** `UnlockAsync(key)`, `SetProgressAsync(key, new AchievementProgressRequest(steps))`
+  (absolute — prefer it over increments for idempotency), `IncrementAsync`, `RevealAsync` (Google only),
+  `SubmitScoreAsync(key, new SubmitScoreRequest(score))` are queued on the device. `GetStatusAsync().PendingCount`,
+  `FlushAsync()` to wait for the queue. Don't generate client-side retry loops around them.
+- **Reads need a signed-in player:** `GetAchievementsAsync(forceReload)`, `GetScoresAsync(key, new
+  LeaderboardScoresRequest(Scope, TimeScope, MaxResults ≤ 100))`, `GetFriendsAsync()` → `FriendsResult { Status,
+  Friends }` — on `ConsentRequested` (Google) ask again later. UI: `ShowAchievementsAsync()`,
+  `ShowLeaderboardAsync(new ShowLeaderboardRequest(key?))`.
+- Errors by `BridgeException.Code`: `401 not_authenticated`, `404 invalid_id`, `409 no_user_interface`,
+  `503 network|unavailable|not_configured`, `502 game_service_failed`.
+
+## Call directory
+
+`AddCallDirectoryBridge()` puts call blocking and caller identification behind `/_bridge/calldirectory`, backed by
+Shiny.Mobile.CallDirectory. iOS (a Call Directory extension the build generates) and Android 10+ (call screening role);
+everything else answers `501`.
+
+- Entries are `CallDirectoryEntry(PhoneNumber, Label?, Type)` — `PhoneNumber` is a `long`: country code + digits
+  (`18005550100`). Normalize user input with `NormalizeAsync(new NormalizeNumberRequest(text, DefaultCountryCode?))`
+  — never hand-roll the parsing. `Type`: `Block`, `Identify` (label as caller ID), `Allow` (Android only; iOS treats it as Identify).
+- `SetAsync`, `RemoveAsync(new CallDirectoryRemoveRequest([...]))`, `ClearAsync()`, and `ReplaceAllAsync` for a full
+  server sync. **Batch edits, then `ReloadAsync()` once** — iOS only sees changes after a reload; read
+  `CallDirectoryReload.Result` (`ExtensionDisabled` → send the user to Settings via `RequestAccessAsync()`).
+- `GetStatusAsync()` → `{ Access, Count }`. iOS has no permission prompt; re-check access when the app resumes.
+  `GetEntryAsync(number)` answers `404` when the number isn't stored.
+
 ## Printing
 
 Two bridges, matching Shiny 5.9's two models — **pick by the printer**:
@@ -752,6 +816,11 @@ byte[] invoicePdf = await Printing.HtmlToPdfAsync(new HtmlToPdfRequest(html, Pag
 - **Errors:** no printer → `409 not_connected`; second connect → `409 already_connected` (`DisconnectAsync` first); a
   write that fails drops the printer (`409 printer_failed`) and raises `printers.disconnected` — a TCP printer that was
   switched off is only noticed this way.
+- **Sweep:** `ScanAsync(new PrinterScanRequest(PrinterTransport.Network, Sweep: true))` adds a TCP port sweep of the
+  local /24 (on `NetworkPorts`) to mDNS, for printers that don't advertise; `DiscoveredPrinter.Discovery` says which.
+- **Printer status:** when `ConnectedPrinter.SupportsStatus` (ESC/POS over the network), `GetPrinterStatusAsync()` →
+  `PrinterSensorStatus` (`CanPrint`, `IsPaperOut`, `IsPaperNearEnd`, `IsCoverOpen`, `IsDrawerSensorHigh`, errors). Check
+  `CanPrint` before a receipt; `501` when unsupported, `504 printer_timeout` when the printer doesn't answer.
 - **Feature-detect:** `GetStatusAsync()` (`BluetoothSupported`, `NetworkScanSupported`, `RenderSupported`) and
   `Printing.GetCapabilitiesAsync()` (`Pdf`, `Image`, `Html`, `Silent`, `ListPrinters`). Content a platform can't print
   answers `501` — HTML on Windows and CUPS: render to PDF first. `Silent` + `PrinterId` (from `GetPrintersAsync()`)
