@@ -69,6 +69,11 @@ Two separate behaviours, both on by default:
    `ShowErrorOnFault` is set. A command that sets `State` itself has the last word: the button only
    unwinds if it is still the one holding `Busy`.
 
+   A command that can fault must not rethrow through `async void`: MVVM Toolkit's
+   `AsyncRelayCommand.Execute` does exactly that by default, which is an unhandled exception that
+   can take a MAUI app down. Generate `[RelayCommand(FlowExceptionsToTaskScheduler = true)]` on any
+   command whose failure should just show `Error` — the button still sees the faulted `ExecutionTask`.
+
    Detection is by cached reflection, so no MVVM package is referenced. For full trimming /
    NativeAOT, set `AutoBusy="False"` and drive `State` from the view model.
 
@@ -190,7 +195,23 @@ There is no `ICommand` on the web, so the command-state work is **MAUI-only**. I
 `Clicked` is awaited: with `AutoBusy` (default) an `async` handler holds the button busy for exactly
 as long as it runs, and a synchronous handler never flickers because the task is checked for
 completion before any state change. A handler that throws sets `Error` and the exception is still
-rethrown.
+rethrown — and an exception escaping a Blazor event handler shows the error UI (WASM) or kills the
+circuit (Server). So generated handlers should **catch their own failures** and report them through a
+bound `State`:
+
+```razor
+<ShinyButton Text="Upload" ErrorText="Failed" @bind-State="uploadState" Clicked="UploadAsync" />
+
+@code {
+    ButtonState uploadState;
+
+    async Task UploadAsync()
+    {
+        try { await api.UploadAsync(); }
+        catch (Exception) { uploadState = ButtonState.Error; }
+    }
+}
+```
 
 ```razor
 @using Shiny.Blazor.Controls

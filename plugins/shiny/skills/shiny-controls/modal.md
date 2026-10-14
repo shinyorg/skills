@@ -160,3 +160,4 @@ new ModalButton("Save")
 - A vetoed close shakes the panel (`NudgeOnBlockedDismiss`). Say *why* it was refused from inside the panel — anything the handler writes to the page is behind the modal that just refused to move.
 - Set `AriaLabel` whenever there is no `Title` (a `HeaderTemplate` or `ShowHeader="false"`), or the dialog is announced unnamed.
 - Mutating a `ModalButton` in place (`State`, `Disabled`) needs a `StateHasChanged` unless the click handler that changed it is the thing returning.
+- `OnClick` is invoked like an `EventCallback`: when it is a method group (`OnClick = SaveAsync`) or a lambda capturing only `this`, the owning page re-renders when it returns — so `ClosesModal = false` plus an `OnClick` that sets the bound `IsOpen = false` closes the modal. A lambda that captures locals has no component to re-render; call `StateHasChanged()` from it.

@@ -56,11 +56,11 @@ Identical on both hosts unless noted.
 | `Duration` | `TimeSpan` | Overrides one cycle. Zero uses the motion's own. |
 | `Interval` | `TimeSpan` | Rests between cycles while looping. |
 | `Speed` | `double` | Rate multiplier. Negative reverses **on MAUI only**. |
-| `RepeatCount` | `int` | Cycles per triggered play. Zero or less repeats forever. |
+| `RepeatCount` | `int` | Cycles per triggered play (`Play()`, Press, Appear). Zero or less repeats forever. Does not bound `IsPlaying`. |
 | `Color` | `Color` (MAUI) / `string` (Blazor) | MAUI: unset follows the theme pack's on-surface token; a local value, `Style` setter, `Binding` or `AppThemeBinding` all override it. Blazor: `currentColor`. |
 | `AccentColor` | same | Secondary colour for two-tone artwork. Falls back to `Color`. |
 | `StrokeWidth` | `double` | In the icon's own 24-unit space. The set is drawn for `2`. |
-| `IsPlaying` | `bool` | Two-way. **This is the one to bind to a busy flag.** |
+| `IsPlaying` | `bool` | Two-way. **This is the one to bind to a busy flag.** Setting it `true` loops until it is set `false`, whatever `RepeatCount` says (both hosts). |
 | `Size` | `double` | Blazor only. MAUI uses `WidthRequest`/`HeightRequest` (both default 24). |
 | `Progress` | `double` | MAUI only. Two-way — bind a `Slider` to scrub. |
 | `Command` | `ICommand` | MAUI only. Blazor has `OnClick`. |
