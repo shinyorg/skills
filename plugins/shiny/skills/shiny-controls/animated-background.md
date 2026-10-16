@@ -29,7 +29,7 @@ xmlns:shiny="http://shiny.net/maui/controls"
 - **`MeteorsEffect.MaxDelay`** is a `TimeSpan` (`"0:0:5"`).
 - **Bindable:** effect properties are bindable and change live. One effect instance (a resource, a style) can be shared by several backgrounds.
 - **Rendering:** a `GraphicsView` under the content, ticked by the window's shared frame ticker, only while loaded. Works on every head, AppKit and GTK4 included.
-- **Pointer:** DotPattern spotlight and Particles repel/attract use hover (`PointerGestureRecognizer`: mouse, trackpad, pen; touch is best effort). On phones use `SpotlightMode.Auto` (wanders when there is no pointer) or `Wander`.
+- **Pointer:** DotPattern spotlight and Particles repel/attract use hover (`PointerGestureRecognizer`: mouse, trackpad, pen) on the desktop heads only; iOS/Android track no pointer (on Android the recognizer stole taps from the content). On phones use `SpotlightMode.Auto` (wanders) or `Wander`, never `Pointer`.
 
 ## Blazor
 
