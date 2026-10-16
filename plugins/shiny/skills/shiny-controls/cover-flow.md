@@ -27,6 +27,7 @@ An iTunes/iPod-style **Cover Flow** carousel. The centre item faces the viewer, 
 - Events: `PositionChanged` (`EventHandler<int>`), `ItemSelected` (`EventHandler<CollectionItemEventArgs>`).
 - Commands: `PositionChangedCommand`, `ItemSelectedCommand`.
 - `DataTemplateSelector` is honoured for both templates.
+- A tap with no position (accessibility activation, UI automation) selects the centre cover.
 
 ## Blazor
 
