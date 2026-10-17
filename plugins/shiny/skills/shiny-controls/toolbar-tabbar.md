@@ -53,6 +53,9 @@ must always be visible (a status pill, an avatar) in `EndContent` and everything
 `EndContent` cannot fold into the menu, which is the usual reason a bar "refuses to collapse": the actions
 were markup rather than `Items`.
 
+On a narrow bar the leading region (`Title` / `StartContent`) shrinks first and a long title ellipsizes, so
+`EndContent` and the actions stay on-screen on a phone — no need to shorten the title for mobile.
+
 ## Dropdown buttons & submenus
 
 Give a `ToolbarItem` `Children` and it becomes a menu button: it opens a dropdown instead of raising

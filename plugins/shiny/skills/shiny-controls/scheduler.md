@@ -466,6 +466,12 @@ The Blazor `SchedulerAgendaView` has full feature parity with MAUI:
 
 Blazor agenda parameters: `Provider`, `SelectedDate` (+`SelectedDateChanged`), `DaysToShow` (1–7, clamped), `ShowCarouselDatePicker`, `DatePickerMode` (`None` / `Carousel` / `Calendar` — `Calendar` renders a full month picker with ‹/› navigation and today highlight), `ShowAdditionalTimezones`, `AdditionalTimezones` (`IList<TimeZoneInfo>` — extra time columns with UTC offset labels), `ShowCurrentTimeMarker`, `CurrentTimeMarkerColor` (default `#EF4444`), `DefaultEventColor` (default `#6366F1`), `TimeSlotHeight`, `MinDate`, `MaxDate`, `Use24HourTime`. Overlapping events lay out side-by-side with proportional widths; the current time marker refreshes itself every minute without re-rendering the component.
 
+Blazor `SchedulerAgendaView` and `SchedulerCalendarListView` scroll themselves (the agenda has a 500px,
+the list a 400px `min-height`), so place them where they get a real height: a full-height flex column with
+`flex: 1; min-height: 0`, never a fixed-height box inside a scrolling page (two scrollers on one axis).
+Don't wrap any of the three views in another bordered card flush to their edge either: each draws its
+own outer border.
+
 Blazor agenda drag/resize mirrors MAUI - `AllowEventDrag`, `AllowEventResize`, `DragSnapMinutes`,
 `MinEventDuration`, `DragActivationDelay`, `AllowCrossDayDrag`, `DragSnapGuideColor` (a CSS colour
 string), plus `EventChangeFailed` as an `EventCallback<SchedulerEventChangeFailure>` and one

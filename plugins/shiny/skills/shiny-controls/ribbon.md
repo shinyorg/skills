@@ -269,7 +269,9 @@ The trailing chevron and a second click on the showing tab both toggle Expanded 
 A tab wider than the bar folds groups into single buttons — lowest `Priority` first, rightmost breaking
 ties. Raise `Priority` on the groups that should survive longest; `CanCollapse="false"` pins one open;
 `AllowGroupCollapse="false"` turns it off and lets the body scroll instead. Set `CollapsedIcon` on
-Blazor (MAUI falls back to the first item's icon).
+Blazor (MAUI falls back to the first item's icon). On Blazor the fold measuring is deferred to the next
+animation frame, so a "ResizeObserver loop completed" console error at phone width is not expected — don't
+work around it.
 
 ## Selection and events
 

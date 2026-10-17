@@ -91,7 +91,8 @@ Methods: `Select(int)`, `Deselect(int)`, `ClearSelection()`. Events: `SelectionC
   not a disabled button: a disabled button reads as an action that is currently unavailable, while this
   was never actionable.
 - A nested `ButtonGroup` makes the outer one a **cluster**: each inner group keeps its own merged edges
-  and the two are spaced by `ClusterSpacing`.
+  and the two are spaced by `ClusterSpacing`. On Blazor a cluster wraps its inner groups onto another row on
+  a narrow screen (each group stays whole), so no media query is needed for phones.
 
 ## Blazor
 

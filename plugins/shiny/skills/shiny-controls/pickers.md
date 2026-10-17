@@ -54,6 +54,22 @@ The `DurationPickerCell` uses the same FloatingPanel-based picker internally.
 
 **Note:** When using `DurationPickerCell` in a TableView, the page must use `ShinyContentPage` so the floating panel has an overlay host to render into.
 
+## Inline font pickers (Blazor)
+
+The inline `FontPicker` / `FontSizePicker` are uncapped and size to their list, so in a scrolling page
+the page does the scrolling. Never wrap them in a fixed-height box inside a scrolling page, which gives
+two scrollers on one axis. To cap one in a fixed-height panel, set `--shiny-fontpicker-max-height` /
+`--shiny-fontsizepicker-max-height`. The `...Button` dropdowns already cap at 320px.
+
+## Inline font pickers (MAUI)
+
+The MAUI `FontPicker` / `FontSizePicker` wrap their rows in a `ScrollView`. Pick one owner per axis:
+
+- **Picker scrolls** (long font list): put it in a `Grid` row of `*` on a page that is not a `ScrollView`; no `HeightRequest`.
+- **Page scrolls**: put it in the page's `VerticalStackLayout` with no `HeightRequest`; unconstrained, it measures to its whole list and never scrolls itself.
+- **Never** a fixed `HeightRequest` inside a page `ScrollView` (double scrolling).
+- `FontPickerButton` / `FontSizePickerButton` add their popup to the page's root `Grid`; if that Grid has rows, wrap it in a plain single-cell `<Grid>` so the popup covers the page instead of landing in row 0.
+
 ## Width (MAUI)
 
 `FontPickerButton`, `FontSizePickerButton` and `ColorPickerButton` shrink-wrap their trigger by

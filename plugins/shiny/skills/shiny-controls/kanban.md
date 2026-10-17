@@ -139,7 +139,10 @@ Methods: `MoveCardAsync(card, columnId, swimlaneId, index)`, `RebuildBoard()`, `
 Callbacks: `OnCardMoving`, `OnCardMoved`, `OnDropRejected`, `OnCardTapped`,
 `OnColumnCollapseChanged`, `OnAddCardRequested`, `OnBoardBuilt`.
 
-The drag is on **pointer events**, not HTML5 drag-and-drop (DnD never fires on touch).
+The drag is on **pointer events**, not HTML5 drag-and-drop (DnD never fires on touch). On touch a card is
+picked up by press-and-hold (~350 ms); a finger that moves first scrolls the board, so don't add your own
+`touch-action` or long-press handling. Mouse/pen drag after 5px. Edge auto-scroll runs while the pointer
+rests near an edge and is clamped to the board.
 
 ## Display and layout
 

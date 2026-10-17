@@ -82,7 +82,7 @@ The sheet container is always viewport-tall and is translated down to the detent
 | `ExpandOnInputFocus` | `bool` | `true` | Auto-expands to highest detent when an input is focused |
 | `IsLocked` | `bool` | `false` | Prevents all user dismissal (drag, header tap close, backdrop tap); panel can only be closed via code. Header tap still opens the panel |
 | `FitContent` | `bool` | `false` | Measures content and auto-computes a single detent to fit it (ignores Detents when true) |
-| `IsContentScrollEnabled` | `bool` | `true` | Wraps the content in a `ScrollView`. Set **`False`** when the content already scrolls itself (a `TableView`, `CollectionView`, etc.) — nesting scroll-views collapses the inner one to near-zero height, so its rows render blank. Safe with `ShowHeaderWhenClosed` |
+| `IsContentScrollEnabled` | `bool` | `true` | Wraps the content in a `ScrollView`. Set **`False`** when the content already scrolls itself (a `TableView`, `CollectionView`, etc.) — nesting scroll-views collapses the inner one to near-zero height, so its rows render blank. Safe with `ShowHeaderWhenClosed`. With it on, a `CollectionView` also loses virtualization. Pattern: `IsContentScrollEnabled="False"` plus a `Grid RowDefinitions="Auto,*,Auto"` with the list in the `*` row, so the header and footer stay put and only the list scrolls |
 | `UseFeedback` | `bool` | `true` | Feedback on open, close, and detent snap |
 
 ## OverlayHost Properties
