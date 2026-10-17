@@ -83,4 +83,5 @@ The popup goes in the page overlay. Any `ContentPage` works, with no `ShinyConte
 - **Inline or popup:** use `DateRangeCalendar` when the calendar is the page (booking screens), and a picker inside forms and filter bars.
 - **Value types:** on MAUI, bind `DateTime?`/`TimeSpan?` view-model properties; on Blazor, `DateOnly?`/`TimeOnly?`. Don't mix them up.
 - **Hotel-style nights:** use `AllowSingleDay="False"` with `MinDays="2"`. Days counts both ends, so 2 days is one night.
+- **Popup scrolling (MAUI):** the date pickers' card scrolls as a whole. In `TimeRangePicker` only the two time columns scroll; they shrink to fit a short screen and the footer stays visible. Don't wrap picker content in another `ScrollView`.
 - **Validating on the server:** call `new DateRangeConstraints { … }.Validate(range)`. It applies the same rules as the UI.

@@ -36,6 +36,15 @@ A text input with debounced search, dropdown suggestions, busy indicator, and cu
     CornerRadius="8" />
 ```
 
+### MAUI dropdown placement
+
+The suggestion list floats in the page overlay (under the field, at its width; flips above when there is more room there) instead of being laid out inside the control. So:
+
+- Put an `AutoCompleteEntry` in a normal scrolling form (`ScrollView` > `VerticalStackLayout`) - no nested scroller results and nothing below it moves when it opens.
+- Do **not** reserve empty space under the field or give the control a `HeightRequest` to make room for suggestions.
+- In UI tests, find suggestions under `#<AutomationId>_DropDown`, not under the control itself.
+- Off a `ContentPage` it falls back to an inline row under the field.
+
 ### MAUI Styling
 
 The control can be targeted by an implicit or explicit `Style`, so app-wide appearance is set

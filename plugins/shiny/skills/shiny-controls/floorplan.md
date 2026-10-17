@@ -82,7 +82,7 @@ No registration call.
 ```
 
 Parameters mirror MAUI: `Document`, `Mode`, `ShowGrid`, `SnapToGrid`, `ActiveTool`, `Theme`,
-`@bind-SelectedElement`, `FitOnLoad` (default true), `Class`, `Style`. Callbacks are
+`@bind-SelectedElement`, `FitOnLoad` (default true; on Blazor it refits on every canvas resize until the user first presses, wheels or zooms), `Class`, `Style`. Callbacks are
 `OnElementTapped`, `OnSelectionChanged`, `OnElementAdded`, `OnElementsRemoved`.
 
 On Blazor WebAssembly the package fails the build (SHINY0001) when the WebAssembly native build

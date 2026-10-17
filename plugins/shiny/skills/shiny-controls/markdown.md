@@ -77,6 +77,7 @@ A markdown editor with formatting toolbar, live preview toggle, and customizable
 - **Live preview**: Toggle between edit and preview modes with eye/pencil icon button
 - **Auto-growing editor**: Editor height grows as you type
 - **Custom toolbar**: Replace default toolbar items with a custom set
+- **Blazor split view** (`IsSplit`, default `true`): source and preview side by side; a container query wraps the preview under the source when each pane would be under 260px, so don't turn `IsSplit` off just for phones
 
 ### Keyboard accessory bar (iOS + Android)
 
@@ -127,7 +128,7 @@ MarkdownTheme.Dark     // Dark color scheme
 | `BlockquoteBorderColor` | `#D1D5DB` | `#4B5563` | Blockquote left border |
 | `BlockquoteBackgroundColor` | `#F9FAFB` | `#1F2937` | Blockquote background |
 | `HorizontalRuleColor` | `#E5E7EB` | `#374151` | Divider color |
-| `TableBorderColor` | `#E5E7EB` | `#374151` | Table cell borders |
+| `TableBorderColor` | `#E5E7EB` | `#374151` | Table outer border and the single 1px row/column dividers (MAUI draws no per-cell borders) |
 | `TableHeaderBackgroundColor` | `#F3F4F6` | `#1F2937` | Table header background |
 
 ### Theme Font/Spacing Properties

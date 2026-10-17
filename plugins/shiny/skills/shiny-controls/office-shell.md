@@ -91,7 +91,7 @@ zoom factor — bind the status bar and the editor to the same value. `OfficeZoo
 
 ## Rules
 
-- Compact layout below 600px: search → icon, rulers/panes hidden (open state kept), ribbon Simplified, status bar drops Focus/view modes/slider.
+- Compact layout below 600px: search → icon, rulers/panes hidden (open state kept), ribbon Simplified, status bar drops Focus/view modes/slider. Blazor: status segments that don't fit drop whole from the end (never sliced mid-word); one over-long segment ellipsizes — order segments most-important first.
 - Android back button: closes an open ribbon dropdown / `OfficeDialog` / backstage / focus mode before leaving the page (hooked by `UseShinyControls()`).
 - Blazor needs an explicit height on the shell (it fills its container).
 - MAUI lists that change after first layout (backstage templates/recents, headings, status segments) may not repaint on AppKit until a resize — set them before the page shows where possible.

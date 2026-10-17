@@ -193,6 +193,8 @@ Exactly one column should set `ShowHierarchy`; if none does, the first gets it.
 - **Validation never throws.** Dangling links, duplicate ids, cycles, missed deadlines and clamped
   constraints all land in `GanttModel.Issues`; read it from `PlanBuilt` / `OnPlanBuilt`.
 - **Blazor: give the component a height.** It fills its parent and collapses without one.
+- **Blazor: the task pane is capped at 45% of the control's width** (`min(TaskPaneWidth px, 45%)`), so a
+  phone still shows the timeline; no need to shrink `TaskPaneWidth` or hide the pane for mobile.
 - **Blazor: pointer coordinates come from `clientX/clientY` minus the canvas origin, never
   `offsetX`** — `offsetX` is relative to the event *target*, and a press on a bar targets the bar.
 - **Both hosts: `BuildDragPlan` takes its task and target as arguments** because the commit path

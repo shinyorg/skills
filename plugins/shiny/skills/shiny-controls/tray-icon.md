@@ -94,6 +94,9 @@ Menu item types:
 | `TrayCheckMenuItem` | `.Check(label, isChecked, toggled)` | Renders a checked state. `toggled(bool)` receives the new value |
 | `TraySeparator` | `.Separator()` | Visual separator |
 | `TraySubmenu` | `.Submenu(label, builder)` | Nested menu — same builder API |
+| `TrayProgressItem` | `.Progress(label, value, caption)` or `.Progress(TrayProgressItem)` | Non-clickable labelled bar. `Value` 0–1 (clamped), `Detail` (null = percentage, `""` = none), `Caption`, `Tone` |
+
+`TrayMenuItem.Pill = new TrayPill("New", TrayTone.Success)` draws a solid pill after the label. Tones: `Neutral`, `Accent`, `Success`, `Warning`, `Danger`. Pills exist on `TrayMenuItem` only — not on check items or submenu headers.
 
 All items expose `IsEnabled`, `IsVisible`, and `Label`. Set them at any time:
 
@@ -106,6 +109,26 @@ pauseItem.IsEnabled = !syncing;
 ```
 
 The handler subscribes to the menu's internal `Changed` event and rebuilds the native menu when any item property changes or the collection is mutated.
+
+### Pills and progress rows (usage meters)
+
+```csharp
+var session = new TrayProgressItem("Session usage", 0.18, caption: "Resets in 4 hr 12 min");
+
+icon.SetMenu(TrayMenu.Build(b => b
+    .Progress(session)
+    .Separator()
+    .Item(new TrayMenuItem("Upgrade plan", OpenBilling) { Pill = new TrayPill("Pro", TrayTone.Accent) })));
+
+// any thread, e.g. a Timer callback: repaints just that row, even while the menu is open
+session.Value = 0.82;
+session.Tone = session.Value >= 0.75 ? TrayTone.Warning : TrayTone.Accent;
+session.Caption = "Resets in 2 hr 3 min";
+```
+
+- Keep a reference to each `TrayProgressItem` you will update — don't rebuild the menu to move a bar.
+- `Value`/`Label`/`Detail`/`Tone`/caption text changes repaint in place; adding or removing the caption (null ⇄ text) and any `Pill` change rebuild the menu.
+- Native on macOS AppKit, MacCatalyst (custom `NSView` + attributed-title pill) and Windows (owner-drawn rows). **Linux renders text**: `Upgrade plan  [Pro]` and `Session usage   ▰▰▰▰▰▰▱▱▱▱  62%` plus a greyed caption row, because the shell draws app-indicator menus from DBusMenu labels only.
 
 ### Per-menu-item icons
 

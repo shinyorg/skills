@@ -445,6 +445,9 @@ Rules that matter:
   - **MAUI** takes doubles (`MinWidth="90"`); `0` means "fall back to the grid". A star column outside
     `HorizontalScroll` stays a star and is not clamped — MAUI's `Grid` has no bounded star, so clamping
     would silently turn it absolute.
+- **One scroller**: a Blazor grid with `Height` scrolls itself. Don't place one inside a scrolling page;
+  fill a full-height column instead (`flex: 1; min-height: 0`), or drop `Height` and page the rows so the
+  page scrolls.
 - **Virtualization**: Blazor opt-in via `Virtualize` (uses `<Virtualize>`, best with `FixedHeader`+`Height`,
   not combined with paging/grouping); MAUI gets it free from `CollectionView`.
 - **Frozen header**: Blazor needs `FixedHeader="true"` **and** `Height` (the header sticks against the

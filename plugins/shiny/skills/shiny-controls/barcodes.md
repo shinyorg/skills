@@ -167,6 +167,7 @@ Inherits everything from `BarcodeView`. Forces `Format = QRCode` and adds:
 - Default `ImageFormat` is `Svg` — prefer it. Inline SVG scales infinitely without aliasing and stays tiny in DOM size (`shape-rendering="crispEdges"` plus a single horizontal-run `<path>`).
 - Switch to `ImageFormat="BarcodeImageFormat.Png"` only when you need a raw `<img>` element (e.g. for `<img>`-specific styling, save-as menus, or copy-image-to-clipboard flows).
 - Use `CssWidth`/`CssHeight` for responsive sizing while keeping `PixelWidth`/`PixelHeight` at the desired encoder resolution (the PNG/SVG is generated once per parameter change).
+- The code is capped at `max-width: 100%` and, with no `CssHeight`, keeps its aspect ratio (`height: auto`), so the default 400px width already shrinks to fit a phone — don't add `CssWidth="100%"` just for mobile. An explicit `CssWidth`/`CssHeight` still wins.
 - The Blazor component re-encodes inside `OnParametersSet` whenever any parameter changes — keep `Value` stable across renders to avoid wasted encoding work.
 
 ### Both hosts

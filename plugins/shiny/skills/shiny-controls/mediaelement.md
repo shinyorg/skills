@@ -113,6 +113,10 @@ across every target, themed from the active Shiny theme pack.
 only** — a paused frame or an audio-only track keeps its controls, which is both conventional and what
 keeps the buttons reachable to a screen reader. Set it false for audio.
 
+On Blazor the bar is responsive by itself (a container query on the bar): at ≤420px wide the volume slider
+hides (the mute button stays) and buttons shrink to 30px; below 260px the time labels hide too. Don't toggle
+`ShowVolumeControl`/`ShowTimeLabels` off just to fit a phone.
+
 Styling: `TransportBarBackgroundColor`, `ControlColor`, `SeekBarColor`, `VideoBackgroundColor`. Leave
 `SeekBarColor` unset and the scrubber follows `Shiny.Color.Primary` from the theme.
 
