@@ -64,7 +64,9 @@ ObservableCollection<MediaPickerItem> photos = new();   // Shiny.Maui.Controls.M
 | `MaxImageDimension` | `int` | `0` | If > 0, the longest edge is downscaled to this many pixels |
 | `OutputFormat` | `ImageExportFormat` / `string` | `Jpeg` / `"jpeg"` | Output encoding — PNG or JPEG |
 | `Photos` | `IList<MediaPickerItem>` / `IReadOnlyList<MediaPickerItem>` | empty | The collected photos (two-way) |
-| `AddButtonText` | `string` | "➕ Add Photo" | Text on the add trigger |
+| `AddButtonText` | `string` | "➕ Add Photo" | Text on the add trigger (Blazor: also the accessible name when `AddButtonTemplate` is set) |
+| `AddButtonTemplate` | `DataTemplate?` / `RenderFragment?` | `null` | Replaces the dashed add trigger; still hides at `MaxPhotos`. Visuals only: the template is the tap target (MAUI — a `Button` inside swallows the tap) or sits inside a `<button>` (Blazor — no nested buttons/links) |
+| `ItemSpacing` | `double` | `0` (MAUI) / `12` (Blazor) | Space between thumbnails in the inline carousel |
 | `GalleryActionText` / `CameraActionText` | `string` | "Choose from Gallery" / "Take Photo" | Chooser labels |
 | `UseFeedback` | `bool` (MAUI) | `true` | Haptic/sound feedback on actions |
 
@@ -114,8 +116,14 @@ The result DTO in each package. Bytes are already compressed/converted to `Outpu
 
 On **Blazor** the bytes live in the browser: `Id`, `DataUri` (an object URL for `<img src>`), `Width`, `Height`, `ContentType`, `Size`, `FileName`, plus `Data` (filled on pick unless uploading), `HasData`, `OpenReadStreamAsync(max, ct)` and `ReadAllBytesAsync(max, ct)`.
 
-- MAUI: `record MediaPickerItem(byte[] Data, int Width, int Height, string ContentType)` with `Stream OpenRead()` and an `ImageSource Thumbnail`.
+- Both: `bool CanRemove` (default `true`) — `false` hides the thumbnail's ✕ so the user can't remove it (e.g. an already-saved photo). Kept through an edit. Code-side removal is not blocked.
+- MAUI: `record MediaPickerItem(byte[] Data, int Width, int Height, string ContentType)` with `Stream OpenRead()` and an `ImageSource Thumbnail`; `CanRemove` is `init` → `new MediaPickerItem(bytes, w, h, "image/jpeg") { CanRemove = false }`.
 - Blazor: `class MediaPickerItem { byte[] Data; string DataUri; int Width; int Height; string ContentType; }` — bind `DataUri` directly to `<img src>`.
+
+## Pre-loaded / locked photos
+
+- MAUI: add items to the bound `Photos` collection.
+- Blazor: pass them in through `@bind-Photos` — a list the screen passes replaces what the picker holds. A saved photo can be given by URL only: `new MediaPickerItem { DataUri = "/photos/41.jpg", ContentType = "image/jpeg", CanRemove = false }`. Such an item has no browser bytes: `UploadAllAsync` skips it, Edit isn't offered unless `Data` is set, `ReadAllBytesAsync` throws.
 
 ## Notes
 

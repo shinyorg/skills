@@ -88,33 +88,23 @@ Switches (all default `true`): `ShowShell` (false = the old ribbon + formula bar
 `ShowTitleBar`, `ShowStatusBar`, `ShowBackstage`, `ShowCommentsPane`, and on Blazor `ShowRibbonActions`.
 `ShowToolbar`, `ShowFormulaBar`, `ShowSheetTabs` still work.
 
-The shell reads and writes **no files**. Save (title bar, backstage, Ctrl+S), Save As, Export and Print
-raise **`FileRequested`** with a `SpreadsheetFileRequest` (`Format`, `FileName`, `Action`
-Save/SaveAs/Export/Print, `Sheet`, `WriteToAsync(stream)`, `ToBytesAsync()`). On **Blazor**, leaving it
-unhandled downloads the file in the browser (Print opens the PDF in a new tab); on **MAUI** it must be
-handled for anything to be written:
-
-```csharp
-sheet.FileRequested += async (_, request) =>
-{
-    var path = Path.Combine(FileSystem.AppDataDirectory, request.FileName);
-    await using var file = File.Create(path);
-    await request.WriteToAsync(file);
-};
-```
+**Files: no events.** Open, Save (Ctrl+S; back over the same file), Save As, Export (xlsx, CSV of the
+active sheet, PDF) and the recent list go to the document store (office-shell.md › Files) — with no
+setup, the host default. Print = system PDF viewer (MAUI) / new tab (Blazor). Load with
+`await sheet.OpenAsync(stream, "Name.xlsx")` (the view owns it); methods `SaveAsync()`,
+`SaveAsAsync(format)`, `ExportAsync(format)`, `PrintAsync()`. An app that owns its files sets
+`ShowFileCommands="false"`.
 
 ```razor
 <SpreadsheetView @bind-Workbook="workbook" @bind-Zoom="zoom"
-                 DocumentName="Budget" UserName="Allan Ritchie" RecentFiles="recent"
-                 FileRequested="SaveAsync" />
+                 DocumentName="Budget" UserName="Allan Ritchie" />
 ```
 
 Other shell members: `DocumentName` (two-way), `UserName` (avatar + author of new notes), `Templates`,
-`RecentFiles`, `SaveState` (Blazor override), `AutoSave` (Blazor; saves 2 s after the last edit when
-`FileRequested` is handled), events `TemplateSelected` (handle it to build templates yourself —
+`ShowFileCommands`, `DocumentStore`, `CurrentFile`, `SaveState` (Blazor override), `AutoSave` (Blazor; saves
+2 s after the last edit to a store file), events `TemplateSelected` (handle it to build templates yourself —
 unhandled, the view builds the workbook, shows it and raises Blazor `WorkbookChanged` /
-MAUI `WorkbookReplaced`; use `@bind-Workbook` on Blazor), `OpenRequested`, `RecentFileSelected`,
-`ShareRequested`. `Commands` is the `OfficeCommandIndex` behind the search — add your own commands to
+MAUI `WorkbookReplaced`; use `@bind-Workbook` on Blazor), `ShareRequested`. `Commands` is the `OfficeCommandIndex` behind the search — add your own commands to
 it. MAUI also exposes `Shell`, `TitleBar`, `StatusBar`, `Backstage`, `GoToNote(...)` and `SaveAsync()`.
 `FileMenuRequested` is still raised by File (after the backstage opens).
 
@@ -577,7 +567,7 @@ the clipboard filling or emptying; `Changed` also fires, but it fires on every k
 
 The ribbon already carries every command on this page — do not add your own buttons for any of them.
 With the shell on, the backstage and status bar are built in too; what is left for a host to wire is
-where files go (`FileRequested`) and, optionally, recent files and its own templates.
+optionally its own document store and templates.
 
 ## Touch
 
