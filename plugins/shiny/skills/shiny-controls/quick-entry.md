@@ -443,3 +443,9 @@ Under X11 everything behaves as it does on Windows and macOS. Where `IGlobalHotK
 - Don't register a hotkey with no modifier.
 - Don't assume the popup resizes itself if you turned `AutoSize` off.
 - Don't expect measurement alone to size growing custom content — implement `IQuickEntryAutoSize`.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `PromptView`: `<id>_Entry`, `<id>_Submit`, `<id>_Microphone`, `<id>_Busy`, `<id>_Response`, `<id>_Suggestion_<n>`, `<id>_LeadingTool_<n>` / `<id>_TrailingTool_<n>`. The service popup has no owner: set `QuickEntryOptions.AutomationId` to name the content it builds.

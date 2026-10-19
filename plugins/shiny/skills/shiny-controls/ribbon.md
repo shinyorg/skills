@@ -324,3 +324,15 @@ not. It is automatic on both hosts; nothing to switch on.
 Hosting a `Label` in a MAUI ribbon group: set `VerticalTextAlignment = Center`, not just
 `VerticalOptions`. The pinned row height makes the label *be* the row, so `VerticalOptions` has nothing
 to centre within and the text falls to the top while neighbouring icons stay centred.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the `Ribbon` and its chrome is named after it. Tabs, groups and items with their own `AutomationId` keep it; an unnamed tab is named by its position in `Tabs`. Without an id on the ribbon the chevron and File button keep `RibbonCollapseToggle` / `RibbonApplicationButton`.
+
+| Part | Id |
+|---|---|
+| Collapse chevron | `<id>_CollapseToggle` |
+| Application (File) button | `<id>_ApplicationButton` |
+| Each unnamed tab | `<id>_Tab_<index>` |
+| An open dropdown or group popup card | `<id>_Menu` |
+| Each line of an open dropdown | `<id>_MenuItem_<index>` |

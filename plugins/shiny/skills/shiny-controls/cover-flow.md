@@ -66,3 +66,14 @@ An iTunes/iPod-style **Cover Flow** carousel. The centre item faces the viewer, 
 - Give each cover a fixed size with `ItemWidth`/`ItemHeight`, not with sizes inside the template.
 - On MAUI, `ShowReflection` fades into the theme's Surface colour, so put the control on a Surface background.
 - Use `CarouselGallery` for a flat snap carousel, and `Carousel` (Blazor) for slides-per-view or autoplay. Use `CoverFlowView` for the 3D album-art look.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). Without an id the parts get none.
+
+| Part | Id |
+|---|---|
+| Each realized cover (index in `ItemsSource`) | `<id>_Item_<index>` |
+| Caption area | `<id>_Caption` |
+
+Only covers near the centre exist at any moment, and covers take no touches of their own: tap a cover's bounds and the control hit-tests it.

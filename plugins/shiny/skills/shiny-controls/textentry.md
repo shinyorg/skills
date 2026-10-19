@@ -427,3 +427,9 @@ There is no Blazor equivalent of the MAUI keyboard accessory bar, on purpose. iO
 its own bar above the keyboard and will not let a page remove it, so ours would stack on top of it and
 the user would see two; Chrome on Android draws none, so the behaviour would diverge across the only
 two browsers that matter. Do not generate one.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `TextEntry`: `<id>_Entry` (the native entry), `<id>_Hint`, `<id>_Clear` (a `ClearButtonTool`), other tools `<id>_LeftTool_<n>` / `<id>_RightTool_<n>` (a tool with its own id keeps it). A `KeyboardAccessoryView` names its items after the **bar's** id: `<bar>_Previous`, `<bar>_Next`, `<bar>_Done`, `<bar>_Item_<n>`.

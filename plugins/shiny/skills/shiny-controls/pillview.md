@@ -74,3 +74,11 @@ Example override in `App.xaml`:
     </Style>
 </Application.Resources>
 ```
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the pill and its label is named after it, for UI tests:
+
+| Part | Id |
+|---|---|
+| Text label | `<id>_Text` |

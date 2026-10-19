@@ -229,3 +229,20 @@ for this - it is handled in the control.
 - A genuine `JSException` still propagates; only disconnection, disposal and cancellation are
   swallowed.
 - `CanUndoChanged` / `CanRedoChanged` / `ZoomLevelChanged` never fire after the component is disposed.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). Without an id the parts get none, except the tool and undo/redo/reset buttons, which keep the ids they shipped with (`ImageEditorTool<Mode>`, `ImageEditorQuick<Icon>`).
+
+| Part | Id |
+|---|---|
+| Tool buttons | `<id>_Tool_<Mode>`, e.g. `<id>_Tool_Crop`, `<id>_Tool_Draw` |
+| Undo / redo / reset | `<id>_Undo` / `<id>_Redo` / `<id>_Reset` |
+| Rotate / save | `<id>_Rotate` / `<id>_Save` |
+| Zoom out / in / fit / percentage label | `<id>_ZoomOut` / `<id>_ZoomIn` / `<id>_ZoomFit` / `<id>_ZoomReadout` |
+| Stroke colour / each width preset | `<id>_StrokeColor` / `<id>_StrokeWidth_<index>` |
+| Shape fill colour / fill toggle | `<id>_FillColor` / `<id>_FillToggle` |
+| Font / font size pickers | `<id>_Font` / `<id>_FontSize` |
+| Crop bar cancel / apply | `<id>_CropCancel` / `<id>_CropApply` |
+| The text annotation entry | `<id>_TextEntry` |
+| The ribbon toolbar (its collapse toggle and tabs follow it: `<id>_Ribbon_CollapseToggle`, `<id>_Ribbon_Tab_<index>`) | `<id>_Ribbon` |

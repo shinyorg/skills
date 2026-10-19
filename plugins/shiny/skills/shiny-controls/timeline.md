@@ -113,3 +113,11 @@ The MAUI marker is a `BoxView`, not a `Border`: a `BoxView`'s fill is a `Color` 
 shows all of them at once. Wizard dots are only clickable — and only show a hover — when
 `AllowStepSelection` is true, and with `LinearNavigation` on that still means completed steps and the
 current one.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). With no id on the control, the parts get none.
+
+| Part | Id |
+|---|---|
+| Each row (what `NodeTapped` listens on), by index | `<id>_Node_0` |

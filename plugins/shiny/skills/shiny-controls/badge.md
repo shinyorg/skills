@@ -63,7 +63,7 @@ When `IsDot` is true the `Text`, `MaxCount`, and `BadgePadding` are ignored, and
 </shiny:BadgeView>
 ```
 
-`IsAnimated` (default true) handles the scale-in/out when the badge appears or disappears. `IsPulsing` (default false) runs a continuous gentle scale animation while the badge is visible — leave it off for normal count badges, turn it on for important "look at me" badges.
+`IsAnimated` (default true) handles the scale-in/out when the badge appears or disappears; a show that arrives while it is still animating out wins, so a count cleared and set again in quick succession stays visible. `IsPulsing` (default false) runs a continuous gentle scale animation while the badge is visible — leave it off for normal count badges, turn it on for important "look at me" badges.
 
 ### BadgeView Properties (MAUI)
 
@@ -151,3 +151,11 @@ Bind `Text` directly to a string. When `unreadCount` is `""` the badge is hidden
 - `BadgeBorderColor` defaults to white so the badge reads cleanly against any underlying content; match it to the surrounding background when wrapping inside a colored card.
 - Use `IsDot` for unread indicators (no count needed) and `MaxCount` for count badges. Use `IsPulsing` sparingly — it's eye-catching and should be reserved for genuinely important badges.
 - The wrapped view is laid out exactly as if the badge weren't there — the badge does not affect the host's measurement.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the `BadgeView` and its badge is named after it, for UI tests:
+
+| Part | Id |
+|---|---|
+| Badge label ("3", "99+") | `<id>_Badge` |

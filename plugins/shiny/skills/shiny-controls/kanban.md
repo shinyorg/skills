@@ -158,3 +158,20 @@ Prefer these over a template. Reach for `CardTemplate`, `ColumnHeaderTemplate`,
 `SwimlaneHeaderTemplate` or `EmptyColumnTemplate` only when the card is genuinely a different shape.
 The drag belongs to the board, which wraps whatever the template produces — a custom card never needs
 its own gesture.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). With no id on the control, the parts get none.
+
+| Part | Id |
+|---|---|
+| Card (the view that is tapped and dragged), by `KanbanCard.Id` | `<id>_Card_<card id>` |
+| Column header, by `KanbanColumn.Id` | `<id>_Column_<column id>` |
+| Default header's collapse chevron | `<id>_Column_<column id>_Collapse` |
+| Default header's count / WIP label | `<id>_Column_<column id>_Count` |
+| Lane well (the drop target) | `<id>_Lane_<column id> (grouped: <id>_Lane_<column id>_<swimlane id>)` |
+| A lane's Add card button | `<lane id>_Add` |
+| A lane's inline new-card entry | `<lane id>_AddEntry` |
+| Swimlane header, by `KanbanSwimlane.Id` | `<id>_Swimlane_<swimlane id>` |
+
+Everything is keyed by the model's id, not its position, so a drag that reorders cards does not rename them.

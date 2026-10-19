@@ -103,6 +103,10 @@ if (s.IsPressed(GamepadButton.A)) player.Jump();
 ```csharp
 var layout = GamepadLayouts.TwinStick();
 layout.Find("ls")!.IsFloating = true;        // stick centres where the thumb lands
+layout.Find("ls")!.FloatingRegion = GamepadFloatingRegion.LeftHalf; // "touch anywhere on the left"
+// FloatingRegion: Around (default: stick + FloatingZone dp per side), LeftHalf, RightHalf, TopHalf,
+// BottomHalf, Anywhere. Measured on the view (Body under Uniform). Drawn buttons still win; the
+// region stops passing touches through to the game underneath.
 layout.Elements.Add(new GamepadElement
 {
     Id = "fire", Kind = GamepadElementKind.Button, Button = GamepadButton.RightShoulder,

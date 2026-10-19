@@ -280,6 +280,13 @@ Blazor-side differences worth knowing:
   more than a spinner beside an unchanged label.
 - Give icon-only buttons a `SemanticProperties.Description` (MAUI) or `aria-label` (Blazor). The
   button keeps one stable `AutomationId` across state changes and moves only the description, since
-  MAUI's `AutomationId` is set-once.
+  MAUI's `AutomationId` is set-once. A description you set, style or bind is left alone — even a
+  binding whose value arrives after the text; without one, the button mirrors its state text.
+- `ShinyButton` (and `Fab`, `FabMenuItem`, chips and the keyboard-accessory/TextEntry tools) is a real
+  button to assistive tech and UI automation on iOS, Android and Windows: Windows UI Automation gets the
+  Button control type and the Invoke pattern (Narrator, WinAppDriver/Appium can press it) and Enter/Space
+  press it when focused; TalkBack announces a button and double-tap presses it; VoiceOver gets the button
+  trait. Every route runs the same code as a tap, so a disabled button ignores them. Don't wrap it in a
+  MAUI `Button` to get this.
 - `ReplaceLeftIcon` is the default for a reason — pick `ReplaceContent` only when the label would be
   misleading mid-flight, and pin nothing: the content keeps its layout space either way.

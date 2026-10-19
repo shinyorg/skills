@@ -344,6 +344,18 @@ async Task OnDropped(TreeItemDroppedEventArgs<FileNode> e)
 }
 ```
 
+## Automation ids (MAUI)
+
+Set `AutomationId` on the `TreeView` and each row is named by its index in the visible (flattened)
+order, renamed on every expand/collapse, for UI tests:
+
+| Part | Id |
+|---|---|
+| Node row (the selection tap target) | `<id>_Node_<index>` |
+| Expand/collapse chevron | `<id>_Expand_<index>` |
+| Multi-select checkbox | `<id>_CheckBox_<index>` (`ShinyTreeNodeCheckBox` when the tree has no id) |
+| Root loading indicator / load-error label | `<id>_Loading` / `<id>_Error` |
+
 ## When to Use TreeView
 
 - File browsers, folder pickers, category browsers

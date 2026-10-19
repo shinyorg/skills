@@ -101,3 +101,9 @@ public interface IAddressSearchProvider
 ```
 
 The default provider (`NominatimAddressSearchProvider`) queries OpenStreetMap's Nominatim API with a User-Agent header. For production use, consider a provider with higher rate limits.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `AddressEntry`: `<id>_Entry`, `<id>_DropDown`, results `<id>_Suggestion_<n>` (named after the AddressEntry, not the inner AutoCompleteEntry).

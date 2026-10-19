@@ -161,3 +161,12 @@ differences:
   submit.
 - Leave the colour properties unset so the theme carries through.
 - Do **not** reach for this when the user types their own values — that is `TagEntry`.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the group and its chips are named after it, for UI tests, in `ItemsSource` order:
+
+| Part | Id |
+|---|---|
+| Each chip | `<id>_Chip_<index>` |
+| A chip's remove button (`CanRemove`) | `<id>_Chip_<index>_Remove` |

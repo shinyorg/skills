@@ -539,3 +539,23 @@ Blazor `SchedulerCalendarListView` parameters: `Provider`, `SelectedDate` (+`Sel
 Leave `CalendarCellColor`, `CalendarCellSelectedColor`, `CurrentDayColor` and the day-header colours
 unset — they default to theme tokens. Event chip colours are yours to pick per event; the label ink
 is derived from each chip's colour automatically, so do not set a text colour on them.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). With no id on the control, the parts get none.
+
+| Part | Id |
+|---|---|
+| Calendar view: each day cell, by date | `<id>_Day_20261019` |
+| Calendar view: an event in a day, by `SchedulerEvent.Identifier` | `<id>_Day_20261019_Event_<identifier>` |
+| Calendar view: a day's "+N more" | `<id>_Day_20261019_More` |
+| Calendar view: previous / next month, month title | `<id>_PreviousMonth / <id>_NextMonth / <id>_MonthTitle` |
+| Agenda view: carousel date picker, and its days | `<id>_DatePicker → <id>_DatePicker_Day_20261019` |
+| Agenda view: calendar sheet picker, its days, month buttons, title | `<id>_CalendarPicker → <id>_CalendarPicker_Day_20261019, …_PreviousMonth, …_NextMonth, …_MonthTitle` |
+| Agenda view: the sheet picker's expand handle | `<id>_CalendarPicker_Expand` |
+| Agenda view: all-day strip, and its events | `<id>_AllDay → <id>_AllDay_Event_<identifier>` |
+| Agenda view: each day's timeline (the time-slot tap target), and its events | `<id>_DayColumn_20261019 → <id>_DayColumn_20261019_Event_<identifier>` |
+| Agenda view: each day's header | `<id>_DayHeader_20261019` |
+| Calendar list view: the list | `<id>_List` |
+
+Days are keyed by date and events by `Identifier` (set it to something stable in tests; it defaults to a new GUID). The calendar list view's rows are recycled template rows, so they carry whatever id your `EventItemTemplate` gives them.

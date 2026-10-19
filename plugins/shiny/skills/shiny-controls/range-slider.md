@@ -161,3 +161,13 @@ The thumbs never grow to fit — pair non-square content with `ThumbWidth`/`Thum
   pair a non-square template with `ThumbWidth`/`ThumbHeight`
 - For a single-value slider, use [Slider](slider.md) instead
 ```
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). With no id on the control, the parts get none.
+
+| Part | Id |
+|---|---|
+| Track (tap moves the nearer thumb) | `<id>_Track` |
+| Lower / upper thumb (dragged) | `<id>_LowerThumb / <id>_UpperThumb` |
+| Lower / upper tooltip value label | `<id>_LowerValue / <id>_UpperValue` |

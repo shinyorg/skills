@@ -224,3 +224,11 @@ The fill transitions to each new value: a MAUI `Animation` driving the fill widt
 - Blazor honours `prefers-reduced-motion: reduce` and drops the transition.
 - Indeterminate mode has no width transition on either host - the sweep owns width and transform, and a transition only fights it.
 - Retargeting mid-slide continues from where the bar actually is rather than jumping to the previous target.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the bar and its parts are named after it, for UI tests:
+
+| Part | Id |
+|---|---|
+| Percentage label (`ShowText`) | `<id>_Text` |

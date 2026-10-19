@@ -75,3 +75,9 @@ The MAUI `FontPicker` / `FontSizePicker` wrap their rows in a `ScrollView`. Pick
 `FontPickerButton`, `FontSizePickerButton` and `ColorPickerButton` shrink-wrap their trigger by
 default. Setting `WidthRequest` makes the trigger fill that width, so a toolbar can size a row of
 pickers to a common width without leaving a gap beside each one.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `DurationPicker`: `<id>_Trigger`, `<id>_Value`, and in the popup `<id>_Popup`, `<id>_Hours`, `<id>_Minutes`, `<id>_Done`, `<id>_Cancel`.

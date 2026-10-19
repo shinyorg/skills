@@ -99,3 +99,11 @@ notchWindow.PointerExited += (_, _) => Collapse();   // also bool notchWindow.Is
 ```
 
 `NotchWindowOptions`: `UseHardwareNotch` (true), `TopMargin` (8, floating island only), `MaxWidth` (640), `MaxHeight` (480), `MorphDuration` (300ms), `JoinAllSpaces` (true), `Configure` (`Action<NotchView>`, runs after the service's own geometry so it wins). With a hardware notch the service sets `Shape = Notch`, sizes the empty notch to the cut-out, and pads the top by the cut-out's height so content sits below the camera. The window never takes keyboard focus, so content should be for glancing and clicking, not text entry.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the notch and its surface is named after it, for UI tests:
+
+| Part | Id |
+|---|---|
+| Surface (the morphing card, tap target) | `<id>_Surface` |

@@ -129,3 +129,12 @@ gives a bubble on the right. That is deliberate.
   target's own load/unload. Reach for the element form when you need binding, a template or a command.
 - Blazor's popover fallback: a browser without the popover API still gets a fixed-position bubble, which
   can be trapped by a transformed ancestor's containing block. Every current browser has the API.
+
+## Automation ids (MAUI)
+
+The bubble opens in the page's overlay layer, not under the tooltip, so it is named after the tooltip's `AutomationId`. An attached tooltip (`TooltipProperties.Text`) has no id of its own and uses its target view's.
+
+| Part | Id |
+|---|---|
+| The bubble (tap target) | `<id>_Bubble` |
+| Title / text labels | `<id>_Title`, `<id>_Text` |

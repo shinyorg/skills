@@ -205,3 +205,7 @@ Appearance settings mirror the control's, plus:
 - Don't reach for `ProgressLine` for an inline bar in a list row or a card - that is `ProgressBar`.
 - On Blazor, one `<ProgressLineHost />` per layout. A second one renders a second line.
 - `Colors.Transparent` is the MAUI `TrackColor` default; passing `null` there means "use the theme token", which is the opposite of what you want for a page-edge line.
+
+## Automation ids (MAUI)
+
+A placed `ProgressLine` carries its own `AutomationId`. The service's line sits in the page's overlay layer, so name it through the config: `progress.Start(c => c.AutomationId = "PageLoading")`. Overlapping runs share one line, and the last run's id wins.

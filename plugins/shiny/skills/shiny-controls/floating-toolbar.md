@@ -93,3 +93,15 @@ For a single target use `Target="{x:Reference card}"`, `TargetName="card"`, or w
 - **`Hover` needs a pointer** — it never fires on a phone. Use `LongPress` or `Tap` for touch.
 - Triggering a *different* target while the bar is open re-anchors rather than closing.
 - MAUI's overlay layer sits **below** the tooltip layer on purpose: item tooltips must draw over the bar.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the `FloatingToolbar` and the bar it floats over the page is named after it. Without one, the bar's buttons keep the `toolbar-item-<Text>` ids they have always had.
+
+| Part | Id |
+|---|---|
+| The floating bar | `<id>_Bar` |
+| Each bar button, by index among the drawn items | `<id>_Item_<index>` |
+| Overflow (⋯) button | `<id>_Item_Overflow` |
+| An open dropdown (depth 0 from the bar, 1 for its submenu…) | `<id>_Menu_<depth>` |
+| Each item in that dropdown | `<id>_Menu_<depth>_Item_<index>` |

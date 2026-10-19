@@ -62,3 +62,9 @@ Events: `CountrySelected` (MAUI: `EventHandler<Country>`, Blazor: `EventCallback
 | `FlagEmoji` | `string` | Flag emoji (e.g. "🇺🇸") |
 
 Flag emoji display is automatically disabled on Windows (not supported by the platform font).
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `CountryPicker`: `<id>_Entry`, `<id>_DropDown`, countries `<id>_Suggestion_<ISO2>` (e.g. `_Suggestion_CA`, stable under filtering), `<id>_Flag`.

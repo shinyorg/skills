@@ -241,3 +241,9 @@ shown verbatim. `Suggestions` are never painted by the control, so they are not 
 - Don't set `DebounceMilliseconds="0"` with a network-backed evaluator.
 - Don't reach for `SecurityPin` when the user asks for a password field — that one is a PIN/OTP
   control with fixed-length cells. See [security-pin.md](./security-pin.md).
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `PasswordStrength`: `<id>_Entry`, `<id>_Hint`, `<id>_Reveal`, `<id>_Strength`, `<id>_TimeToCrack`, rules `<id>_Rule_<n>`.

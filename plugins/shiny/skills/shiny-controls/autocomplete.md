@@ -203,3 +203,9 @@ Example: theme a whole page section without touching each component:
 | `AdditionalAttributes` | `IDictionary` | `null` | Blazor | Unmatched HTML attributes |
 
 Events: `ItemSelected` (MAUI: `EventHandler<object?>`, Blazor: `EventCallback<object?>`)
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `AutoCompleteEntry`: `<id>_Entry`, `<id>_DropDown` (the overlay list), suggestions `<id>_Suggestion_<n>` (a templated root with its own id keeps it).

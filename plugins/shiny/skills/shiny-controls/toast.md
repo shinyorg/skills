@@ -227,3 +227,18 @@ public partial class MyViewModel(IToaster toaster) : ObservableObject
     }
 }
 ```
+
+## Automation ids (MAUI)
+
+A toast has no element of its own to find it under, so name it through the config. The id goes on the toast's tappable chrome:
+
+```csharp
+await toaster.ShowAsync("Saved", c => c.AutomationId = "SavedToast");
+```
+
+| Part | Id |
+|---|---|
+| The toast (tap target) | `<id>` |
+| Text label | `<id>_Text` |
+
+Unset (the default), the toast carries no ids.

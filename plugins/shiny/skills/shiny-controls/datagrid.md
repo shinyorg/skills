@@ -498,6 +498,29 @@ Rules that matter:
 - **AOT/trimming**: MAUI string-path value access uses reflection (annotated). For full trim/NativeAOT,
   set a column's `ValueGetter`/`ValueSetter`/`Comparer` to avoid reflection.
 
+## Automation ids (MAUI)
+
+Set `AutomationId` on the grid and its parts are named after it, for UI tests. Columns are counted in
+visible order; rows by their position on the current page. Rows and cells are recycled, so they are
+renamed every time they are bound to another row.
+
+| Part | Id |
+|---|---|
+| Header cell (sort tap target) | `<id>_Header_<col>` |
+| Header filter / group / move-left / move-right glyphs, resize handle | `<id>_HeaderFilter_<col>`, `_HeaderGroup_<col>`, `_HeaderMoveLeft_<col>`, `_HeaderMoveRight_<col>`, `_HeaderResize_<col>` |
+| Select-all check box | `<id>_SelectAll` |
+| Filter-row entry | `<id>_FilterEntry_<col>` |
+| Toolbar quick search | `<id>_Search` |
+| Filter popup and its operator, value, Clear, Apply | `<id>_FilterPopup`, `_FilterOperator`, `_FilterValue`, `_FilterClear`, `_FilterApply` |
+| Data row (selection tap target) | `<id>_Row_<row>` |
+| Row check box / detail expander / tree caret | `<id>_RowCheckBox_<row>`, `_RowExpand_<row>`, `_RowToggle_<row>` |
+| Cell (the text label, or a template's root) | `<id>_Cell_<row>_<col>` |
+| Row being edited, its editors, Save / Cancel | `<id>_EditRow`, `_Edit_<col>`, `_Save`, `_Cancel` |
+| Group header (collapse tap target), in display order | `<id>_Group_<index>` |
+| Footer summary cell | `<id>_Footer_<summary row>_<col>` |
+| Pager range label and buttons | `<id>_PageRange`, `_PageFirst`, `_PagePrevious`, `_PageNext`, `_PageLast` |
+| Loading overlay | `<id>_Loading` |
+
 ## Code Generation Guidance
 
 - Prefer `PropertyColumn` (Blazor) / `DataGridColumn` with `PropertyName` (MAUI) for bound data; use

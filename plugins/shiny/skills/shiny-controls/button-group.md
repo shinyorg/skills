@@ -138,3 +138,11 @@ Blazor-side differences worth knowing:
 - Give icon-only segments a `SemanticProperties.Description` (MAUI) or `aria-label` (Blazor).
 - The group forces `Spacing` to zero on MAUI. If a design wants spaced buttons, it does not want a
   group — use a `HorizontalStackLayout`.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the group and every segment you did not name yourself is named after it, by its index in `Segments` (text segments and separators are skipped). A segment with its own `AutomationId` keeps it.
+
+| Part | Id |
+|---|---|
+| Each selectable segment | `<id>_Segment_<index>` |

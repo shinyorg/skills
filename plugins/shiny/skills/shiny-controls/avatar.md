@@ -77,3 +77,14 @@ Avatar: `Name`, `Initials`, `Uri`, `Source` (MAUI), `Size` (40), `Shape`, `Statu
 AvatarGroup: `Avatars`/`ChildContent`, `ItemsSource`/`ItemTemplate` (MAUI), `Max`, `TotalCount`, `Size`, `Shape`, `Overlap` (-1 = 25% of size), `RingColor`, `RingThickness` (2), `OverflowFormat` ("+{0}"), `OverflowCommand`/`OverflowClicked` (MAUI), `OnOverflowClick` (Blazor); read-only `OverflowCount`, `VisibleAvatars` (MAUI) / `VisibleCount` (Blazor).
 
 Blazor CSS hooks: `--shiny-avatar-size`, `--shiny-avatar-radius`, `--shiny-avatar-fill`, `--shiny-avatar-ink`, `--shiny-avatar-ring-width`, `--shiny-avatar-ring-color`, `--shiny-avatar-overlap`, `--shiny-avatar-font-size`; classes `.shiny-avatar`, `.shiny-avatar-face`, `.shiny-avatar-status--online|away|busy|offline`, `.shiny-avatar-overflow`.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on an `AvatarGroup` and its parts are named after it, for UI tests. A single `Avatar` is one tap target and needs nothing extra.
+
+| Part | Id |
+|---|---|
+| Avatars generated from `ItemsSource` | `<id>_Avatar_<index>` |
+| "+N" overflow chip | `<id>_Overflow` |
+
+Avatars you add to `Avatars` yourself, or that your `ItemTemplate` already gives an id, keep their own.

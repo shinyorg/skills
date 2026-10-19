@@ -230,3 +230,16 @@ bar?.OpenMenu(NavBarSide.Right);
   `TitleView` — that measures unbounded and loses the truncation again.
 - `ShinyNavBar` can be used standalone at the top of any layout (`LeftItems`, `RightItems`, `Title`,
   `IsBackButtonVisible`), but it owns no navigation — the host does the popping.
+
+### Automation ids (MAUI)
+
+Every pushed page with an `AutomationId` gets a bar named `<page id>_NavBar`, and the bar's parts are named after that (or after a `ShinyNavBar`'s own id when you host one by hand). A `ToolbarItem` with its own `AutomationId` keeps it, on the bar and in the overflow menu. Without an id the back and overflow buttons keep `nav-back` / `nav-overflow-left` / `nav-overflow-right`.
+
+| Part | Id |
+|---|---|
+| Back button | `<bar id>_Back` |
+| Title / subtitle | `<bar id>_Title` / `<bar id>_Subtitle` |
+| Each unnamed left / right item, by index on the bar | `<bar id>_LeftItem_<index>` / `<bar id>_RightItem_<index>` |
+| Overflow buttons | `<bar id>_OverflowLeft` / `<bar id>_OverflowRight` |
+| Overflow menu card | `<bar id>_Menu` |
+| Each unnamed menu row | `<bar id>_MenuItem_<index>` |

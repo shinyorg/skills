@@ -73,6 +73,38 @@ Parts inside a shell inherit its `App`/accent/compact state — do **not** repea
 - **`OfficeDialog`** (OK/Cancel; Blazor wraps `ModalView`): `Title`, content, `IsOpen`, `OkText`, `CancelText`, `ShowCancel`, `Accepted`, `Cancelled`. **`OfficeZoomDialog`**: `ZoomSelected`.
 - Icons: MAUI `OfficeShellIconView { Icon = OfficeShellIcon.Save }`; Blazor `<OfficeShellGlyph Icon="OfficeShellIcon.Save" />` or `Icon="@OfficeShellIcons.Svg(OfficeShellIcon.Save)"` on a ribbon item. Never emoji.
 
+## Files: the document store (the editors have no file events)
+
+`DocumentEditorView` / `SpreadsheetView` / `SlideEditorView` raise **no** Save/SaveAs/Export/Print/Open/
+RecentFile events and have **no** `RecentFiles` or `FileRequested` — never generate those. Every file
+action goes to an `IOfficeDocumentStore`; **one store serves all three editors** (each call names its
+`OfficeApp`). With none registered each editor uses its host default, so the minimum is no code at all.
+
+```csharp
+// Optional — these are also the defaults:
+builder.UseShinyOffice().UseOfficeDocumentStore();   // MAUI: AppDataDirectory/Documents, Browse = FilePicker, Print = system PDF viewer
+builder.Services.AddShinyOfficeDocumentStore();      // Blazor: Chrome/Edge real files, else upload/download. Scoped
+```
+
+- Feed a document with `await view.OpenAsync(stream, "Name.docx")` (the view owns it) rather than
+  `WordDocument.OpenAsync` + `Document = …` + manual disposal. `OpenAsync(OfficeDocumentRef? file)` opens
+  through the store (null = Browse). `CurrentFile` = the open store file. Methods `SaveAsync()`,
+  `SaveAsAsync(format)`, `ExportAsync(format)`, `PrintAsync()` on all three, both hosts.
+- **App owns files** (own document list, sync, server): `ShowFileCommands="false"` — hides File button +
+  backstage, title-bar Save/AutoSave, the slide Export group, file commands in search
+  (`OfficeCommand.IsAvailable`), Blazor Ctrl+S/Ctrl+P. Then call the methods above or read
+  `Document`/`Workbook`/`Deck` (`ToArray()`, `SpreadsheetExport`/`SlideExport`/`DocumentExport`) yourself.
+  File still raises `FileMenuRequested` when handled (all three editors, both hosts).
+- Per view: `DocumentStore` property/parameter. Custom store: implement `IOfficeDocumentStore`
+  (`PickOpenAsync`, `OpenReadAsync`, `SaveAsync(target, OfficeSaveRequest)` — null target = new file,
+  return null on cancel — `GetRecentAsync`, set `OfficeRecentFile.Document`), or derive
+  `FileSystemOfficeDocumentStore(folder)` and override `PickOpenAsync`. Register Scoped on Blazor.
+- Still events: templates (`NewDocumentRequested` / `TemplateSelected`), ownership hand-off
+  (`DocumentOpened` / `WorkbookReplaced` / `DeckReplaced`; Blazor `WorkbookChanged`), `ShareRequested`.
+  The bare parts (`OfficeTitleBar`, `OfficeBackstage`) keep their events — only for custom windows.
+- Word writer: `DocumentExport.WriteAsync(document, format, stream, pdfOptions)` (docx/pdf/txt/html).
+  After writing a document somewhere yourself, `document.MarkClean()`.
+
 ## Command search
 
 ```csharp
