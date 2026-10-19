@@ -351,17 +351,17 @@ existing views grow a title bar, the Office status bar and a File backstage; `Sh
 restores the old ribbon + slide + plain status line.
 
 - Switches: `ShowShell`, `ShowTitleBar`, `ShowStatusBar` (`ShowStatus=false` hides either bar),
-  `ShowBackstage` (off → File only raises `FileMenuRequested`), `ShowRibbonActions`.
+  `ShowBackstage` (off → File only raises `FileMenuRequested`), `ShowRibbonActions`,
+  `ShowFileCommands` (off = the app owns files: no File/backstage, title-bar Save/AutoSave, Export group).
 - Document: `DocumentName` (two-way, default "Presentation1"/file name), `DocumentLocation`,
-  `SaveState` (null = tracked), `AutoSave` (two-way; saves 2s after an edit when `FileRequested` is
-  handled), `UserName`, `Templates` (default `SlideTemplates.All`: Blank, Project update, Pitch deck,
-  Lesson), `RecentFiles`, `EditMode` (Viewing = read-only; Reviewing = Editing).
-- Events: `FileRequested` (`SlideFileRequest`: `Deck`, `SlideIndex`, `Format`, `FileName`, `Action`
-  Save/SaveAs/Export/Print, `WriteToAsync`, `ToBytesAsync`), `TemplateSelected`, `DeckReplaced`
-  (template opened by the view — bind the host's deck to it), `OpenRequested`, `RecentFileSelected`,
-  `ShareRequested`. `FileMenuRequested` still fires after the backstage opens.
-- Blazor unhandled `FileRequested`: downloads (pptx / pdf / png / jpg / zip of all slides); Print opens
-  the PDF in the print dialog. MAUI: nothing happens unless handled.
+  `SaveState` (null = tracked), `AutoSave` (two-way; saves 2s after an edit to a store file), `UserName`, `Templates` (default `SlideTemplates.All`: Blank, Project update, Pitch deck,
+  Lesson), `DocumentStore`, `CurrentFile`, `EditMode` (Viewing = read-only; Reviewing = Editing).
+- **Files: no events.** Open, Save, Save As, Export (ribbon or backstage) and the recent list go to the
+  document store (office-shell.md › Files) — with no setup, the host default; Print = system PDF viewer
+  (MAUI) / print dialog (Blazor). `OpenAsync(stream, "Name.pptx")` hands the view a deck it owns;
+  methods `SaveAsync()`, `SaveAsAsync(format)`, `ExportAsync(format)`, `PrintAsync()`.
+- Events: `TemplateSelected`, `DeckReplaced` (template or file opened by the view — bind the host's deck
+  to it), `ShareRequested`. `FileMenuRequested` still fires after the backstage opens.
 - Status bar: "Slide X of Y", language, Notes toggle, Normal / Slide Sorter / Reading View (Reading =
   the show from the current slide), zoom slider two-way with `Zoom`, Fit-to-window button (`Zoom=null`).
 - Ribbon Slide Show tab has an Export group (PDF, Pictures menu) on both hosts.
@@ -372,17 +372,12 @@ restores the old ribbon + slide + plain status line.
 
 ```razor
 <SlideEditorView Deck="deck" DeckReplaced="d => deck = d" @bind-Zoom="zoom"
-                 DocumentName="Quarterly Review" UserName="Allan Ritchie"
-                 RecentFiles="recent" FileRequested="SaveAsync" />
+                 DocumentName="Quarterly Review" UserName="Allan Ritchie" />
 ```
 
 ```csharp
 // MAUI
-slides.FileRequested += async (_, r) =>
-{
-    await using var file = File.Create(Path.Combine(FileSystem.AppDataDirectory, r.FileName));
-    await r.WriteToAsync(file);
-};
+await slides.OpenAsync(stream, "Quarterly Review.pptx");   // the view owns it; File handles the rest
 slides.DeckReplaced += (_, deck) => this.Deck = deck;
 ```
 

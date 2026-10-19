@@ -56,20 +56,22 @@ navigation pane, Styles dropdown instead of the gallery).
 
 | Part | Switch | Wired to |
 |---|---|---|
-| Title bar | `ShowTitleBar` | `DocumentName` (default "Document1", two-way), `DocumentLocation`, `SaveState` (`OfficeSaveState?`; null = Unsaved once edited), `AutoSave` (two-way), `UserName` (also the comment/revision author); Save → `SaveRequested`; Undo/Redo → controller; command search = `CommandIndex` (ribbon + extras); a query matching no command searches the document |
-| Ribbon | `ShowToolbar` | `File` opens the backstage (and still raises `FileClicked`/`FileRequested`); right end = Comments / Editing-Reviewing-Viewing (`EditMode`, two-way: Reviewing turns Track Changes on, Viewing makes it read-only) / Share (`ShareRequested`); Home › Styles is `OfficeStyleGallery`; shortcuts are in each item's `Shortcut` |
+| Title bar | `ShowTitleBar` | `DocumentName` (default "Document1", two-way), `DocumentLocation`, `SaveState` (`OfficeSaveState?`; null = Unsaved once edited), `AutoSave` (two-way), `UserName` (also the comment/revision author); Save → the document store (`ShowFileCommands=false` hides it); Undo/Redo → controller; command search = `CommandIndex` (ribbon + extras); a query matching no command searches the document |
+| Ribbon | `ShowToolbar` | `File` opens the backstage (and raises `FileMenuRequested`); right end = Comments / Editing-Reviewing-Viewing (`EditMode`, two-way: Reviewing turns Track Changes on, Viewing makes it read-only) / Share (`ShareRequested`); Home › Styles is `OfficeStyleGallery`; shortcuts are in each item's `Shortcut` |
 | Ruler | `ShowRuler` | Print Layout only. Indents / tab stops of the caret paragraph, section left/right margins — dragging applies them (one undo step) |
 | Navigation pane | `ShowNavigationPane` (two-way; View › Navigation Pane, Ctrl+F) | headings (click to jump), search → Results (click selects the hit) |
 | Comments pane | `ShowCommentsPane` (two-way; ribbon Comments button) | every comment: author, date, quoted text; click jumps, delete per comment, New |
 | Status bar | `ShowStatusBar` | "Page X of Y" (click → nav pane), "N words" (click → Word Count), language; Read / Print / Web view buttons (= `ReadMode` / `PageLayout`); zoom slider two-way with `Zoom` (25–400% = `DocumentController.MinimumZoom`/`MaximumZoom`) |
-| Backstage | always (File) | `Templates` (null = `WordTemplates.All`: Blank, Report, Letter — tiles get a first-page picture on first open, `OfficeTemplateThumbnails.Word()`), `RecentFiles` (host list), Info (statistics); print preview |
+| Backstage | always (File) | `Templates` (null = `WordTemplates.All`: Blank, Report, Letter — tiles get a first-page picture on first open, `OfficeTemplateThumbnails.Word()`), the recent list (from the document store), Info (statistics); print preview |
 
-Events (Blazor `EventCallback`, MAUI `EventHandler`): `SaveRequested`, `SaveAsRequested(OfficeFileFormat)`,
-`ExportRequested(OfficeFileFormat)`, `OpenRequested`, `RecentFileSelected(OfficeRecentFile)`,
-`NewDocumentRequested(OfficeTemplate)`, `DocumentOpened(WordDocument)`, `PrintRequested`, `ShareRequested`,
-`DocumentRenamed(string)`. **Unhandled defaults:** New opens the template in place and raises
-`DocumentOpened`; on Blazor Save downloads the `.docx`, Save As / Export download `.docx`/`.pdf`/`.txt`/`.html`,
-Print opens the browser print dialog over a PDF. MAUI raises the events only — write the file yourself.
+**Files: no events.** Open, Save, Save As, Export, Print and the recent list go to the document store
+(office-shell.md › Files) — with no setup, the host default. Load with
+`await editor.OpenAsync(stream, "Name.docx")` (the view owns it); save from your own UI with
+`SaveAsync()` / `SaveAsAsync(format)` / `ExportAsync(format)` / `PrintAsync()`. An app that owns its files
+sets `ShowFileCommands="false"`. Remaining events (Blazor `EventCallback`, MAUI `EventHandler`):
+`NewDocumentRequested(OfficeTemplate)` (unhandled, the template opens in place),
+`DocumentOpened(WordDocument)` (handled = the host owns that document), `ShareRequested`,
+`DocumentRenamed(string)`, `FileMenuRequested`.
 
 PDF: `view.ExportPdf(stream)` (both hosts) or `DocumentPdfExporter.Export(document, stream, options)` in
 `Shiny.Controls.Office.Skia` — print layout at 100%, one PDF page per page, same painter as the screen,
@@ -77,15 +79,12 @@ works on WASM. `DocumentPdfExporter.RenderPagePng(document, page, scale)` render
 
 ```razor
 <div style="height:760px">
-    <DocumentEditorView Document="document" @bind-DocumentName="name" SaveState="saveState"
-                        UserName="Allan Ritchie" RecentFiles="recent"
-                        SaveRequested="SaveAsync" ExportRequested="ExportAsync" />
+    <DocumentEditorView Document="document" @bind-DocumentName="name" UserName="Allan Ritchie" />
 </div>
 ```
 
 ```xml
-<office:DocumentEditorView x:Name="Editor" DocumentName="{Binding Name}" UserName="Allan Ritchie"
-                           SaveRequested="OnSave" ExportRequested="OnExport" />
+<office:DocumentEditorView x:Name="Editor" DocumentName="{Binding Name}" UserName="Allan Ritchie" />
 ```
 
 Glue for custom chrome lives in `Shiny.Controls.Office.Shell.WordShell` (headings, search results, styles,
@@ -572,8 +571,8 @@ c.HandleShortcut("b", command: true, shift: false, alt: false, out var handled);
 ```
 
 Views: `ReadMode`, `ShowNavigationPane`, `ShowRibbonTabs` (default **true**), `Statistics`,
-`StatisticsChanged`, `ZoomChanged`, `CurrentStyleChanged`; File hook = MAUI `ShowFileButton` +
-`FileRequested`, Blazor `FileClicked`. MAUI desktop hosts route keys with
+`StatisticsChanged`, `ZoomChanged`, `CurrentStyleChanged`; File hook = `FileMenuRequested` (MAUI
+also `ShowFileButton`). MAUI desktop hosts route keys with
 `view.HandleShortcut(key, ctrl, shift, alt)`; Blazor handles keys itself. Host-only commands (Find,
 Replace, Hyperlink, New Comment, Word Count, clipboard) surface as `ShortcutRequested` on the surface.
 New ribbon icons are `WordIcons.*` (typed `OfficeIcon`, numbered from 1000).

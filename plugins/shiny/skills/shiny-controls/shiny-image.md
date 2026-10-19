@@ -119,10 +119,30 @@ builder.UseShinyControls(cfg => cfg
         o.MaxMemoryCacheBytes    = 32 * 1024 * 1024;
         o.MaxMemoryItemBytes     = 2 * 1024 * 1024;   // larger images stay disk-only
         o.Timeout                = TimeSpan.FromSeconds(60);
+        o.ServeStaleOnError      = true;              // refresh failed? show the expired copy
         o.SvgCacheEntryLimit     = 32;                // parsed SVG documents kept (0 disables)
     })
 );
 ```
+
+**How the disk cache decides.** An entry lives as long as the server's `Cache-Control: max-age` or
+`Expires` says, otherwise `DiskCacheDuration`. An expired entry is **revalidated, not thrown away**:
+the next request carries its `ETag` / `Last-Modified` as `If-None-Match` / `If-Modified-Since`, and a
+`304 Not Modified` extends the entry without downloading the image again. If the refresh fails
+(offline, timeout, 5xx), the stale copy is shown instead of the error artwork; set
+`ServeStaleOnError = false` to fail instead. A custom `IImageDownloader` can honour the same
+validators: send `request.IfNoneMatch` / `request.IfModifiedSince` and return
+`new ImageDownloadResult(Stream.Null, NotModified: true)` on a 304. One that ignores them still works
+and just re-downloads.
+
+**One request per URL.** Everything past the memory tier is shared per URI: a dozen cells asking for
+one avatar make one disk read, or one request (download or revalidation), and every cell gets its
+result and its progress. A forced reload (`ReloadAsync`) and an uncached image never share with a
+normal load.
+
+**Clock.** Expiry, last-access stamps and progress throttling read an injected `TimeProvider`.
+Register one in DI (`builder.Services.AddSingleton<TimeProvider>(...)`) to control it in tests; the
+default is `TimeProvider.System`.
 
 `IImageService` (inject it for cache management):
 
@@ -162,7 +182,7 @@ class AuthenticatedDownloader(HttpClient client, ITokenStore tokens) : IImageDow
 // builder.UseShinyControls(cfg => cfg.SetCustomImageDownloader<AuthenticatedDownloader>());
 ```
 
-Return the body stream **unread** — the service pumps it and reports progress. Use `HttpCompletionOption.ResponseHeadersRead` so `ContentLength` is known before the body arrives. `cfg.SetCustomImageService<T>()` replaces the whole pipeline, caching included; prefer the downloader hook unless you genuinely need your own cache.
+Return the body stream **unread** — the service pumps it and reports progress. To get cheap revalidation, forward `request.IfNoneMatch` / `request.IfModifiedSince` as headers and return `new ImageDownloadResult(Stream.Null, NotModified: true)` on a 304 (and pass `ETag` / `LastModified` on a 200). Use `HttpCompletionOption.ResponseHeadersRead` so `ContentLength` is known before the body arrives. `cfg.SetCustomImageService<T>()` replaces the whole pipeline, caching included; prefer the downloader hook unless you genuinely need your own cache.
 
 ## Blazor
 
@@ -200,7 +220,9 @@ Method: `ReloadAsync()` re-fetches with a cache-busting parameter. Properties: `
 ### What Blazor does and does not do
 
 - **Progress, yes.** Remote images are streamed through `fetch` + `ReadableStream` so the ring shows a genuine percentage. No `<img>` element can report this — the DOM has no progress event for images.
-- **Caching, no — on purpose.** The browser already has a well-tuned HTTP cache, shared across tabs and persisted between sessions. There is no `ClearCacheAsync` on Blazor because there is no cache of ours to clear.
+- **Disk caching: the browser's — on purpose.** Its HTTP cache is on disk, shared across tabs and sessions, and revalidates with ETag/Last-Modified itself. There is no `ClearCacheAsync` on Blazor because there is no cache of ours to clear.
+- **One fetch per URL, yes.** Images showing the same URL share one `fetch` (or one `IImageDownloader` call, per scope) and one ref-counted blob; a late joiner gets the in-flight progress or the finished blob. One image leaving never cancels a fetch others still wait on.
+- **Clock.** `ReloadAsync`'s cache-buster reads `TimeProvider` from DI when registered, else `TimeProvider.System`.
 - **CORS caveat.** A plain `<img>` may load a cross-origin image with no server cooperation; `fetch` may not. When the streamed load is blocked the component falls back to letting the browser load the URL directly — the image still appears, the ring just stays indeterminate. `DisableProgress="true"` takes that path deliberately.
 
 For authenticated images:
