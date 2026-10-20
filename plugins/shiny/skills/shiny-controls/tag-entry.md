@@ -138,3 +138,9 @@ Parameters mirror MAUI, with these differences:
 - Leave the colour properties unset so the theme carries through.
 - Read-only is "these are the values"; disabled is "not right now". Do not use disabled to make a list
   non-editable — the chips go dim and unreadable.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `TagEntry`: `<id>_Entry`, chips `<id>_Chip_<n>`, remove buttons `<id>_Remove_<n>` (n = index in `Tags`).

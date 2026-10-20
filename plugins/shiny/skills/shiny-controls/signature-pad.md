@@ -205,3 +205,13 @@ public partial class SignatureViewModel : ObservableObject
 - Set `ExportWidth`/`ExportHeight` to control the resolution of the exported PNG. The drawn signature (captured in the on-screen canvas coordinate space) is scaled **uniformly to fit and centered** within those dimensions, so the whole signature is preserved without clipping or aspect-ratio distortion even when the canvas and the export size differ — if the aspect ratios differ the image is letterboxed with the background color
 - Panel closes automatically after sign or cancel
 - While the pad is open the control automatically suppresses system navigation gestures that would otherwise steal edge-started strokes, and restores them on close — no consumer code required. On iOS this is the navigation controller's interactive "swipe back" pop; on Android it's the system back edge-swipe (API 29+, via gesture-exclusion rects) plus, when the pad sits inside a `TabbedPage`, the `ViewPager2` swipe-between-tabs gesture
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). Without an id the parts get none.
+
+| Part | Id |
+|---|---|
+| Sheet content (lives in the floating panel) | `<id>_Popup` |
+| Drawing surface | `<id>_Canvas` |
+| Sign / cancel / clear | `<id>_Sign` / `<id>_Cancel` / `<id>_Clear` |

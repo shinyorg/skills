@@ -295,3 +295,17 @@ view-model binding.
   `ChildContent` takes as many as you like.
 - **A `ContentTemplate` branch is cached by default.** Set `CacheContent="False"` on the `StateView` when
   entering a branch should reset it.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on the `Wizard` and its built-in buttons are named after it, so two wizards on one
+page don't share ids:
+
+| Part | Id |
+|---|---|
+| Next / Finish | `<id>_Next` |
+| Back | `<id>_Back` |
+| Cancel | `<id>_Cancel` |
+
+A wizard without an id keeps the fixed ids it always had: `WizardNextButton`, `WizardBackButton` and
+`WizardCancelButton`.

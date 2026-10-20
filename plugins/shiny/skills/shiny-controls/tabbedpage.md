@@ -550,6 +550,18 @@ maui devflow ui tap --automationId tab-chat
 maui devflow ui tap --automationId tab-center
 ```
 
+Set `AutomationId` on the bar (or on a `ShinyTabbedPage`, whose bar is then `<page id>_TabBar`) and
+its parts are named after it instead. Without an id on the bar the ids above stay as they are.
+
+| Part | Id |
+|---|---|
+| Each tab cell, by index among the drawn tabs | `<id>_Tab_<index>` |
+| The More (overflow) tab | `<id>_More` |
+| Centre button | `<id>_Center` |
+| The menu card (centre or overflow) | `<id>_Menu` |
+| Each centre-menu action, by index in the actions (separators count) | `<id>_MenuItem_<index>` |
+| Each tab folded into the overflow menu | `<id>_OverflowItem_<index>` |
+
 ## Gotchas
 
 - **Colours follow the theme when unset.** `SelectedColor` → primary, `UnselectedColor` →

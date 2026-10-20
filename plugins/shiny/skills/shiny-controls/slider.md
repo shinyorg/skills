@@ -265,3 +265,16 @@ emitting `<SliderMark @key="item" Value="item.Value" Text="@item.Text" />`.
   always pair a non-square template with `ThumbWidth`/`ThumbHeight`
 - On MAUI the thumb template is realized once and rebound as the thumb moves — do not write a template
   that depends on being rebuilt per value
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control and its parts are named after it, for UI tests (Appium, UI Automation, DevFlow). With no id on the control, the parts get none.
+
+| Part | Id |
+|---|---|
+| Track (holds the pan and tap; drag or tap this) | `<id>_Track` |
+| Thumb | `<id>_Thumb` |
+| Tooltip | `<id>_Tooltip` |
+| Default tooltip's value label | `<id>_Value` |
+
+The thumb is input-transparent, so a test drags `<id>_Track`, not the thumb. Stop points are decoration and have no ids.

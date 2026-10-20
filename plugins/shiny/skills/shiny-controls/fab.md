@@ -219,3 +219,13 @@ theme variables, so leaving them alone is the right call unless an item needs it
   page-level FAB)
 - The backdrop is `position:fixed; inset:0`, so it always covers the viewport regardless of the host
 - All motion honors `prefers-reduced-motion`
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on a `FabMenu` and its parts are named after it, for UI tests. An item with its own `AutomationId` keeps it. A plain `Fab` is a single tap target, so its own id is the one to tap.
+
+| Part | Id |
+|---|---|
+| Main button (opens / closes) | `<id>_Fab` |
+| Backdrop (closes when tapped) | `<id>_Backdrop` |
+| Each unnamed item, by index in `Items` | `<id>_Item_<index>` |

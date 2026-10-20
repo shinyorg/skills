@@ -273,3 +273,12 @@ Read-only: `EffectivePresentation`, `CurrentWidth`, `Host`. Event: `StateChanged
   bodies.
 - Don't set `ShinyFlyoutPage.Content` / `PageContent` — the flyout lives there. Use `Detail`.
 - Don't declare both `ShinyFlyoutPage` and `ShinyFlyout.StartTemplate` for the same page.
+
+### Automation ids (MAUI)
+
+Set `AutomationId` on a `FlyoutView` and its scrim is named after it. The panels are yours, so give them ids directly. On a `ShinyFlyoutPage`, or a page that `ShinyFlyout` installs on, the view is named after the page.
+
+| Part | Id |
+|---|---|
+| Scrim (closes an overlaid panel) | `<id>_Scrim` |
+| The FlyoutView on a page with an id | `<page id>_Flyout` (scrim `<page id>_Flyout_Scrim`) |

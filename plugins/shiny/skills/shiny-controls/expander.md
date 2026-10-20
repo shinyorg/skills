@@ -221,4 +221,6 @@ runtime; set `Item` on an expander so `OnItemExpanded` can hand the model back.
   setter on the item.
 - Setting `AutomationId` on a MAUI `Expander` also names its header row `<AutomationId>_Header` (the
   constant is `Expander.HeaderAutomationIdSuffix`). The tap gesture lives on that row, so UI automation
-  driving the expander's own id finds nothing to tap — target the header id instead.
+  driving the expander's own id finds nothing to tap — target the header id instead. The header follows
+  the expander's id when it changes, so `AutomationId="{Binding Id}"` in a `BindableLayout`/`ItemsSource`
+  template is safe (it used to throw "AutomationId may only be set one time" on a rebuild).

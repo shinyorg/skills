@@ -123,6 +123,12 @@ Both hosts fire a `Scrolled` event with `ParallaxScrollEventArgs`:
 
 Use this to drive a sticky title that fades in once the hero is mostly hidden, dim a nav bar, etc.
 
+## Automation ids (MAUI)
+
+Set `AutomationId` on the `ParallaxCollectionView` and the inner list is `<id>_List` (the scroll
+target) and the header host `<id>_Header`. Items are your `ItemTemplate`'s, so give them ids there
+(`AutomationId="{Binding Id}"`).
+
 ## Code-Generation Rules
 
 - **MAUI**:

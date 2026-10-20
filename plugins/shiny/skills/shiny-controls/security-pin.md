@@ -116,3 +116,9 @@ void OnPinCompleted(object? sender, SecurityPinCompletedEventArgs e)
 
 Leave `CellBackgroundColor` unset — it defaults to `surface-container-low` and follows the scheme.
 If you pin it, pin `CellTextColor` too.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the control to name its parts for UI tests (no id → no part ids). Never assign `AutomationId` twice in generated code; MAUI throws.
+
+- `SecurityPin`: `<id>_Entry` (hidden input), `<id>_Cells` (tap target), cells `<id>_Cell_<n>`.

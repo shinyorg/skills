@@ -151,3 +151,11 @@ Bind `Text` directly to a string. When `unreadCount` is `""` the badge is hidden
 - `BadgeBorderColor` defaults to white so the badge reads cleanly against any underlying content; match it to the surrounding background when wrapping inside a colored card.
 - Use `IsDot` for unread indicators (no count needed) and `MaxCount` for count badges. Use `IsPulsing` sparingly — it's eye-catching and should be reserved for genuinely important badges.
 - The wrapped view is laid out exactly as if the badge weren't there — the badge does not affect the host's measurement.
+
+## Automation ids (MAUI)
+
+Set `AutomationId` on the `BadgeView` and its badge is named after it, for UI tests:
+
+| Part | Id |
+|---|---|
+| Badge label ("3", "99+") | `<id>_Badge` |

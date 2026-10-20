@@ -178,3 +178,22 @@ Four levels, smallest to largest:
 - MAUI: no setup beyond `UseShinyControls()`. Blazor: `AddShinyDialogs()` + a single `<DialogHost />`.
 - MAUI: call `IDialogService` from any thread — it switches to the UI thread itself, so do not wrap calls in `MainThread.InvokeOnMainThreadAsync`. A dialog that cannot be shown fails the returned task instead of leaving it pending.
 - Set the animation via `configure: c => c.Animation = DialogAnimation.X`, or globally with `ConfigureDialogs`/`AddShinyDialogs(o => ...)`.
+
+## Automation ids (MAUI)
+
+Name a dialog through its config and its parts are named after it, for UI tests:
+
+```csharp
+await dialogs.Confirm("Delete?", "This cannot be undone", configure: c => c.AutomationId = "DeleteDialog");
+```
+
+| Part | Id |
+|---|---|
+| The dialog root | `<id>` |
+| Dimmed backdrop (tap cancels) | `<id>_Backdrop` |
+| Title / message labels | `<id>_Title`, `<id>_Message` |
+| Prompt entry | `<id>_Entry` |
+| OK / Cancel buttons | `<id>_Ok`, `<id>_Cancel` |
+| ActionSheet options, in order | `<id>_Action_0`, `<id>_Action_1`, … |
+
+Unset (the default), the dialog carries no ids. With `DialogOptions.ContentTemplate`, only the root and backdrop are named; the template names its own parts.
