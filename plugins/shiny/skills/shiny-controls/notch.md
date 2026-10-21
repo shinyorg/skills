@@ -1,6 +1,6 @@
 # NotchView
 
-A Dynamic Island / camera-notch style surface that holds **any** content and morphs its width, height and corner radius to fit it. Both hosts, **core** packages (`Shiny.Maui.Controls`, `Shiny.Blazor.Controls`). The macOS hardware-notch window lives in `Shiny.Maui.Controls.Desktop` and is `net10.0-macos` only.
+A Dynamic Island / camera-notch style surface that holds **any** content and morphs its width, height and corner radius to fit it. Both hosts, **core** packages (`Shiny.Maui.Controls`, `Shiny.Blazor.Controls`). The over-every-app notch window lives in `Shiny.Maui.Controls.Desktop` and works on macOS (AppKit), Windows and Linux (GTK4).
 
 **Rules for generated code**
 
@@ -62,12 +62,12 @@ Properties: `Content`, `Shape` (Island/Notch), `SurfaceColor` (Black), `Stroke`,
 
 Parameters: `ChildContent`, `ContentKey`, `Inline` (false = top of the screen), `Shape` (Notch), `SurfaceColor` (string?, null = black via `--shiny-notch-surface`), `Stroke`, `StrokeThickness`, `ContentPadding` ("8px 14px"), `MinNotchWidth`, `MinNotchHeight`, `MaxNotchWidth?`, `MaxNotchHeight?`, `CornerRadius`, `MorphDuration` (int ms), `HasShadow`, `OnClick`, `OnNotchSizeChanged` (`EventCallback<NotchSize>`), `CssClass`, plus splatted attributes (a `style` is merged, not swapped). Read-only `Size`. Honours `prefers-reduced-motion`.
 
-## macOS hardware notch (Desktop add-on)
+## Desktop notch window (Desktop add-on)
 
-`INotchWindowService` puts a `NotchView` in the MacBook camera notch, above the menu bar and all apps. It only exists on `net10.0-macos`, so **always wrap it in `#if MACOS`**. Don't call it from shared code without the guard, and don't invent an `IsSupported` check; there isn't one.
+`INotchWindowService` puts a `NotchView` in a borderless window at the top-centre of the screen, above all apps, on **macOS (AppKit), Windows and Linux (GTK4)**. On a MacBook it lives in the camera notch; everywhere else (Macs without one, every Windows/Linux screen) it is a floating island at the top of the screen. It only exists on `net10.0-macos`, Windows and the plain `net10.0` (Linux GTK4) build, so **always wrap it in `#if !ANDROID && !IOS && !MACCATALYST`**. Don't call it from shared code without the guard, and don't invent an `IsSupported` check; there isn't one.
 
 ```csharp
-#if MACOS
+#if !ANDROID && !IOS && !MACCATALYST
 builder
     .UseShinyControls()
     .UseDesktopNotch(o =>
@@ -83,8 +83,8 @@ await notchWindow.SetContentAsync(new NowPlayingView());  // grows out of the no
 await notchWindow.SetContentAsync(null);                  // back into the notch
 notchWindow.Hide();
 notchWindow.Tapped += (_, _) => { /* ... */ };
-bool notched = notchWindow.HasHardwareNotch;
-Size cutout = notchWindow.HardwareNotchSize;   // Size.Zero without a notch
+bool notched = notchWindow.HasHardwareNotch;    // only ever true on macOS
+Size cutout = notchWindow.HardwareNotchSize;   // Size.Zero without a notch (always on Windows/Linux)
 
 // per-content styling (runs after options.Configure; each content gets a fresh NotchView)
 await notchWindow.SetContentAsync(new PeekView(cutout.Width), n =>
@@ -93,13 +93,15 @@ await notchWindow.SetContentAsync(new PeekView(cutout.Width), n =>
     n.MinNotchHeight = cutout.Height;
 });
 
-// hover-to-expand: mouse monitors, no accessibility permission needed
+// hover-to-expand: no accessibility permission needed on any platform
 notchWindow.PointerEntered += (_, _) => Expand();
 notchWindow.PointerExited += (_, _) => Collapse();   // also bool notchWindow.IsPointerOver
 #endif
 ```
 
-`NotchWindowOptions`: `UseHardwareNotch` (true), `TopMargin` (8, floating island only), `MaxWidth` (640), `MaxHeight` (480), `MorphDuration` (300ms), `JoinAllSpaces` (true), `Configure` (`Action<NotchView>`, runs after the service's own geometry so it wins). With a hardware notch the service sets `Shape = Notch`, sizes the empty notch to the cut-out, and pads the top by the cut-out's height so content sits below the camera. The window never takes keyboard focus, so content should be for glancing and clicking, not text entry.
+`NotchWindowOptions`: `UseHardwareNotch` (true, macOS only), `TopMargin` (8, floating island only — below the menu bar / a top taskbar / a top panel; `0` + `Shape = Notch` hangs it from the top edge), `MaxWidth` (640), `MaxHeight` (480), `MorphDuration` (300ms), `JoinAllSpaces` (true; macOS Spaces, Linux X11 workspaces, ignored on Windows), `Configure` (`Action<NotchView>`, runs after the service's own geometry so it wins). With a hardware notch the service sets `Shape = Notch`, sizes the empty notch to the cut-out, and pads the top by the cut-out's height so content sits below the camera. The window never takes keyboard focus, so content should be for glancing and clicking, not text entry.
+
+Platform differences to respect when generating code: on **Windows** the window is clipped to the outline with a window region (WinUI can't be transparent), so edges are aliased and a `Stroke` is clipped away — don't rely on a stroke there. Under **Linux Wayland** the compositor places the window and it isn't kept on top; X11 behaves like Windows/macOS. A page section that uses it goes behind `#if !ANDROID && !IOS && !MACCATALYST` (not `#if MACOS`, which would hide it on Windows and Linux).
 
 ## Automation ids (MAUI)
 
