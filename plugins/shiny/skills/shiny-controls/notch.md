@@ -6,6 +6,7 @@ A Dynamic Island / camera-notch style surface that holds **any** content and mor
 
 - There are **no** compact/expanded states, `IsExpanded`, `CompactContent` or `ExpandedContent`. To "expand", swap `Content` (MAUI) or what `ChildContent` renders (Blazor) for bigger content. To collapse, swap back or set `Content = null` (that is the `MinNotchWidth`×`MinNotchHeight` size).
 - Giving wrapping content a fixed `WidthRequest` (e.g. a message stack at 280) is fine and is the usual way to make text wrap inside the notch: the notch measures it at that width.
+- Content is pinned to the top of the surface while it morphs, so a persistent header or tab strip at the top of each content view stays put across swaps. Keep that chrome at the top; don't vertically centre content expecting it to stay centred mid-morph.
 - Content that changes its own size needs no call; the notch follows it. On MAUI, `Refresh()` only covers changes that don't invalidate measure.
 - The default surface is **black on every theme**, so give the content light text (`TextColor="White"`). Don't bind it to a theme surface token unless asked.
 - Place it beside the page's scroller (same `Grid` cell) to float it over the page. Never put it inside a `ScrollView` of its own; it never scrolls.

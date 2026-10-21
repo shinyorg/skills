@@ -13,7 +13,7 @@ Both hosts compile the **same** `MotionSpec`, but into different machinery:
 | | MAUI | Blazor |
 |---|---|---|
 | Runs the animation | a `KeyframeScene` driven by the Keyframe engine's `Player`, on one shared timer per window | the browser, from generated `@keyframes` |
-| Cost per frame | evaluate the spec + redraw | nothing — no C# runs at all |
+| Cost per frame | iOS, Mac Catalyst, macOS: nothing — Core Animation runs it. Android, Windows, Linux: evaluate the spec + redraw | nothing — no C# runs at all |
 | Stopping | `Player.Stop()` restores the captured baselines | drop a CSS class |
 
 Generate code against the properties, not the machinery. The parameter names are deliberately identical on both sides.
@@ -62,7 +62,7 @@ Identical on both hosts unless noted.
 | `StrokeWidth` | `double` | In the icon's own 24-unit space. The set is drawn for `2`. |
 | `IsPlaying` | `bool` | Two-way. **This is the one to bind to a busy flag.** Setting it `true` loops until it is set `false`, whatever `RepeatCount` says (both hosts). |
 | `Size` | `double` | Blazor only. MAUI uses `WidthRequest`/`HeightRequest` (both default 24). |
-| `Progress` | `double` | MAUI only. Two-way — bind a `Slider` to scrub. |
+| `Progress` | `double` | MAUI only. Two-way — bind a `Slider` to scrub. Not reported during a Core Animation play (iOS, Mac Catalyst, macOS); don't bind UI to it as a live position there. |
 | `Command` | `ICommand` | MAUI only. Blazor has `OnClick`. |
 | `Title` | `string` | Blazor only. Without it the icon is `aria-hidden`. |
 
@@ -151,6 +151,7 @@ MotionIconLibrary.Register(icon);   // now available as Icon="toggle" everywhere
 7. **`Interval` is folded into the animation, not run off a timer**, so a looping icon needs nothing but `animation-iteration-count: infinite` on the web. Don't try to schedule replays yourself.
 8. **Give Blazor icons a `Title`** when they carry meaning; without one they are correctly hidden from screen readers as decoration.
 9. **Nothing plays before the view is loaded on MAUI.** Setting `IsPlaying` from an implicit `Style` — which MAUI applies from inside the base constructor — records the intent and starts it at `Loaded`, so it never reaches for a dispatcher that does not exist yet.
+10. **On MAUI only the app's `IsPlaying` survives an unload.** A play the icon started itself (`Play()`, `Loop()`, Press, Hover, `Appear`) that is cut off by Unloaded ends at rest with `IsPlaying` false and is not replayed at the next Loaded (`Appear` plays again, as on every load). `IsPlaying = true` from code, a `Binding` or a `Style`, and `Trigger="Loop"`, resume looping after a reload. To keep an icon animating across navigation, set `IsPlaying`; to animate it on a new parent, call `Play()` there. Don't add `StopAtCycleEnd()` workarounds to make a finite play end.
 
 ## Channels
 

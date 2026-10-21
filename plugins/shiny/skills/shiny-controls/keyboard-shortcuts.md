@@ -65,6 +65,7 @@ When shortcuts are live:
 - **On any other `VisualElement`:** while it is in a window, `IsVisible`, and its page is showing.
 - **Precedence:** a view beats its page, and the most recently shown unrelated element wins.
 - **`shiny:KeyboardShortcuts.IsModal="True"`** blocks everything outside the element while it is live, including app-wide registrations. Shiny's in-app dialogs (`IDialogService`) set it themselves, and Escape cancels them.
+- **Lifetime:** shortcuts are registered only while the element is in a window, so a page that leaves it is not kept alive, and an element shown again gets its shortcuts back on its own. Never call into the engine to clean up after a page.
 
 Code — `IKeyboardShortcutService` (singleton, registered by `UseShinyControls()`):
 
