@@ -351,7 +351,7 @@ builder.Services.AddAudioServices();  // IAudioSource + IAudioPlayer + IAudioMon
 builder.Services.AddAudioSource();    // IAudioSource only
 builder.Services.AddAudioPlayer();    // IAudioPlayer only
 builder.Services.AddAudioMonitor();   // IAudioMonitor only (iOS/Mac Catalyst + Android)
-builder.Services.AddAudioDevices();   // IAudioDevices only (iOS/Mac Catalyst + Android)
+builder.Services.AddAudioDevices();   // IAudioDevices only (iOS/Mac Catalyst, macOS, Android, Windows)
 ```
 
 > **Namespace:** `IAudioSource`, `IAudioPlayer`, and `PipeStream` live in the **`Shiny.Audio`**
@@ -1115,7 +1115,8 @@ public partial class MicViewModel(IAudio audio) : ObservableObject
 
 Behavior notes when generating code:
 - **Detecting wired headphones.** `AudioDeviceType` has `WiredHeadphones` (output only) and `WiredHeadset` (output + mic), mapped on both platforms (iOS `PortHeadphones`/`PortHeadsetMic`, Android `WiredHeadphones`/`WiredHeadset`). Prefer the `AudioDeviceExtensions` helpers — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` — over matching enum members by hand; they exist on both `AudioDevice` and `AudioDeviceType`. `IsWired()` **includes `Usb`**, because on jack-less handsets USB-C is the wired option and neither platform reports it as a `Wired*` type (a USB DAC/interface therefore also matches). Bluetooth cannot be narrowed to earbuds-vs-speaker on any platform. Watch `IAudioDevices.Changed` for plug/unplug.
-- `IAudioMonitor` and `IAudioDevices` are implemented on **iOS/Mac Catalyst and Android only**. The `IAudio` facade throws `PlatformNotSupportedException` if `Monitor`/`Devices` are accessed elsewhere — guard by platform.
+- `IAudioMonitor` is implemented on **iOS/Mac Catalyst and Android** (and Linux via `AddLinuxAudio()`); `IAudioDevices` on **iOS/Mac Catalyst, macOS, Android and Windows** (and Linux via `AddLinuxAudio()`). The `IAudio` facade throws `PlatformNotSupportedException` if `Monitor`/`Devices` are accessed elsewhere — guard by platform.
+- **Recording from a chosen microphone.** Pass an input from `IAudioDevices.GetInputs()` as `AudioRecordingOptions.InputDevice` (or `AudioCaptureOptions.InputDevice` for raw capture); `null` is the system default, and `CurrentInput` reports that default. Honoured on macOS (CoreAudio device), Windows (AudioGraph device input node) and Linux (Pulse source / ALSA PCM name); iOS/Mac Catalyst and Android set it as the preferred input. A device unplugged since it was listed falls back to the default instead of failing. Re-list on `IAudioDevices.Changed`.
 - **Bluetooth speaker vs. echo cancellation (iOS):** leave `AudioMonitorOptions.Processing` **null** to route to a Bluetooth A2DP speaker (phone mic + BT output). Enabling processing (AEC) engages iOS's voice-processing unit, which forces Bluetooth onto the low-quality HFP profile — an A2DP-only speaker then drops back to the phone. Only enable processing for phone-speaker output where feedback is a problem.
 - **AirPlay (HomePod / Apple TV) is NOT supported for a live mic** — iOS only permits AirPlay for playback, not while recording. Use Bluetooth for a wireless live PA.
 - **Feedback** (mic hearing the phone speaker) — keep distance, lower `Gain`, or enable AEC (accepting the Bluetooth trade-off). **Always stop the monitor on page-disappear / app-background.**
@@ -1185,7 +1186,7 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 21. **Marshal level events to the UI thread** — `AudioLevelChanged` fires from the audio render / synthesizer thread and `InputLevelChanged` from the capture thread; use `MainThread.BeginInvokeOnMainThread` in MAUI or equivalent in Blazor before mutating bound properties
 22. **Reset audio level on completion** — set your bound level back to `0` after `SpeakAsync` returns, or after `StopAsync` / `Stop()`, so the meter drains visually
 23. **Stop the mic monitor when leaving** — always `IAudioMonitor.Stop()` on page-disappear and app-background; a live monitor left open is feedback and battery drain
-24. **Guard monitor/devices by platform** — `IAudioMonitor` / `IAudioDevices` exist on iOS/Mac Catalyst + Android only; accessing them via the `IAudio` facade elsewhere throws `PlatformNotSupportedException`
+24. **Guard monitor/devices by platform** — `IAudioMonitor` exists on iOS/Mac Catalyst + Android (+ Linux), `IAudioDevices` on iOS/Mac Catalyst, macOS, Android, Windows (+ Linux); accessing them via the `IAudio` facade elsewhere throws `PlatformNotSupportedException`
 25. **Prefer the `IAudio` facade for discovery** — inject one `IAudio` to reach `Player`/`Source`/`Monitor`/`Devices`; inject the focused interface directly when a class only needs one
 
 ## Reference Files
