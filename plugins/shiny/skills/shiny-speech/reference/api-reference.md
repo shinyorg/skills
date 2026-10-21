@@ -335,6 +335,7 @@ public record AudioCaptureOptions
 {
     AudioProcessingOptions? Processing { get; init; }   // platform AEC/NS/AGC + route preferences
     AudioEffectChain?       Effects    { get; init; }   // live DSP applied before the stream + meter
+    AudioDevice?            InputDevice { get; init; }  // a mic from IAudioDevices.GetInputs(); null = system default
 
     static AudioCaptureOptions None { get; }            // no processing, no effects
 }
@@ -437,6 +438,7 @@ public record AudioRecordingOptions
     AudioEffectChain?       Effects     { get; init; }   // ignored when Mode == Dry
     AudioProcessingOptions? Processing  { get; init; }
     TimeSpan?               MaxDuration { get; init; }
+    AudioDevice?            InputDevice { get; init; }   // a mic from IAudioDevices.GetInputs(); null = system default
 }
 
 public enum AudioRecordMode { Wet, Dry, Both }
@@ -635,7 +637,7 @@ public interface IAudio
     IAudioPlayer  Player  { get; }   // singleton
     IAudioSource  Source  { get; }   // fresh transient per access
     IAudioMonitor Monitor { get; }   // iOS/Mac Catalyst + Android
-    IAudioDevices Devices { get; }   // iOS/Mac Catalyst + Android
+    IAudioDevices Devices { get; }   // iOS/Mac Catalyst, macOS, Android, Windows, Linux (AddLinuxAudio)
     IAudioRecorder Recorder { get; } // fresh transient per access; every platform
 }
 ```
@@ -669,8 +671,12 @@ public record AudioMonitorOptions
 
 ## IAudioDevices Interface
 
-Audio route enumeration and current-route reporting. Registered as singleton (iOS/Mac Catalyst +
-Android). Selection is applied via `IAudioMonitor.SetInputDevice`/`SetOutputDevice`.
+Audio route enumeration and current-route reporting. Registered as singleton on iOS/Mac Catalyst,
+macOS, Android and Windows (`AddAudioDevices`), and on Linux by `AddLinuxAudio()`. An input from
+`GetInputs()` selects the microphone for capture and recording through
+`AudioCaptureOptions.InputDevice` / `AudioRecordingOptions.InputDevice` (macOS, Windows, Linux; the
+preferred input on iOS/Mac Catalyst); a live monitor switches with `IAudioMonitor.SetInputDevice`.
+`CurrentInput` is the system default input.
 
 ```csharp
 public interface IAudioDevices
@@ -976,7 +982,7 @@ public static class AudioServiceCollectionExtensions
     IServiceCollection AddAudioServices(this IServiceCollection services);
 
     IServiceCollection AddAudioMonitor(this IServiceCollection services);  // IAudioMonitor (iOS/MacCat + Android)
-    IServiceCollection AddAudioDevices(this IServiceCollection services);  // IAudioDevices (iOS/MacCat + Android)
+    IServiceCollection AddAudioDevices(this IServiceCollection services);  // IAudioDevices (iOS/MacCat, macOS, Android, Windows)
     IServiceCollection AddAudioRecorder(this IServiceCollection services); // IAudioRecorder (all platforms, transient)
 }
 ```
