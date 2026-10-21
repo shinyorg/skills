@@ -25,6 +25,7 @@ Properties: `Source` (MediaSource, string-convertible), `Text` (use `&#10;` for 
 - Always give it a size (`HeightRequest`, or a sized parent) — the video covers the control and the text fits into it.
 - The overlay colours everything around the letters; opacity below 1 lets the video show faintly through it. For a see-through control over a gradient/image backdrop, set `OverlayColor="{x:Null}"` and put the backdrop in a parent.
 - With a marquee, auto-fit sizes the text to the cross axis only (90% of the height for Left/Right).
+- It pauses on `Unloaded` and resumes on `Loaded` by itself; don't add page `OnDisappearing` code to stop it.
 - Masked on iOS, Mac Catalyst, macOS AppKit and Android. On Windows and Linux it shows plain text in `FallbackTextColor`; check `VideoText.IsMaskSupported` if a page must differ.
 
 ## Blazor

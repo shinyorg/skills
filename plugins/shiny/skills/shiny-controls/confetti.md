@@ -77,3 +77,4 @@ Every call **completes when the last particle has faded**, so `await` before sho
 - For "confetti when an async operation succeeds": inject `IConfettiService` in the view model.
 - Origins are **normalised 0-1**, not pixels.
 - Don't assign the MAUI `Colors` from strings in C#; use `Color.FromArgb`.
+- MAUI: firing before the page has laid out is fine (the burst waits for layout); a page that leaves the screen clears its bursts.

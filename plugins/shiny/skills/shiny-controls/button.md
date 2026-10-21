@@ -288,6 +288,5 @@ Blazor-side differences worth knowing:
   press it when focused; TalkBack announces a button and double-tap presses it; VoiceOver gets the button
   trait. Every route runs the same code as a tap, so a disabled button ignores them. Don't wrap it in a
   MAUI `Button` to get this.
-
 - `ReplaceLeftIcon` is the default for a reason — pick `ReplaceContent` only when the label would be
   misleading mid-flight, and pin nothing: the content keeps its layout space either way.
