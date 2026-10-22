@@ -172,6 +172,8 @@ Declare it once on the Shell (or `NavigationPage`, or a single page) and every p
   scroll position and focus. What carries across pages is the **state** — a drawer left open is still
   open on the page you land on.
 - Set `Shell.FlyoutBehavior="Disabled"` so Shell's own drawer stays out of the way.
+- Safe to combine with `ShinyTabBarBehavior` and a docked `ProgressLine` on the same Shell — the
+  flyout always nests inside their page overlay, whichever installs first. No ordering workarounds needed.
 - The flyout wraps the **page's content**, so with Shell a panel sits below the nav bar and above the
   tab bar, and `Push` pushes the page content, not Shell's chrome. Add `Shell.NavBarIsVisible="False"`
   if the panel should run the full height of the window.
