@@ -172,7 +172,11 @@ itself, so one odd expander in the list stays odd. MAUI additionally takes an `I
 
 Data-driven on MAUI — bind `ItemsSource` with a `HeaderTemplate` and `ContentTemplate` (or an
 `ItemTemplate` returning a whole `Expander` when an item needs to set expander properties of its own).
-Generated items are appended after anything declared in markup, so the two can be mixed.
+Generated items are appended after anything declared in markup, so the two can be mixed. Generated
+expanders are reused by data item (matched by `Equals`) across any collection change or a new
+`ItemsSource`, so items that are still there stay open or closed as they were. Only a template change
+rebuilds them all. `Clear()` then re-adding drops them, since the Reset fires while the list is empty —
+use a range replace or assign a new list instead.
 
 ```xml
 <shiny:Accordion ItemsSource="{Binding Faqs}" LoadContentOnDemand="True">

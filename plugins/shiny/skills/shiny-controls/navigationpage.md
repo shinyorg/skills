@@ -70,6 +70,8 @@ of anything in `RightItems`. Adopting this page never means rewriting a toolbar.
 - `Priority` orders items within their side; equal priorities keep declaration order.
 - `IsSeparator` draws a divider **in the menu only** — on the bar itself it is skipped.
 - `IsVisible="False"` hides an item without removing it, which is what a binding needs.
+- Bind item properties directly — the page hands its items a new binding context in one pass,
+  so the bar draws once per page switch. Never take items out and put them back to batch updates.
 - `Badge=""` is a **dot**, `Badge=null` is nothing — the same rule as `ShinyTabs.Badge`.
 - A **plain `ToolbarItem`** has no `Badge` property of its own — use the attached
   `shiny:ShinyNav.Badge` (and `shiny:ShinyNav.BadgeColor`) on it instead. Both work on a
