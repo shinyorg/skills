@@ -151,6 +151,7 @@ Bind `Text` directly to a string. When `unreadCount` is `""` the badge is hidden
 - `BadgeBorderColor` defaults to white so the badge reads cleanly against any underlying content; match it to the surrounding background when wrapping inside a colored card.
 - Use `IsDot` for unread indicators (no count needed) and `MaxCount` for count badges. Use `IsPulsing` sparingly — it's eye-catching and should be reserved for genuinely important badges.
 - The wrapped view is laid out exactly as if the badge weren't there — the badge does not affect the host's measurement.
+- The overhang is drawn outside the `BadgeView`'s bounds, so whatever holds it needs room around it (padding or a margin of at least the offset). The badge stops its parent from clipping it on Android, but a parent that clips to a *shape* still does: a `Border` with a round `StrokeShape` cuts off the overhang at its corner, so give the badge room inside it or use a `Rectangle` shape. Don't shrink the content to make room.
 
 ## Automation ids (MAUI)
 
