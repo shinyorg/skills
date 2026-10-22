@@ -337,7 +337,7 @@ All cells inherit these properties:
 | `IconRadius` | `double` | `-1` | Icon corner radius |
 | `CellBackgroundColor` | `Color?` | `null` | Background color |
 | `SelectedColor` | `Color?` | `null` | Tap highlight color |
-| `IsSelectable` | `bool` | `true` | Responds to taps |
+| `IsSelectable` | `bool` | `true` | Responds to taps. `false` removes the row's tap recognizer, so only the control inside (a switch, a slider) takes clicks |
 | `CellHeight` | `double` | `-1` | Fixed height |
 | `BorderColor` | `Color?` | `null` | Border color |
 | `BorderWidth` | `double` | `-1` | Border width |
