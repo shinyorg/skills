@@ -404,7 +404,9 @@ Generate cells from a data source:
 </shiny:TableSection>
 ```
 
-The `ItemsSource` supports `INotifyCollectionChanged` for live updates.
+The `ItemsSource` supports `INotifyCollectionChanged` for live updates. Changes are coalesced: the rows are
+rebuilt once at the end of the current dispatcher step, however many items were added, removed or moved in it.
+TableView is not virtualized - it is for forms and settings pages; use `CollectionView` or `DataGrid` for long data lists.
 
 `TableView` also has `ItemsSource`/`ItemTemplate`, which generate whole **sections** (the template returns a
 `TableSection`). Each generated section, and every fixed cell, header and footer view declared inside its
