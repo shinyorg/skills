@@ -657,6 +657,87 @@ public Func<DocumentDetectedEventArgs<Passport>, Task<bool>> OnPassport => async
 - `CaptureAndStopAsync()` grabs the still and stops, returning the `CameraPhoto` (which also raises `MediaCaptured`). Use `CapturePhotoAsync()` alone to capture without stopping.
 - To resume after a stop, call `Camera.StartAsync()` then `Camera.Scan()` to re-arm.
 
+## Live Video (MAUI) — `VideoEncoder` + `RemoteVideoView`
+
+For **video calls**: `VideoEncoder` turns a `CameraView`'s frames into small encoded frames for the app to
+send, and `RemoteVideoView` draws the frames received from the other side. The transport (Wi-Fi, BLE, a
+socket) is the app's business — e.g. **Shiny.UniversalHubs calls** carry them. Both ship in
+`Shiny.Maui.Controls.Camera`; `UseShinyCamera()` registers the `RemoteVideoView` handler.
+
+```xml
+<cam:CameraView x:Name="Camera" Facing="Front">
+    <cam:VideoEncoder x:Name="Encoder" Codec="H264" MaxDimension="640" FrameRate="15" />
+</cam:CameraView>
+
+<cam:RemoteVideoView x:Name="Remote" Aspect="AspectFill" />
+```
+
+```csharp
+// sender: hand each frame to the transport. Raised OFF the UI thread.
+Encoder.FrameEncoded += frame => transport.Send(frame);      // EncodedVideoFrame
+
+// receiver: Render is thread-safe; call it straight from the receive loop
+transport.Received += frame => Remote.Render(frame);
+
+// keep H.264 in sync: the view asks, the sender's encoder answers
+Remote.KeyFrameNeeded += (_, _) => transport.SendKeyFrameRequest();   // far side: Encoder.RequestKeyFrame()
+
+// switch profile mid-call (e.g. Wi-Fi -> BLE): the encoder rebuilds itself
+Encoder.MaxDimension = 160; Encoder.FrameRate = 3; Encoder.Bitrate = 64_000; Encoder.JpegQuality = 0.4;
+
+// end of call
+Remote.Clear();
+```
+
+**Shared types** (`Shiny.Controls.Camera`, in `Shiny.Controls.Camera.Shared`):
+- `enum VideoCodec { Jpeg, H264 }`
+- `sealed record EncodedVideoFrame(VideoCodec Codec, ReadOnlyMemory<byte> Data, int Width, int Height, int Rotation, bool IsMirrored, bool IsKeyFrame, TimeSpan Timestamp)`
+  — `Width`/`Height` are the encoded, **un-rotated** size; `Rotation` is clockwise degrees to make it
+  upright; the receiver rotates, then mirrors. H.264 `Data` is one **Annex B** access unit (`00 00 00 01`
+  start codes) and **every key frame carries its SPS + PPS**, so decoding can start from any key frame. JPEG
+  frames are always key frames.
+
+**`VideoEncoder : FrameAnalyzer`** (it is *the* `CameraView.Analyzer` — one analyzer at a time, so no barcode
+scanning during a call):
+
+| Property | Default | Notes |
+|---|---|---|
+| `Codec` | `Jpeg` | `Jpeg` / `H264` |
+| `MaxDimension` | `640` | Long edge; scaled down only, both edges rounded down to even. `<= 0` = no limit |
+| `FrameRate` | `15` | Enforced in `WantsFrame()`, so skipped frames are never built. `<= 0` = every frame |
+| `Bitrate` | `800_000` | H.264 bits/sec (CBR where the Android encoder offers it) |
+| `JpegQuality` | `0.6` | 0..1 |
+| `KeyFrameInterval` | `2 s` | H.264 max gap between key frames; `TimeSpan.Zero` = every frame a key frame |
+
+`RequestKeyFrame()` (any thread; collapses), `static IsSupported(VideoCodec)`, `event Action<EncodedVideoFrame>? FrameEncoded`.
+Every setting can change while running. No `Scan()` needed; it produces no overlay boxes and takes no frames
+while `FrameEncoded` has no subscriber.
+
+**`RemoteVideoView : View`**: `Render(EncodedVideoFrame)` (thread-safe, decodes on the calling thread, shows
+newest-first on the UI thread), `Clear()`, `Aspect` (`AspectFit` default / `AspectFill` / `Fill`),
+`static CanDecode(VideoCodec)`, `event EventHandler? KeyFrameNeeded` (raised off the UI thread, throttled to
+~1/s while out of sync).
+
+**Platform coverage:**
+
+| | JPEG encode | JPEG decode | H.264 encode | H.264 decode |
+|---|---|---|---|---|
+| iOS / Mac Catalyst | Core Image | ImageIO | VideoToolbox | VideoToolbox |
+| macOS (AppKit) | Core Image | ImageIO | VideoToolbox | VideoToolbox |
+| Android | YuvImage (NV21) | BitmapFactory | MediaCodec `video/avc` (if present) | MediaCodec → TextureView |
+| Windows | WIC | WIC | ✗ (`IsSupported` false) | ✗ (`CanDecode` false) |
+
+Rules:
+- **Negotiate with `VideoEncoder.IsSupported` on the sender and `RemoteVideoView.CanDecode` on the receiver**;
+  pick H.264 when both have it, else JPEG.
+- **Never touch UI from `FrameEncoded` / `KeyFrameNeeded`** — dispatch. `Render` itself is safe from any thread.
+- **Frames must reach `Render` in order.** A delta before the first key frame (or after a decoder error) is
+  dropped and `KeyFrameNeeded` fires; wire it to the sender's `RequestKeyFrame()` or recovery waits for the
+  next scheduled key frame. A codec switch also needs a key frame.
+- On iOS / Mac Catalyst the capture connection already rotates and mirrors the buffer, so those frames report
+  `Rotation = 0`, `IsMirrored = false`; Android frames are raw sensor buffers with the rotation in the record.
+- Don't build an encoder from `AnalyzeAsync` early-returns or a timer — the frame-rate gate is `FrameRate`.
+
 ## Effects (pluggable filters)
 
 `CameraView.Effects` is an ordered, live collection applied to **the preview, captured photos and recorded
@@ -957,6 +1038,7 @@ sealed class HudOverlay : ICompositedVideoOverlayRenderer
 ## When to Use What
 
 - **Just take a photo / record video** → `CapturePhotoAsync` / `StartVideoRecordingAsync`; no analyzer needed.
+- **Video call / stream the camera** → `CameraView.Analyzer = new VideoEncoder { Codec = ... }` + `FrameEncoded` on the sender, `RemoteVideoView.Render` on the receiver (see *Live Video*).
 - **Scan a barcode/QR** → set `Camera.Analyzer = new BarcodeAnalyzer()` (on Blazor, `Analyzer="@(new BarcodeAnalyzer())"`).
 - **Restrict the scan to a band** → set the analyzer's `ScanWindow` (the overlay frames it as a viewfinder).
 - **Detect/box faces** → set `Camera.Analyzer = new FaceAnalyzer()`.
