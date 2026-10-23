@@ -59,6 +59,7 @@ public interface IChatSession : IAsyncDisposable
     string CurrentUserId { get; }     // drives bubble alignment + ownership checks
 
     // cursor-based paging (stable under live inserts); null + Older = newest page
+    // ct is cancelled when SessionId changes mid-load - honour it; a late result is discarded either way
     Task<MessagePage> GetMessagesAsync(string? cursorMessageId, MessagePageDirection direction, int count, CancellationToken ct = default);
 
     Task<ChatMessage> SendMessageAsync(OutgoingMessage message, CancellationToken ct = default);
