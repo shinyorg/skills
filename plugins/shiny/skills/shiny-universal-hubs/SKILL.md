@@ -1,6 +1,6 @@
 ---
 name: shiny-universal-hubs
-description: Generate code using Shiny.UniversalHubs - Shiny.BluetoothLE.Hubs hubs served over Wi-Fi (HttpServer Switchboard + mDNS) as well as Bluetooth LE, with merged BLE/mDNS discovery, Wi-Fi-first connect with BLE fallback, resume, per hub start/stop, tunnels and file transfers on either transport
+description: Generate code using Shiny.UniversalHubs - Shiny.BluetoothLE.Hubs hubs served over Wi-Fi (HttpServer Switchboard + mDNS) as well as Bluetooth LE, with merged BLE/mDNS discovery, Wi-Fi-first connect with BLE fallback, resume, per hub start/stop, tunnels, file transfers and media channels (live audio/video packet pipes) on either transport
 auto_invoke: true
 triggers:
   - universal hubs
@@ -44,6 +44,18 @@ triggers:
   - UniversalHubProtocol
   - NSBonjourServices
   - mdns service type
+  - media channel
+  - media channels over wifi
+  - live audio over hub
+  - live video over hub
+  - video call over hub
+  - EnableMediaChannels
+  - OpenMediaChannel
+  - CanOpenMediaChannel
+  - MediaChannelOpened
+  - IBleHubMediaChannel
+  - MediaTokenHeader
+  - MediaPath
 ---
 
 # Shiny.UniversalHubs Skill
@@ -67,6 +79,7 @@ Invoke this skill when the user wants to:
 - Run an always-on hub beside one that runs on demand, on both transports
 - Make a hub reachable from the internet through a tunnel, or connect to a host by URL / QR code
 - Move files over HTTP on Wi-Fi and L2CAP on BLE behind the same calls
+- Stream live audio or video (calls) between devices on a hub, over Wi-Fi or Bluetooth
 
 Do NOT use this skill for BLE-only hubs (use `shiny-ble-hubs`), generic HTTP servers (use `shiny-httpserver`) or
 generic mDNS discovery (use `shiny-discovery`).
@@ -306,6 +319,40 @@ Android `AndroidManifest.xml`: the BLE permissions from `shiny-ble-hubs`, plus `
 `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, and `android:usesCleartextTraffic="true"` on `<application>` for
 clients.
 
+### 9. Media channels (live audio and video)
+
+blehubs' media channel, an ordered, two-way packet pipe beside a hub connection, works over Wi-Fi too. Over BLE it's
+L2CAP; over Wi-Fi this library carries it as a WebSocket at `{BasePath}/media`. Use it for calls and other live media.
+**Don't push media through hub methods**: they're far too slow and chatty, especially over BLE.
+
+```csharp
+// host
+builder.Services.AddUniversalServer(server => server
+    .Ble(o => o.EnableMediaChannels())                 // off by default; maxPacketSize defaults to 128 KB
+    .AddHub<ChatHub>(ChatUuid, "_mychat._tcp"));
+
+hubContext.MediaChannelOpened += (_, e) => _ = Serve(e.Client.Id, e.Channel);   // IHubContext<ChatHub>
+var channel = hubContext.GetMediaChannel(connectionId);
+
+// client (IUniversalHubClient<IChatHub>), on either transport
+if (client.CanOpenMediaChannel)
+{
+    var channel = await client.OpenMediaChannel();     // returns the open one if there is one
+    await channel.Send(packet);                        // whole, in order; > MaxPacketSize throws ArgumentException
+    await foreach (var p in channel.Receive()) { }     // one reader; ends when the channel closes
+}
+```
+
+- The channel closes when the client disconnects, the hub stops or either side disposes it. `Completion` completes then.
+- Pace it yourself: for video, send latest-wins (drop stale frames) and keep audio ahead. BLE carries a few KB/s of
+  hub calls but much more over L2CAP; still, size video for BLE (about 160 px at 3 fps) and use compressed audio.
+- Building a call: capture and play voice with Shiny.Audio's `IAudioDuplex` (`shiny-speech` skill, echo cancelled),
+  film with the Shiny Controls `CameraView` + `VideoEncoder` and show the other side with `RemoteVideoView`
+  (`shiny-controls` skill). The repo's `samples/Sample/Calls` is a complete FaceTime-style example: signalling, host
+  relay between clients, H.264/JPEG negotiation, ADPCM over BLE.
+- Permissions for calls: iOS/Mac `NSMicrophoneUsageDescription`, `NSCameraUsageDescription`; Android `RECORD_AUDIO`,
+  `CAMERA`, `MODIFY_AUDIO_SETTINGS`.
+
 ## Best Practices
 
 1. **Set your own BLE `ServiceUuid` and mDNS service types**, so other apps' hosts stay out of your scans.
@@ -317,6 +364,7 @@ clients.
 6. **About six hubs** fit in one mDNS TXT record per host.
 7. **Never store state on the hub instance** - it is recreated per call. Use singletons or `connection.Properties`.
 8. **Test on two physical devices**, both directions, with Wi-Fi on and off.
+9. **Live media over Bluetooth is voice-first.** Expect a small, slow picture; video is much better on Wi-Fi.
 
 ## Reference Files
 

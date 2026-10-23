@@ -25,10 +25,12 @@ public static class UniversalHubProtocol
     public const string StreamMethod = "hub.stream";
     public const string PushMethod = "hub.push";
     public const string FileTokenHeader = "X-Hub-File-Token";
+    public const string MediaTokenHeader = "X-Hub-Media-Token";   // media channel WebSocket upgrade
     public const string TxtProtocol = "proto", TxtHostId = "hostId", TxtName = "name", TxtPath = "path", TxtHubs = "hubs";
 
     public static string HubPath(string basePath, string characteristicUuid);   // {basePath}/{characteristicUuid}
     public static string FilesPath(string basePath);                            // {basePath}/files
+    public static string MediaPath(string basePath);                            // {basePath}/media (WebSocket)
     public static void ValidateServiceType(string serviceType);                 // throws unless _name._tcp (name: 1-15 letters, digits or -)
 }
 ```
@@ -147,4 +149,19 @@ public sealed record HubConnectOptions(string? Name = null, string? AppVersion =
     public HubTransports Prefer { get; init; }                  // Http
     public HubTransports Allowed { get; init; }                 // All
 }
+```
+
+
+## Media channels
+
+The API is blehubs' (`IBleHubMediaChannel`, `BleHubHostOptions.EnableMediaChannels`, `IHubContext<THub>.MediaChannelOpened`
+/ `GetMediaChannel`, `IBleHubConnection.CanOpenMediaChannel` / `OpenMediaChannel`) - see the `shiny-ble-hubs` skill.
+Over Wi-Fi:
+
+```csharp
+public sealed record HubHandshakeReply(
+    bool Accepted, string? Reason, string? HostName, string? HostId, string? FileToken,
+    string? MediaToken = null,              // send as X-Hub-Media-Token on the WebSocket upgrade; null = no media channels
+    int? MediaMaxPacketSize = null);
+// GET {BasePath}/media  (WebSocket; one binary message = one packet)  401 token, 404 no media channels, 400 not an upgrade
 ```
