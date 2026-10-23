@@ -40,6 +40,14 @@ triggers:
   - IAudio
   - IAudioMonitor
   - IAudioDevices
+  - IAudioDuplex
+  - IAudioDuplexSession
+  - AudioDuplexOptions
+  - AddAudioDuplex
+  - full duplex audio
+  - voice call audio
+  - echo cancellation playback
+  - jitter buffer
   - IAudioRecorder
   - AudioEffectChain
   - IAudioEffect
@@ -283,7 +291,8 @@ Shiny Speech provides:
 - Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider, or `Shiny.Speech.Linux.Whisper` for offline STT
 - On-device offline STT on Linux via the separate `Shiny.Speech.Linux.Whisper` package — Whisper through whisper.cpp, no cloud account or network. STT only
 - Route classification via `AudioDeviceExtensions` — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` on both `AudioDevice` and `AudioDeviceType`; detects wired/jack/USB-C headphones and headsets alongside Bluetooth
-- One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
+- Full-duplex call audio via `IAudioDuplex` — echo-cancelled mic frames (`IAudioDuplexSession.Captured`, a `ChannelReader<ReadOnlyMemory<byte>>` of 20 ms PCM16 mono frames) plus live network PCM playback (`Play(ReadOnlySpan<byte>)`, jitter-buffered) on **one** voice-processing session, live `Speakerphone` switching, `Buffered`, `InputLevelChanged`. iOS, Mac Catalyst, macOS and Android only
+- One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` / `Recorder` / `Duplex` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
 - ElevenLabs integration (Scribe STT + TTS)
@@ -347,11 +356,12 @@ Or register individually:
 ```csharp
 builder.Services.AddSpeechToText();   // ISpeechToTextService only
 builder.Services.AddTextToSpeech();   // ITextToSpeechService only
-builder.Services.AddAudioServices();  // IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudio (from Shiny.Audio)
+builder.Services.AddAudioServices();  // IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudioRecorder + IAudioDuplex + IAudio (from Shiny.Audio)
 builder.Services.AddAudioSource();    // IAudioSource only
 builder.Services.AddAudioPlayer();    // IAudioPlayer only
 builder.Services.AddAudioMonitor();   // IAudioMonitor only (iOS/Mac Catalyst + Android)
 builder.Services.AddAudioDevices();   // IAudioDevices only (iOS/Mac Catalyst, macOS, Android, Windows)
+builder.Services.AddAudioDuplex();    // IAudioDuplex only (iOS, Mac Catalyst, macOS, Android)
 ```
 
 > **Namespace:** `IAudioSource`, `IAudioPlayer`, and `PipeStream` live in the **`Shiny.Audio`**
@@ -1123,6 +1133,68 @@ Behavior notes when generating code:
 - **Device selection is Android-first.** `IAudioMonitor.SetInputDevice`/`SetOutputDevice`: Android enumerates and selects both input and output; iOS can select the input but treats **output as observe-only** (no app-level output enumeration/selection — AirPlay/Bluetooth output is owned by the system picker). Use `IAudioDevices.CurrentInput`/`CurrentOutput` (with `.Type`) as a **display** property everywhere.
 - `IAudioSource` (pull-stream capture) and `IAudioMonitor` (live passthrough) are different tools — use the monitor for real-time mic→speaker, not a capture-stream-into-player loop.
 
+### 7. Full-Duplex Voice for Calls (`IAudioDuplex`)
+
+Use `IAudioDuplex` whenever audio is captured **and** played at the same time for a conversation (VoIP,
+intercom, walkie-talkie with open mic, FaceTime-style calls). It puts capture and playback on one
+voice-processing session so echo cancellation removes the far end's voice from your mic. **Never build a
+call from `IAudioSource` + `IAudioPlayer.StartAsync(Stream)`**: two sessions can't cancel each other's
+echo, and the player buffers the whole stream (Apple) or copies it to a file (Android) before playing.
+
+```csharp
+using System.Threading.Channels;
+using Shiny;
+using Shiny.Audio;
+
+public class CallAudio(IAudioDuplex duplex)   // or IAudio.Duplex
+{
+    IAudioDuplexSession? session;
+
+    public async Task Start(Func<ReadOnlyMemory<byte>, CancellationToken, ValueTask> send, CancellationToken ct)
+    {
+        if (await duplex.RequestAccess() != AccessState.Available)
+            return;
+
+        session = await duplex.StartAsync(new AudioDuplexOptions
+        {
+            SampleRate = 16000,                                  // 8000 or 16000 only
+            Speakerphone = true,                                 // loudspeaker (default)
+            PlaybackLatency = TimeSpan.FromMilliseconds(60),     // jitter target (default)
+            MaxPlaybackLatency = TimeSpan.FromMilliseconds(200)  // older audio dropped (default)
+        }, ct);
+
+        // Mic -> network: each item is one FrameDuration (20 ms) PCM16 mono LE frame you own.
+        _ = Task.Run(async () =>
+        {
+            await foreach (var frame in session.Captured.ReadAllAsync(ct))
+                await send(frame, ct);
+        }, ct);
+    }
+
+    // Network -> speaker: call from the receive thread, any size; never blocks.
+    public void OnReceived(ReadOnlyMemory<byte> pcm16) => session?.Play(pcm16.Span);
+
+    public void SetSpeaker(bool on) { if (session != null) session.Speakerphone = on; }   // live
+
+    public async Task Stop()
+    {
+        if (session != null)
+            await session.DisposeAsync();   // == StopAsync(): completes Captured, restores the audio session
+        session = null;
+    }
+}
+```
+
+Behavior notes when generating code:
+- **One session at a time** — a second `StartAsync` throws `InvalidOperationException`; stop the first. Options are validated (`SampleRate` 8000/16000, `FrameDuration` whole ms 10–100, `MaxPlaybackLatency > PlaybackLatency`) and throw `ArgumentException`.
+- **Play is jitter-buffered**: silence until ~`PlaybackLatency` is queued, silence through gaps (then it re-primes), and the oldest audio is dropped back to `PlaybackLatency` when more than `MaxPlaybackLatency` piles up. Don't add your own buffering in front of it; `Buffered` shows the queue.
+- **`Captured` is bounded (~1 s, drop-oldest)** — read it continuously; it completes when the session stops.
+- **Both directions use the session's `SampleRate`.** Resample/decode before `Play` if the far end uses another rate.
+- `Processing` defaults to `AudioProcessingOptions.VoiceChat`. Null / nothing enabled means **no echo cancellation** (headset only). Apple enables AEC+NS+AGC together.
+- `Speakerphone`: loudspeaker vs earpiece; a connected headset (wired, or Bluetooth when `AllowBluetooth`) wins. No-op on macOS.
+- Platforms: iOS/Mac Catalyst (`PlayAndRecord` + `VoiceChat` session, AVAudioEngine voice processing), macOS (engine only), Android (`VOICE_COMMUNICATION` AudioRecord + AudioTrack on one session, `MODE_IN_COMMUNICATION`; needs `MODIFY_AUDIO_SETTINGS` in the manifest). **Not on Windows, Linux or Browser** — `IAudio.Duplex` throws `PlatformNotSupportedException`; guard by platform.
+- `InputLevelChanged` fires on the capture thread — marshal to the UI thread.
+
 ### 5. Custom Cloud Provider
 
 Implement `ISpeechToTextProvider` and/or `ITextToSpeechProvider`:
@@ -1187,7 +1259,8 @@ builder.Services.AddCloudSpeechToText<MyCloudSttProvider>();
 22. **Reset audio level on completion** — set your bound level back to `0` after `SpeakAsync` returns, or after `StopAsync` / `Stop()`, so the meter drains visually
 23. **Stop the mic monitor when leaving** — always `IAudioMonitor.Stop()` on page-disappear and app-background; a live monitor left open is feedback and battery drain
 24. **Guard monitor/devices by platform** — `IAudioMonitor` exists on iOS/Mac Catalyst + Android (+ Linux), `IAudioDevices` on iOS/Mac Catalyst, macOS, Android, Windows (+ Linux); accessing them via the `IAudio` facade elsewhere throws `PlatformNotSupportedException`
-25. **Prefer the `IAudio` facade for discovery** — inject one `IAudio` to reach `Player`/`Source`/`Monitor`/`Devices`; inject the focused interface directly when a class only needs one
+25. **Prefer the `IAudio` facade for discovery** — inject one `IAudio` to reach `Player`/`Source`/`Monitor`/`Devices`/`Recorder`/`Duplex`; inject the focused interface directly when a class only needs one
+26. **Calls use `IAudioDuplex`** — never pair `IAudioSource` with `IAudioPlayer` for two-way voice; stop the duplex session when the call ends (it restores the audio session) and guard it by platform (iOS, Mac Catalyst, macOS, Android)
 
 ## Reference Files
 
