@@ -639,6 +639,44 @@ public interface IAudio
     IAudioMonitor Monitor { get; }   // iOS/Mac Catalyst + Android
     IAudioDevices Devices { get; }   // iOS/Mac Catalyst, macOS, Android, Windows, Linux (AddLinuxAudio)
     IAudioRecorder Recorder { get; } // fresh transient per access; every platform
+    IAudioDuplex  Duplex  { get; }   // iOS, Mac Catalyst, macOS, Android
+}
+```
+
+## IAudioDuplex Interface
+
+Full-duplex voice for calls: echo-cancelled mic capture plus live PCM playback on one voice-processing
+session. Registered as singleton by `AddAudioServices()` / `AddAudioDuplex()` on iOS, Mac Catalyst,
+macOS and Android (not Windows, Linux, Browser). One session at a time.
+
+```csharp
+public interface IAudioDuplex
+{
+    Task<AccessState> RequestAccess();
+    // Throws InvalidOperationException if a session is running; ArgumentException for invalid options.
+    Task<IAudioDuplexSession> StartAsync(AudioDuplexOptions? options = null, CancellationToken cancellationToken = default);
+}
+
+public interface IAudioDuplexSession : IAsyncDisposable   // DisposeAsync == StopAsync
+{
+    int SampleRate { get; }                                 // 8000 or 16000, both directions
+    ChannelReader<ReadOnlyMemory<byte>> Captured { get; }   // PCM16 mono LE, one FrameDuration frame per item;
+                                                            // bounded ~1 s, drop-oldest; completes on stop
+    void Play(ReadOnlySpan<byte> pcm16);                    // thread-safe, non-blocking, any length; jitter-buffered
+    TimeSpan Buffered { get; }                              // queued playback not yet handed to the output
+    bool Speakerphone { get; set; }                         // live; headset wins; no-op on macOS
+    event EventHandler<double>? InputLevelChanged;          // 0.0 - 1.0, capture thread, ~20/s
+    Task StopAsync();                                       // idempotent; restores session/mode/routing
+}
+
+public record AudioDuplexOptions
+{
+    public int SampleRate { get; init; } = 16000;                                    // 8000 or 16000
+    public AudioProcessingOptions? Processing { get; init; } = AudioProcessingOptions.VoiceChat;
+    public bool Speakerphone { get; init; } = true;
+    public TimeSpan FrameDuration { get; init; } = TimeSpan.FromMilliseconds(20);    // whole ms, 10-100
+    public TimeSpan PlaybackLatency { get; init; } = TimeSpan.FromMilliseconds(60);  // prime / re-prime target, >= 0
+    public TimeSpan MaxPlaybackLatency { get; init; } = TimeSpan.FromMilliseconds(200); // > PlaybackLatency; overflow drops oldest back to PlaybackLatency
 }
 ```
 
@@ -978,12 +1016,13 @@ public static class SpeechServiceCollectionExtensions
 // but NOT the monitor/devices — use AddAudioServices() to get the full set + the IAudio facade.
 public static class AudioServiceCollectionExtensions
 {
-    // Registers IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudioRecorder + IAudio
+    // Registers IAudioSource + IAudioPlayer + IAudioMonitor + IAudioDevices + IAudioRecorder + IAudioDuplex + IAudio
     IServiceCollection AddAudioServices(this IServiceCollection services);
 
     IServiceCollection AddAudioMonitor(this IServiceCollection services);  // IAudioMonitor (iOS/MacCat + Android)
     IServiceCollection AddAudioDevices(this IServiceCollection services);  // IAudioDevices (iOS/MacCat, macOS, Android, Windows)
     IServiceCollection AddAudioRecorder(this IServiceCollection services); // IAudioRecorder (all platforms, transient)
+    IServiceCollection AddAudioDuplex(this IServiceCollection services);   // IAudioDuplex (iOS, MacCat, macOS, Android; singleton)
 }
 ```
 
