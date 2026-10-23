@@ -1,6 +1,6 @@
 ---
 name: shiny-ble-hubs
-description: Generate code using Shiny.BluetoothLE.Hubs - SignalR style hubs over Bluetooth LE for .NET (iOS/Android/MAUI) with a source generated client proxy, typed host-to-client pushes, groups, streaming, per hub start/stop and L2CAP file transfers
+description: Generate code using Shiny.BluetoothLE.Hubs - SignalR style hubs over Bluetooth LE for .NET (iOS/Android/MAUI) with a source generated client proxy, typed host-to-client pushes, groups, streaming, per hub start/stop, L2CAP file transfers and L2CAP media channels (raw packet pipes for live audio/video)
 auto_invoke: true
 triggers:
   - ble hubs
@@ -58,6 +58,20 @@ triggers:
   - IBleHubClientTransport
   - ConnectExternal
   - ble hubs over wifi
+  - media channel
+  - IBleHubMediaChannel
+  - EnableMediaChannels
+  - BleHubMediaChannelOptions
+  - MediaChannelOpened
+  - BleHubMediaChannelEventArgs
+  - GetMediaChannel
+  - OpenMediaChannel
+  - CanOpenMediaChannel
+  - MediaFrameCodec
+  - ble audio
+  - ble video
+  - live audio over ble
+  - l2cap stream
 ---
 
 # Shiny.BluetoothLE.Hubs Skill
@@ -85,6 +99,7 @@ Invoke this skill when the user wants to:
 - Tell why a connection ended (client left, link lost, kicked, host stopped) with `HubDisconnectReason`
 - Rename a client or the host without reconnecting, and tell other clients about it
 - Upload or download files between devices over L2CAP
+- Stream live audio, video or other binary packets between a host and its clients (media channels over L2CAP)
 
 Do NOT use this skill for talking to third party BLE peripherals (use `shiny-bluetoothle`) or for raw GATT servers
 (use `shiny-ble-hosting`).
@@ -94,8 +109,8 @@ Do NOT use this skill for talking to third party BLE peripherals (use `shiny-blu
 | NuGet | Purpose |
 |---|---|
 | `Shiny.BluetoothLE.Hubs` | Protocol, serializer, `[BleHubClient]`, **includes the source generator** |
-| `Shiny.BluetoothLE.Hubs.Host` | `BleHub<T>`, `IBleHubHost`, `IHubContext<THub>`, groups, L2CAP file server |
-| `Shiny.BluetoothLE.Hubs.Client` | `BleHubClient` (base of generated proxies), discovery, connections, file transfer |
+| `Shiny.BluetoothLE.Hubs.Host` | `BleHub<T>`, `IBleHubHost`, `IHubContext<THub>`, groups, L2CAP file server, L2CAP media channels |
+| `Shiny.BluetoothLE.Hubs.Client` | `BleHubClient` (base of generated proxies), discovery, connections, file transfer, media channels |
 
 - **Namespace**: `Shiny.BluetoothLE.Hubs`
 - **Platforms**: iOS and Android in both roles, and Mac Catalyst. Windows can be a client but can't host. L2CAP needs
@@ -359,6 +374,45 @@ if (client.CanTransferFiles)
 - **Host events**: `IBleHubHost.FileTransferred` and `FileTransferProgress`.
 - **Custom handling**: register `IBleHubFileHandler` to serve or receive files yourself, for example from a
   database.
+
+### 6b. Media channels (L2CAP packet pipe)
+
+For live audio or video, or any steady stream of binary packets, use a media channel rather than hub methods: GATT hub
+calls are a few KB/s and go through the serializer.
+
+```csharp
+// host: opens a second L2CAP PSM when hosting starts
+services.AddBleHubServer(server => server
+    .Host(o => o.EnableMediaChannels(maxPacketSize: 128 * 1024))
+    .AddHub<CallHub>(CallCharacteristicUuid));
+
+// host: one channel per connected client
+callHubContext.MediaChannelOpened += (_, e) => _ = Task.Run(async () =>
+{
+    await foreach (var packet in e.Channel.Receive())        // e.Channel.ConnectionId == e.Client.Id
+        Handle(e.Client, packet);
+});
+IBleHubMediaChannel? channel = callHubContext.GetMediaChannel(connectionId);
+
+// client
+if (client.CanOpenMediaChannel)
+{
+    var media = await client.OpenMediaChannel(ct);           // the open one if it already has one
+    await media.Send(packet, ct);
+    await foreach (var p in media.Receive(ct)) { ... }
+}
+```
+
+- `Send` is serialized and packets arrive whole and in order, or the channel closes. A packet over `MaxPacketSize` throws
+  `ArgumentException`; sending on a closed channel throws `BleHubException`.
+- `Receive` takes **one reader at a time** and completes when the channel closes. Run it on its own task, and don't block
+  the MediaChannelOpened handler.
+- It closes when either side disposes it, when the hub connection ends (disconnect, drop, hub stop) or when the link
+  fails. Watch `Completion` or `IsOpen`; reopen with `OpenMediaChannel` while still connected.
+- `CanOpenMediaChannel` is false when the host didn't call `EnableMediaChannels`, is older than 1.4.0, or there's no
+  L2CAP (iOS 11+ / Android 10+). `OpenMediaChannel` then throws `NotSupportedException`.
+- Design the packet format yourself (sequence numbers, timestamps). Shiny.UniversalHubs builds audio/video calls on this
+  and carries the same channel over Wi-Fi.
 
 ### 7. Platform setup
 

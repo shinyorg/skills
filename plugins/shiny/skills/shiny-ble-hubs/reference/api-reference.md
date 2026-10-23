@@ -50,6 +50,30 @@ public class BleHubRemoteException : BleHubException
 }
 public class BleHubDisconnectedException : BleHubException { HubDisconnect? Disconnect; string? Reason; }   // Reason = Disconnect?.Description
 public class BleHubFileTransferNotSupportedException : BleHubException;
+
+// a raw, ordered packet pipe beside one hub connection (live audio/video)
+public interface IBleHubMediaChannel : IAsyncDisposable
+{
+    string? ConnectionId { get; }                // host side: the client's connection id; null on the client
+    int MaxPacketSize { get; }                   // set by the host (EnableMediaChannels)
+    bool IsOpen { get; }
+    ValueTask Send(ReadOnlyMemory<byte> packet, CancellationToken cancellationToken = default);   // serialized; oversize = ArgumentException; closed = BleHubException
+    IAsyncEnumerable<ReadOnlyMemory<byte>> Receive(CancellationToken cancellationToken = default); // one reader at a time; completes on close
+    Task Completion { get; }                     // completes (never faults) on close
+}
+
+// Shiny.BluetoothLE.Hubs.Protocol - the L2CAP framing: [u32 LE length][bytes]
+public sealed class MediaFrameCodec
+{
+    public const int LengthPrefixSize = 4;
+    public const int DefaultMaxWriteSize = 4096;
+    public const byte Accepted = 0x01;           // the host's answer to a valid media token
+    public MediaFrameCodec(int maxFrameSize);
+    public static IReadOnlyList<byte[]> Encode(ReadOnlySpan<byte> packet, int maxWriteSize = DefaultMaxWriteSize);
+    public IReadOnlyList<byte[]> Add(ReadOnlySpan<byte> data);   // completed frames; BleHubProtocolException over the max
+}
+
+// HandshakeAck (wire record) gained, with defaults: ushort MediaChannelPsm, bool MediaChannelSecure, string? MediaToken, int MediaMaxPacketSize
 ```
 
 ## Host (`Shiny.BluetoothLE.Hubs.Host`)
@@ -78,7 +102,12 @@ public class BleHubHostOptions
     public string? LocalName { get; set; }
     public TimeSpan ClientSweepInterval { get; set; }            // 10s
     public BleHubHostOptions EnableFileTransfers(string rootDirectory, Action<BleHubFileTransferOptions>? configure = null);
+    public BleHubMediaChannelOptions? MediaChannels { get; }
+    public BleHubHostOptions EnableMediaChannels(int maxPacketSize = 128 * 1024, bool secure = false);   // second L2CAP PSM, opened on Start
 }
+
+public sealed record BleHubMediaChannelOptions(int MaxPacketSize, bool Secure);
+public sealed record BleHubMediaChannelEventArgs(BleHubConnectedClient Client, IBleHubMediaChannel Channel);
 
 public class BleHubFileTransferOptions
 {
@@ -174,6 +203,8 @@ public interface IHubContext<THub>
     event EventHandler<BleHubClientDisconnectedEventArgs>? ClientDisconnected;
     event EventHandler<BleHubClientRenamedEventArgs>? ClientRenamed;
     Task Disconnect(string connectionId, string? reason = null);
+    event EventHandler<BleHubMediaChannelEventArgs>? MediaChannelOpened;   // a client opened its media channel (BLE or another transport)
+    IBleHubMediaChannel? GetMediaChannel(string connectionId);             // null when none is open
     // generated per hub: IHubClients<BleHubPush<TContract>> Clients { get; }   (C# 14 extension property)
 }
 
@@ -219,6 +250,8 @@ public interface IBleHubConnection
     Task<L2CapTransferResult> UploadFile(string localFilePath, string? remoteFileName = null, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
     Task<L2CapTransferResult> UploadStream(Stream source, long length, string remoteFileName, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
     Task<L2CapTransferResult> DownloadFile(string remoteFileName, string localFilePath, IProgress<TransferProgress>? progress = null, CancellationToken cancellationToken = default);
+    bool CanOpenMediaChannel { get; }             // connected + host enabled media channels + L2CAP (or the external transport says so)
+    Task<IBleHubMediaChannel> OpenMediaChannel(CancellationToken cancellationToken = default);   // returns the open one; NotSupportedException / BleHubException (refused)
 }
 
 public interface IBleHubClient<out TContract> : IBleHubConnection
@@ -243,12 +276,15 @@ rather than these directly.
 - `IHubContext<THub>.TransportEndpoint` → `IBleHubTransportEndpoint`: `Connect(connectionId, HandshakeInfo, IBleHubPeerChannel, ct)`
   (returns a rejection or null), `GetMethodKind`, `Invoke` → `BleHubInvocationResult(Result, AbortRequested, AbortReason)`,
   `Stream`, `Disconnected(connectionId, HubDisconnect)`, `Disconnect(connectionId, HubDisconnect)`,
-  `Rename(connectionId, name, ct)` (null, or the refusal reason to relay as `RenameRefused`), `FindClient`. Clients connected this way share Clients, Groups, MaxClients and
+  `Rename(connectionId, name, ct)` (null, or the refusal reason to relay as `RenameRefused`), `FindClient`,
+  `MediaChannelOpened(connectionId, IBleHubMediaChannel)` (raises `IHubContext.MediaChannelOpened`, closes the channel when
+  the client goes; false = unknown client, the caller closes it). Clients connected this way share Clients, Groups, MaxClients and
   IHubContext with BLE clients.
 - `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(HubDisconnect, ct)`, `HostRenamed(hostName, ct)`
   (default no-op, called in order with `Push`) - implemented by the transport.
 - `BleHubClient.ConnectExternal(events => IBleHubClientTransport, options, ct)`, `BleHubClient.ExternalTransport`.
 - `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `Rename` (default throws `NotSupportedException`),
-  `CanTransferFiles`, `Upload`, `Download`, `Close`.
+  `CanTransferFiles`, `Upload`, `Download`, `Close`, `CanOpenMediaChannel` (default false), `OpenMediaChannel(ct)` (default
+  throws `NotSupportedException`; `BleHubClient` serializes it, reuses an open channel and closes it on disconnect).
   `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `HostRenamed(hostName)` (in order with `Pushed`),
   `Closed(HubDisconnect)`.
