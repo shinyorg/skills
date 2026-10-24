@@ -45,6 +45,8 @@ triggers:
   - AudioDuplexOptions
   - AddAudioDuplex
   - full duplex audio
+  - InputDeviceChanged
+  - call microphone selection
   - voice call audio
   - echo cancellation playback
   - jitter buffer
@@ -291,7 +293,7 @@ Shiny Speech provides:
 - Linux support via the separate `Shiny.Audio.Linux` package — all four audio services over PulseAudio/PipeWire with an ALSA fallback. **No native STT/TTS exists on Linux** (there is no OS speech engine to wrap); use a cloud provider, or `Shiny.Speech.Linux.Whisper` for offline STT
 - On-device offline STT on Linux via the separate `Shiny.Speech.Linux.Whisper` package — Whisper through whisper.cpp, no cloud account or network. STT only
 - Route classification via `AudioDeviceExtensions` — `IsWired()`, `IsBluetooth()`, `IsBuiltIn()`, `IsHeadphones()`, `HasMicrophone()` on both `AudioDevice` and `AudioDeviceType`; detects wired/jack/USB-C headphones and headsets alongside Bluetooth
-- Full-duplex call audio via `IAudioDuplex` — echo-cancelled mic frames (`IAudioDuplexSession.Captured`, a `ChannelReader<ReadOnlyMemory<byte>>` of 20 ms PCM16 mono frames) plus live network PCM playback (`Play(ReadOnlySpan<byte>)`, jitter-buffered) on **one** voice-processing session, live `Speakerphone` switching, `Buffered`, `InputLevelChanged`. iOS, Mac Catalyst, macOS and Android only
+- Full-duplex call audio via `IAudioDuplex` — echo-cancelled mic frames (`IAudioDuplexSession.Captured`, a `ChannelReader<ReadOnlyMemory<byte>>` of 20 ms PCM16 mono frames) plus live network PCM playback (`Play(ReadOnlySpan<byte>)`, jitter-buffered) on **one** voice-processing session, live `Speakerphone` switching, live microphone selection (`InputDevice` / `InputDeviceChanged`), `Buffered`, `InputLevelChanged`. iOS, Mac Catalyst, macOS and Android only
 - One-stop `IAudio` facade exposing `Player` / `Source` / `Monitor` / `Devices` / `Recorder` / `Duplex` — inject it to discover the whole audio surface (focused interfaces remain independently injectable)
 - Pluggable cloud provider architecture via `ISpeechToTextProvider` and `ITextToSpeechProvider`
 - Azure AI Speech integration (STT + TTS)
@@ -1146,7 +1148,7 @@ using System.Threading.Channels;
 using Shiny;
 using Shiny.Audio;
 
-public class CallAudio(IAudioDuplex duplex)   // or IAudio.Duplex
+public class CallAudio(IAudioDuplex duplex, IAudioDevices devices)   // or IAudio.Duplex / IAudio.Devices
 {
     IAudioDuplexSession? session;
 
@@ -1159,6 +1161,7 @@ public class CallAudio(IAudioDuplex duplex)   // or IAudio.Duplex
         {
             SampleRate = 16000,                                  // 8000 or 16000 only
             Speakerphone = true,                                 // loudspeaker (default)
+            InputDevice = null,                                  // a mic from devices.GetInputs(); null = system default
             PlaybackLatency = TimeSpan.FromMilliseconds(60),     // jitter target (default)
             MaxPlaybackLatency = TimeSpan.FromMilliseconds(200)  // older audio dropped (default)
         }, ct);
@@ -1176,6 +1179,9 @@ public class CallAudio(IAudioDuplex duplex)   // or IAudio.Duplex
 
     public void SetSpeaker(bool on) { if (session != null) session.Speakerphone = on; }   // live
 
+    // Live mic switch; null = system default. Must be an input from IAudioDevices.GetInputs().
+    public void SetMic(AudioDevice? mic) { if (session != null) session.InputDevice = mic; }
+
     public async Task Stop()
     {
         if (session != null)
@@ -1192,6 +1198,7 @@ Behavior notes when generating code:
 - **Both directions use the session's `SampleRate`.** Resample/decode before `Play` if the far end uses another rate.
 - `Processing` defaults to `AudioProcessingOptions.VoiceChat`. Null / nothing enabled means **no echo cancellation** (headset only). Apple enables AEC+NS+AGC together.
 - `Speakerphone`: loudspeaker vs earpiece; a connected headset (wired, or Bluetooth when `AllowBluetooth`) wins. No-op on macOS.
+- `InputDevice` (options + live on the session): the mic, an **input** from `IAudioDevices.GetInputs()` (an output throws `ArgumentException`); null = system default. A mic that isn't connected falls back to the default and the property reads null. On iOS/Mac Catalyst/Android a headset's mic and speaker move together: choosing a Bluetooth/wired/USB headset mic routes the call to that headset (Speakerphone ignored while chosen); choosing the built-in mic with a headset connected moves the call to speaker/earpiece per `Speakerphone`. macOS restarts the engine on a switch (short gap). `InputDeviceChanged` fires only when the chosen mic disappears (session back on the default, `InputDevice` == null), on a platform thread — not for your own sets. Android below API 31 doesn't start a Bluetooth SCO link, so a Bluetooth mic may not be reachable there.
 - Platforms: iOS/Mac Catalyst (`PlayAndRecord` + `VoiceChat` session, AVAudioEngine voice processing), macOS (engine only), Android (`VOICE_COMMUNICATION` AudioRecord + AudioTrack on one session, `MODE_IN_COMMUNICATION`; needs `MODIFY_AUDIO_SETTINGS` in the manifest). **Not on Windows, Linux or Browser** — `IAudio.Duplex` throws `PlatformNotSupportedException`; guard by platform.
 - `InputLevelChanged` fires on the capture thread — marshal to the UI thread.
 
