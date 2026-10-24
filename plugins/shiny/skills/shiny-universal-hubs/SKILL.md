@@ -41,6 +41,7 @@ triggers:
   - HubConnectOptions
   - Prefer
   - AutomaticReconnect
+  - HttpRediscoverTimeout
   - UniversalHubProtocol
   - NSBonjourServices
   - mdns service type

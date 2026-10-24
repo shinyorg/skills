@@ -126,6 +126,7 @@ public class UniversalHubClientOptions
     public string ServiceUuid { get; set; }                     // BleHubProtocolOptions.DefaultServiceUuid - match the host
     public string ServiceType { get; set; }                     // the mDNS type to browse - match the hub
     public TimeSpan HttpConnectTimeout { get; set; }            // 6s per address
+    public TimeSpan HttpRediscoverTimeout { get; set; }         // 3s - re-resolve a moved host over mDNS when no address answers; zero = off
     public bool AutomaticReconnect { get; set; }                // true - resume short Wi-Fi drops
     public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 }
