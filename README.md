@@ -27,8 +27,8 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-core` | Hosting, DI, key-value stores, lifecycle hooks, platform abstractions |
 | `shiny-bluetoothle` | BLE scanning, connecting, GATT operations, managed scanner |
 | `shiny-ble-hosting` | BLE peripheral GATT server, advertising, L2CAP CoC channels |
-| `shiny-ble-hubs` | SignalR-style hubs over Bluetooth LE — generated client proxies, groups, streaming, L2CAP file transfers |
-| `shiny-universal-hubs` | BLE hubs also served over Wi-Fi (HttpServer + mDNS) with Wi-Fi-first connect and BLE fallback |
+| `shiny-ble-hubs` | SignalR-style hubs over Bluetooth LE — generated client proxies, groups, streaming, L2CAP file transfers and media channels (live audio/video) |
+| `shiny-universal-hubs` | BLE hubs also served over Wi-Fi (HttpServer + mDNS) with Wi-Fi-first connect, BLE fallback, and media channels over WebSockets |
 | `shiny-beacons` | iBeacon & Eddystone ranging, background region monitoring, broadcasting |
 | `shiny-jobs` | Background job scheduling — native iOS/Android schedulers plus in-process jobs |
 | `shiny-locations` | GPS tracking, geofencing, motion activity recognition |
@@ -54,7 +54,7 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-wearables` | Companion Apple Watch / Wear OS messaging, shared context, data and file transfers |
 | `shiny-printing` | Thermal/receipt printing (ESC/POS, TSPL) over BLE/WiFi/web, plus OS-native printing |
 | `shiny-screenrecorder` | Screen recording to MP4 with mic/system audio, display/window selection, pause/resume |
-| `shiny-speech` | Speech-to-text, text-to-speech, audio capture and playback |
+| `shiny-speech` | Speech-to-text, text-to-speech, audio capture and playback, echo-cancelled full-duplex call audio |
 | `shiny-aiconversation` | Chat client, wake word, STT/TTS, persistent message store |
 | `shiny-actors` | Orleans-style virtual actors anywhere .NET runs — state, event sourcing, streams, reminders, remoting |
 
@@ -69,7 +69,7 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 
 | Skill | What It Helps With |
 |---|---|
-| `shiny-controls` | TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, CameraView, MediaElement, DataGrid, Wizard, Walkthrough, Kanban, Gantt, Diagram, Spreadsheet, Document Editor, Ribbon, Flyout, TabbedPage/NavigationPage, scheduler, Markdown, barcodes, motion icons, and more |
+| `shiny-controls` | TableView, TreeView, FloatingPanel, ChatView, ImageViewer/ImageEditor, CameraView (with live H.264/JPEG video), MediaElement, DataGrid, Wizard, Walkthrough, Kanban, Gantt, Diagram, Spreadsheet, Document Editor, Ribbon, Flyout, TabbedPage/NavigationPage, scheduler, Markdown, barcodes, motion icons, and more |
 
 ### Mediator
 
