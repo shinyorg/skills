@@ -64,18 +64,18 @@ Parameters: `ChildContent`, `ContentKey`, `Inline` (false = top of the screen), 
 
 ## Desktop notch window (Desktop add-on)
 
-`INotchWindowService` puts a `NotchView` in a borderless window at the top-centre of the screen, above all apps, on **macOS (AppKit), Windows and Linux (GTK4)**. On a MacBook it lives in the camera notch; everywhere else (Macs without one, every Windows/Linux screen) it is a floating island at the top of the screen. It only exists on `net10.0-macos`, Windows and the plain `net10.0` (Linux GTK4) build, so **always wrap it in `#if !ANDROID && !IOS && !MACCATALYST`**. Don't call it from shared code without the guard, and don't invent an `IsSupported` check; there isn't one.
+`INotchWindowService` puts a `NotchView` in a borderless window at the top-centre of the screen, above all apps, on **macOS (AppKit), Windows and Linux (GTK4)**. On a MacBook it lives in the camera notch; everywhere else (Macs without one, every Windows/Linux screen) it is a floating island at the top of the screen. It only exists on `net10.0-macos`, Windows and the plain `net10.0` (Linux GTK4) build, so **always wrap code that uses it in `#if !ANDROID && !IOS && !MACCATALYST`**. Don't call it from shared code without the guard, and don't invent an `IsSupported` check; there isn't one. `UseShinyDesktop()` registers the service wherever it exists and needs no guard. Only `cfg.ConfigureNotch(...)` does. **Never emit `UseDesktopNotch()`**: it was removed.
 
 ```csharp
 #if !ANDROID && !IOS && !MACCATALYST
 builder
     .UseShinyControls()
-    .UseDesktopNotch(o =>
+    .UseShinyDesktop(cfg => cfg.ConfigureNotch(o =>
     {
         o.MaxWidth = 520;                 // points
         o.UseHardwareNotch = true;        // false = floating island under the menu bar
         o.Configure = notch => notch.ContentPadding = new Thickness(18, notch.ContentPadding.Top, 18, 16);
-    });
+    }));
 
 // inject INotchWindowService
 await notchWindow.ShowAsync(new Label { Text = "Recording 0:42", TextColor = Colors.White });

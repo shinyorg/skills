@@ -24,12 +24,14 @@ using Shiny.Maui.Controls.Desktop.TrayIcon;   // ITrayIcon, ITrayIconFactory, Tr
 var builder = MauiApp.CreateBuilder();
 builder
     .UseMauiApp<App>()
-    .UseTrayIcon();
+    .UseShinyDesktop();
 ```
 
-`UseTrayIcon()` registers `ITrayIconFactory` as a singleton — the correct per-platform factory is picked automatically. On Android, iOS, or any other unsupported runtime, `Create()` throws `PlatformNotSupportedException`, so guard your code with platform checks if the same MAUI app runs on mobile too.
+`UseShinyDesktop()` always registers `ITrayIconFactory` as a singleton (no `cfg` option needed) — the correct per-platform factory is picked automatically. On Android, iOS, or any other unsupported runtime, `Create()` throws `PlatformNotSupportedException`, so guard your code with platform checks if the same MAUI app runs on mobile too.
 
-> **Note:** Prior to the Desktop package merger this lived in `Shiny.Maui.Controls.TrayIcon` under the `Shiny.Maui.Controls.TrayIcon` namespace. Update your `using` directive to `Shiny.Maui.Controls.Desktop.TrayIcon`. The extension method `UseTrayIcon()` is unchanged and still lives in the `Shiny` namespace.
+> **Note:** Prior to the Desktop package merger this lived in `Shiny.Maui.Controls.TrayIcon` under the `Shiny.Maui.Controls.TrayIcon` namespace. Update your `using` directive to `Shiny.Maui.Controls.Desktop.TrayIcon`.
+
+> **Never emit `UseTrayIcon()`.** It was removed. `UseShinyDesktop()` (in the `Shiny` namespace) replaces it and includes the tray factory.
 
 ## Creating a tray icon
 

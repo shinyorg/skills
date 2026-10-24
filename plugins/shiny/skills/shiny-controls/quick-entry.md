@@ -61,8 +61,10 @@ dotnet add package Shiny.Maui.Controls.Desktop
 ```csharp
 builder
     .UseShinyControls(cfg => cfg.ConfigureQuickEntry(o => o.HotKey = "Ctrl+Alt+Space"))
-    .UseDesktopQuickEntry();
+    .UseShinyDesktop(cfg => cfg.UseQuickEntryWindow());
 ```
+
+`cfg.UseQuickEntryWindow()` is opt-in because it changes behaviour: it adds the native always-on-top window and the whole-screen glow, claims `QuickEntryOptions.HotKey` at startup, and with `Presentation = Auto` takes over from the in-app popup. **Never emit `UseDesktopQuickEntry()`**: it was removed.
 
 Safe to call unconditionally: on Mac Catalyst and anywhere else that isn't a desktop, the presenters report themselves unsupported and the core service quietly stays with the overlay.
 
@@ -355,7 +357,7 @@ Blazor tools are plain objects rather than components, so a tool can be built in
 
 ## Global hotkeys
 
-**Desktop only**, and registered by `UseDesktopQuickEntry()` — a system-wide key grab does not exist on mobile or in a browser. Useful on its own:
+**Desktop only**, and registered by every `UseShinyDesktop()` call (no `cfg` option needed) — a system-wide key grab does not exist on mobile or in a browser. Useful on its own:
 
 ```csharp
 var registration = hotKeys.Register("Ctrl+Shift+K", () => ToggleRecording());

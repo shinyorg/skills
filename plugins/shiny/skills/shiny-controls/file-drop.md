@@ -21,7 +21,7 @@ using Shiny;
 builder
     .UseMauiApp<App>()
     .UseShinyControls()
-    .UseFileDrop(o =>
+    .UseShinyDesktop(cfg => cfg.UseFileDrop(o =>
     {
         o.AllowedExtensions.Add(".pdf");   // empty (default) = accept everything
         o.MaxFileSize = 50 * 1024 * 1024;  // 0 = no limit
@@ -29,10 +29,10 @@ builder
         o.AllowDirectories = false;
         o.SuppressWebViewDrop = true;      // the switch that makes this work over a web view
         o.AutoAttachWindows = true;
-    });
+    }));
 ```
 
-Namespace for the API: `using Shiny.Maui.Controls.Desktop.FileDrop;`. The extension method is in `Shiny`.
+Namespace for the API: `using Shiny.Maui.Controls.Desktop.FileDrop;`. `UseShinyDesktop` is in `Shiny`. File drop is **opt-in** on the configuration (`cfg.UseFileDrop(...)` / `cfg.UseFileDrop<TDelegate>(...)`) because registering it makes the window accept drops. **Never emit `builder.UseFileDrop(...)`**: that extension was removed.
 
 Windows are attached automatically as they open. With `AutoAttachWindows = false`, call `IFileDropService.AttachTo(window)` and dispose the result to detach.
 
@@ -83,7 +83,7 @@ public MyViewModel(IFileDropService drop)
 Use the events when the handling belongs to a page or component. Use a delegate when it belongs to the *app* — an import that must work whatever is on screen, with constructor-injected services.
 
 ```csharp
-builder.UseFileDrop<ImportFileDropDelegate>();        // MAUI  — singleton
+builder.UseShinyDesktop(cfg => cfg.UseFileDrop<ImportFileDropDelegate>());  // MAUI  — singleton
 services.AddShinyFileDrop<ImportFileDropDelegate>();  // Blazor — scoped
 
 public class ImportFileDropDelegate(IImportService imports) : IFileDropDelegate
