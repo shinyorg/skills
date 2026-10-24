@@ -24,10 +24,12 @@ using MyApp.Panels;   // SolutionExplorerPanel, OutputPanel — your dockable vi
 var builder = MauiApp.CreateBuilder();
 builder
     .UseMauiApp<App>()
-    .UseShinyDocking()
-    .AddDockPanel<SolutionExplorerPanel>("solution-explorer", displayName: "Explorer", icon: "📁")
-    .AddDockPanel<OutputPanel>("output");
+    .UseShinyDesktop(cfg => cfg
+        .AddDockPanel<SolutionExplorerPanel>("solution-explorer", displayName: "Explorer", icon: "📁")
+        .AddDockPanel<OutputPanel>("output"));
 ```
+
+On MAUI, `AddDockPanel` is on the `UseShinyDesktop` configuration (`cfg`), not on `MauiAppBuilder`. `UseShinyDesktop()` always registers the docking registry. **Never emit `UseShinyDocking()` or `builder.AddDockPanel<T>()`**: both were removed. (Blazor is unchanged: `services.AddShinyDocking().AddDockPanel<T>()`.)
 
 Each call to `AddDockPanel<TView>("id", displayName: …, icon: …, canClose: …)`:
 
