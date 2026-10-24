@@ -665,6 +665,12 @@ public interface IAudioDuplexSession : IAsyncDisposable   // DisposeAsync == Sto
     void Play(ReadOnlySpan<byte> pcm16);                    // thread-safe, non-blocking, any length; jitter-buffered
     TimeSpan Buffered { get; }                              // queued playback not yet handed to the output
     bool Speakerphone { get; set; }                         // live; headset wins; no-op on macOS
+    AudioDevice? InputDevice { get; set; }                  // live mic switch; null = system default; an output throws
+                                                            // ArgumentException; unavailable -> default and reads null.
+                                                            // A headset mic routes the call to that headset (iOS/Android);
+                                                            // the built-in mic takes it off a headset per Speakerphone
+    event EventHandler? InputDeviceChanged;                 // the chosen mic went away: back on the default, InputDevice == null;
+                                                            // not raised for your own sets; platform thread
     event EventHandler<double>? InputLevelChanged;          // 0.0 - 1.0, capture thread, ~20/s
     Task StopAsync();                                       // idempotent; restores session/mode/routing
 }
@@ -674,6 +680,7 @@ public record AudioDuplexOptions
     public int SampleRate { get; init; } = 16000;                                    // 8000 or 16000
     public AudioProcessingOptions? Processing { get; init; } = AudioProcessingOptions.VoiceChat;
     public bool Speakerphone { get; init; } = true;
+    public AudioDevice? InputDevice { get; init; }                                   // from IAudioDevices.GetInputs(); null = default; must be an input
     public TimeSpan FrameDuration { get; init; } = TimeSpan.FromMilliseconds(20);    // whole ms, 10-100
     public TimeSpan PlaybackLatency { get; init; } = TimeSpan.FromMilliseconds(60);  // prime / re-prime target, >= 0
     public TimeSpan MaxPlaybackLatency { get; init; } = TimeSpan.FromMilliseconds(200); // > PlaybackLatency; overflow drops oldest back to PlaybackLatency
