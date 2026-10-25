@@ -129,7 +129,7 @@ Content: `Tabs`, `Transition`, `TransitionDuration`, `TransitionEasing`, `CacheT
 `StateView` underneath, for anything not passed through).
 
 Bar: `TabBarIsVisible`, `ContentBehindTabBar` (full-bleed under a translucent bar — leave room at the
-bottom of your own content), `CenterButton`, `IndicatorStyle`, `LabelMode`, `SelectedColor`,
+bottom of your own content), `CenterButton`, `IndicatorStyle`, `LabelMode`, `LabelPosition`, `TabTemplate`, `SelectedColor`,
 `UnselectedColor`, `IndicatorColor`, `BarHeight`, `BarBackgroundColor`, `BarCornerRadius`,
 `BarMargin`, `BarStyle`, `BarMaterial`, `BarGlassTint`, `HasShadow`, `IconSize`, `AnimateIcons`, and
 `TabBar` itself for everything else.
@@ -147,8 +147,79 @@ bottom of your own content), `CenterButton`, `IndicatorStyle`, `LabelMode`, `Sel
 | `BadgeColor` | Unset follows the theme's error colour. |
 | `IsEnabled` / `IsVisible` | A hidden tab leaves the bar and the rest re-space. |
 | `Route` | A stable id for `GoTo(string)`. Not a Shell route. Also becomes the cell's `AutomationId` (`tab-<route>`). |
+| `LabelPosition` | `Default` (follow the bar), `Bottom`, `Top`, `Start`, `End`, `Hidden` (icon-only, beats `LabelMode`). |
+| `HeaderTemplate` | Replaces this tab's icon/label/badge; beats the bar's `TabTemplate`. See "Tab headers". |
 | `Content` / `ContentTemplate` | See above. `ContentTemplate` wins. |
 | `Tag`, `AdoptedPage`, `PageContext` | |
+
+## Tab headers
+
+`LabelPosition` (page/bar, default `Bottom`; per-tab override on `ShinyTabItem`, default `Default` =
+follow the bar) places the label `Bottom`, `Top`, `Start` or `End` of the icon; `Hidden` on a tab
+makes it icon-only regardless of `LabelMode`. `LabelMode` still decides whether labels show at all.
+`Start`/`End` follow `FlowDirection`, and side labels are not truncated, so keep their titles short.
+
+```xml
+<shiny:ShinyTabbedPage LabelPosition="End">
+    <shiny:ShinyTabItem Title="Home" Icon="home" />
+    <shiny:ShinyTabItem Title="Inbox" Icon="message" LabelPosition="Top" />
+    <shiny:ShinyTabItem Title="Search" Icon="search" LabelPosition="Hidden" />
+</shiny:ShinyTabbedPage>
+```
+
+`TabTemplate` (page/bar) and `ShinyTabItem.HeaderTemplate` (one tab, wins) replace the icon, label
+and badge with a `DataTemplate` or `DataTemplateSelector` (handed the `ShinyTabItem`). The template
+must create a `View` (anything else throws). The bar keeps tap, selection, indicator, overflow and
+AutomationIds, and the template's children are input-transparent. The template sits in the icon
+slot, so the pill draws behind it. Set `IndicatorStyle="None"` when the template draws selection
+itself.
+
+The template's `BindingContext` is a **`TabHeaderContext`**, not the page's view model, so always use
+`x:DataType="shiny:TabHeaderContext"`:
+
+| Property | Notes |
+|---|---|
+| `Item` | The `ShinyTabItem` — for its `Icon`, `IconImage`, `Route`, `Tag`, … |
+| `Title` | The resolved label (the page's `ShinyTabs.Title` first, then the tab's). |
+| `IsSelected` | True while this is the selected tab. |
+| `IsEnabled` | Mirrors the tab. The bar already dims a disabled cell. |
+| `IsLabelVisible` | Whether the bar would have shown a label — `LabelMode` plus `Hidden` — so a template can follow the bar's label rules. |
+| `LabelPosition` | The resolved position, never `Default`. |
+| `Color` | The explicit `SelectedColor` / `UnselectedColor` for the current state; `null` when following the theme. |
+| `Badge` / `HasBadge` / `IsBadgeDot` / `BadgeColor` | The resolved badge. `""` is a dot. |
+| `Icon` | The bar's own realized icon view (`MotionIconView` or `Image`), or `null`. A view has one parent — bind it once. |
+| `IsOverflow` | True for the synthesized **More** tab, which the bar template draws too. |
+
+```xml
+<shiny:ShinyTabbedPage IndicatorStyle="None">
+    <shiny:ShinyTabbedPage.TabTemplate>
+        <DataTemplate x:DataType="shiny:TabHeaderContext">
+            <HorizontalStackLayout Spacing="6">
+                <!-- the bar's own icon: tinted, animated, motion playback included -->
+                <ContentView Content="{Binding Icon}" />
+                <Label Text="{Binding Title}" IsVisible="{Binding IsLabelVisible}">
+                    <Label.Triggers>
+                        <DataTrigger TargetType="Label" Binding="{Binding IsSelected}" Value="True">
+                            <Setter Property="FontAttributes" Value="Bold" />
+                        </DataTrigger>
+                    </Label.Triggers>
+                </Label>
+                <Label Text="{Binding Badge}" IsVisible="{Binding HasBadge}" />
+            </HorizontalStackLayout>
+        </DataTemplate>
+    </shiny:ShinyTabbedPage.TabTemplate>
+
+    <shiny:ShinyTabItem Title="Home" Icon="home" />
+    <shiny:ShinyTabItem Title="Profile" Icon="user">
+        <!-- one tab can have its own -->
+        <shiny:ShinyTabItem.HeaderTemplate>
+            <DataTemplate x:DataType="shiny:TabHeaderContext">
+                <shiny:Avatar Initials="AR" WidthRequest="28" HeightRequest="28" />
+            </DataTemplate>
+        </shiny:ShinyTabItem.HeaderTemplate>
+    </shiny:ShinyTabItem>
+</shiny:ShinyTabbedPage>
+```
 
 ## The centre button
 
@@ -522,7 +593,7 @@ The bar on its own, for hosting it somewhere neither host covers.
 
 Chrome: `Items`, `SelectedIndex`/`SelectedItem`, `BarHeight`, `BarBackgroundColor`,
 `BarCornerRadius`, `BarMargin`, `BarPadding`, `BarStyle`, `HasShadow`, `SelectedColor`, `UnselectedColor`,
-`IndicatorColor`, `IndicatorStyle`, `IndicatorTransition`, `IndicatorEasing`, `LabelMode`,
+`IndicatorColor`, `IndicatorStyle`, `IndicatorTransition`, `IndicatorEasing`, `LabelMode`, `LabelPosition`, `TabTemplate`,
 `IconSize`, `FontSize`, `AnimateIcons`, `AnimationDuration`, `SelectionAnimation`, `Animator`,
 `MenuTemplate`, `RespectSafeArea`, `CenterButton`, `PageContext`, `IsMenuOpen`,
 `SelectionChangedCommand`.
@@ -533,7 +604,7 @@ press over entirely), `ActionInvoked`, `MenuOpened`, `MenuClosed`. Methods: `GoT
 
 `IndicatorStyle`: `None`, `Pill` (default, M3), `Line` (top edge), `Underline` (bottom edge), `Dot`.
 `IndicatorTransition`: `Slide` (default), `None`. `LabelMode`: `Always` (default), `SelectedOnly`,
-`Never`.
+`Never`. `LabelPosition`: `Default`, `Bottom` (bar default), `Top`, `Start`, `End`, `Hidden`.
 
 `PageContext` is the element the bar reads `ShinyTabs` values off. It is set for you by
 `ShinyTabbedPage` and `ShinyTabBarBehavior`; set it yourself only when hosting the bar by hand.
