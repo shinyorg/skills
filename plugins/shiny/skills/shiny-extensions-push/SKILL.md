@@ -38,6 +38,10 @@ triggers:
   - dynamic push configuration
   - rotate push keys
   - tenant push configuration
+  - push image
+  - ImageUrl
+  - mutable-content
+  - rich push notification
   - UseDocumentDb
   - DocumentDbPushRepository
   - PushMetrics
@@ -205,6 +209,26 @@ await pushManager.Send(notification, new PushFilter
     Environment    = PushEnvironment.Production
 });
 ```
+
+### Images
+
+Use the cross-platform `ImageUrl` - never hand-build `mutable-content` plus a `Data["image"]` for this:
+
+```csharp
+new PushNotification
+{
+    Title    = "New photo",
+    Message  = "Tap to view it",
+    ImageUrl = "https://cdn.example.com/photos/1234.jpg"
+};
+```
+
+- APNs: writes `aps.mutable-content = 1` and a top-level `image` key (unless `Data` already has one). iOS shows it only
+  when the app ships a Notification Service Extension - Shiny.Push builds one with `<ShinyPushServiceExtension>true`.
+- FCM: `notification.image` and `android.notification.image` (`Android.ImageUrl` overrides the Android one).
+- Web Push: `image` in the payload (Shiny.Push's service worker shows it in Chromium).
+- WNS: a hero `<image>` in the toast (a packaged app needs the `internetClient` capability).
+- Ignored on a silent push. Use https, and a short-lived signed URL for private images.
 
 ### Apple-specific options & silent push
 
