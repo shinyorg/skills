@@ -549,3 +549,7 @@ renamed every time they are bound to another row.
   `FilterMode="Menu"`, more with `Groupable`), and `FrozenColumns="1"` to pin the identifying column.
   Each header's glyph strip takes only its own width (MAUI); in a column too narrow for both, the title
   keeps 60% and the glyphs clip.
+
+## Foldables
+
+MAUI `DataGrid.FoldBehavior` (default `SnapToFold`): in book posture, pinned runs keep only the columns that fit on their side of the fold. This needs `HorizontalScroll`. See [foldables.md](./foldables.md).

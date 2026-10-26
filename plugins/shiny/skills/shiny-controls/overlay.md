@@ -210,3 +210,7 @@ Set `AutomationId` on a `LoadingOverlay` and its parts are named after it, for U
 | Progress bar (determinate mode) | `<id>_Progress` |
 
 On a `ShinyContentPage` with an `AutomationId`, the built-in loading overlay is `<page id>_Loading` (so its message is `<page id>_Loading_Message`) and the page's `OverlayHost` is `<page id>_OverlayHost`, whose backdrop is `<page id>_OverlayHost_Backdrop`.
+
+## Foldables
+
+Overlay/LoadingOverlay content moves off a fold automatically: the larger segment of a book, the top of a tabletop, or the bottom when `ContentAlignment=End`. There is nothing to configure. See [foldables.md](./foldables.md).

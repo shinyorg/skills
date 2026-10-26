@@ -197,3 +197,7 @@ await dialogs.Confirm("Delete?", "This cannot be undone", configure: c => c.Auto
 | ActionSheet options, in order | `<id>_Action_0`, `<id>_Action_1`, … |
 
 Unset (the default), the dialog carries no ids. With `DialogOptions.ContentTemplate`, only the root and backdrop are named; the template names its own parts.
+
+## Foldables
+
+Dialogs move off a fold automatically: the larger segment of a book, the top of a tabletop, and the bottom for action sheets. This needs a posture source on MAUI and is CSS on Blazor. There is nothing to configure. See [foldables.md](./foldables.md).

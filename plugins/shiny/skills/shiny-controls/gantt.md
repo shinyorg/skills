@@ -222,3 +222,7 @@ Set `AutomationId` on the control and its parts are named after it, for UI tests
 | A `BarTemplate` bar, by `GanttTask.Id` | `<id>_Bar_<task id>` |
 
 Rows are keyed by task id rather than row number, because collapsing a summary renumbers everything below it. Default bars are drawn, not views, so they have no id of their own; drive them through `<id>_Timeline`.
+
+## Foldables
+
+MAUI `GanttView.FoldBehavior` (default `SnapToFold`) centres the splitter on a book fold. It is display-only, and `TaskPaneWidth` is unchanged. See [foldables.md](./foldables.md).

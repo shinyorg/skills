@@ -284,3 +284,7 @@ Set `AutomationId` on a `FlyoutView` and its scrim is named after it. The panels
 |---|---|
 | Scrim (closes an overlaid panel) | `<id>_Scrim` |
 | The FlyoutView on a page with an id | `<page id>_Flyout` (scrim `<page id>_Flyout_Scrim`) |
+
+## Foldables
+
+`FlyoutPanel.FoldBehavior` (`SnapToFold` default / `None`). With a fold posture source registered, an **expanded** panel snaps to a book fold. It pushes, ignores Min/MaxExpandedWidth, hides the grip, and never writes `ExpandedWidth`. Do not compute fold widths yourself. See [foldables.md](./foldables.md).

@@ -644,3 +644,7 @@ its parts are named after it instead. Without an id on the bar the ids above sta
 - **`Badge=""` is a dot, `Badge=null` is nothing.** An empty string is not "no badge".
 - The centre button's menu is not a `FloatingPanel` and takes no detents — it is a card anchored above
   the button. For a real sheet, use `FloatingPanel` and open it from `CenterClicked`.
+
+## Foldables
+
+With a fold posture source registered, `ShinyTabBar` deals tabs to both segments of a book fold, with a gap column over the hinge, and pins the centre button over its own column. There is no side "vertical bar" placement. See [foldables.md](./foldables.md).
