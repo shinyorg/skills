@@ -242,3 +242,7 @@ await toaster.ShowAsync("Saved", c => c.AutomationId = "SavedToast");
 | Text label | `<id>_Text` |
 
 Unset (the default), the toast carries no ids.
+
+## Foldables
+
+Toasts move into one segment of a fold automatically: the larger half of a book, and on a tabletop below or above the fold depending on `Position`. There is nothing to configure. See [foldables.md](./foldables.md).

@@ -242,3 +242,7 @@ Set `AutomationId` on the panel (or the host) and its parts are named after it, 
 | Drag handle strip (pan between detents) | `<panel id>_Handle` |
 | Header (tap toggles the panel) | `<panel id>_Header` |
 | `OverlayHost` backdrop (tap closes) | `<host id>_Backdrop` |
+
+## Foldables
+
+`FloatingPanel.FoldDetent` (bool, default true). In tabletop posture it adds and opens to a detent on the fold. Blazor `SheetView` has the same `FoldDetent` parameter. Do not add a manual 0.5 detent for foldables. See [foldables.md](./foldables.md).
