@@ -255,6 +255,28 @@ triggers:
   - call directory
   - call blocking
   - caller id
+  - IAgeSignalsBridge
+  - AddAgeSignalsBridge
+  - AddAgeSignalsBridgeClient
+  - AgeSignalsBridgeClient
+  - Shiny.AppDeviceBridge.AgeSignals
+  - Shiny.AppDeviceBridge.AgeSignals.Client
+  - Shiny.AgeSignals
+  - age signals
+  - age range
+  - age verification
+  - declared age range
+  - SB 2420
+  - IVpnBridge
+  - AddVpnBridge
+  - AddVpnBridgeClient
+  - VpnBridgeClient
+  - Shiny.AppDeviceBridge.Vpn
+  - Shiny.AppDeviceBridge.Vpn.Client
+  - Shiny.Net.Vpn
+  - vpn.status
+  - vpn
+  - ikev2
   - PrinterSensorStatus
   - GetPrinterStatusAsync
   - RequiresUnlock
@@ -416,7 +438,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Vpn, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
@@ -556,6 +578,8 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.InAppPurchases` | `AddInAppPurchasesBridge()` — registers `AddInAppPurchases<WebAppPurchaseDelegate>()`; keeps an app's own delegate | `IInAppPurchasesBridge` — App Store / Google Play purchases via Shiny.Mobile.InAppPurchases 5.9; iOS and Android only, `501` elsewhere; see In-app purchases below |
 | `.GameCenter` | `AddGameCenterBridge(o => o.AddAchievement(key, appleId, googleId, totalSteps).AddLeaderboard(key, appleId, googleId))` — Shiny's `GameCenterOptions`; an app's own `AddGameCenter` wins | `IGameCenterBridge` — Game Center / Play Games via Shiny.GameCenter; Apple platforms and Android, `501` elsewhere; see Game center below |
 | `.CallDirectory` | `AddCallDirectoryBridge(o => o.DefaultCountryCode = 44)` — Shiny's `CallDirectoryOptions`; iOS also needs `<ShinyCallDirectoryExtension>true</ShinyCallDirectoryExtension>` + `<ShinyCallDirectoryAppGroup>` | `ICallDirectoryBridge` — call blocking / caller ID via Shiny.Mobile.CallDirectory; iOS and Android 10+, `501` elsewhere; see Call directory below |
+| `.AgeSignals` | `AddAgeSignalsBridge()`; Apple also needs the `com.apple.developer.declared-age-range` entitlement | `IAgeSignalsBridge` — the store's age range via Shiny.AgeSignals; iOS, macOS and Android, `501` elsewhere (Mac Catalyst included); see Age signals below |
+| `.Vpn` | `AddVpnBridge()`; Apple also needs the Personal VPN capability (`com.apple.developer.networking.vpn.api` = `allow-vpn`) | `IVpnBridge` — the OS's IKEv2 VPN client via Shiny.Net.Vpn; iOS, Mac Catalyst, macOS, Android 11+ and Linux, `501` on Windows; see VPN below |
 | `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` — channel actions are `NotificationChannelAction(Identifier, Title, ActionType, RequiresUnlock)`; set `RequiresUnlock: true` on actions with a real-world effect ("Open Garage") |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
@@ -768,6 +792,47 @@ everything else answers `501`.
   `CallDirectoryReload.Result` (`ExtensionDisabled` → send the user to Settings via `RequestAccessAsync()`).
 - `GetStatusAsync()` → `{ Access, Count }`. iOS has no permission prompt; re-check access when the app resumes.
   `GetEntryAsync(number)` answers `404` when the number isn't stored.
+
+## Age signals
+
+`AddAgeSignalsBridge()` puts the user's age range, as the app store shares it, behind `/_bridge/agesignals`, backed by
+Shiny.AgeSignals — Apple Declared Age Range (iOS / macOS 26+) and Google Play Age Signals. For app store accountability
+laws (Texas SB 2420, Utah, Louisiana) and any age-gated feature. iOS, macOS and Android; everything else answers `501`.
+
+- `RequestAgeRangeAsync(new AgeRangeRequest([13, 16, 18]))` → `AgeSignal { Status, LowerBound, UpperBound, Source, … }`.
+  One to three ascending gates, else `400`. **Declining is a result** (`Status == Declined`), not an exception; so is
+  `NotSupported` on an OS older than 26 and `VerificationRequired` (send the user to the Play Store).
+- Gate on `signal.IsAtLeast(18)` — `bool?`, and `null` means the store can't tell, so treat `null` as "not verified".
+  Require a minimum strength with `signal.Source >= AgeRangeSource.Confirmed` (ordered weakest first).
+- Never cache the signal: consent can be revoked and a birthday crosses a band. Ask at first launch, before a gated
+  feature and after an update.
+- `GetEligibilityAsync()` — no UI — reports `IsSupported` and Apple's `IsEligible` / `AgeRangeRequired` / significant-change
+  flags (null on Android). `ShowSignificantUpdateAsync(new SignificantUpdateRequest(text))` shows Apple's guardian
+  sheet; `Shown` is false on Android, where approval arrives on `AgeSignal.SignificantChange` instead.
+- Google Play ignores the gates (configure the same bands in Play Console) and only answers for an app installed from
+  Play. Errors by `BridgeException.Code`: `503 network|transient|not_available|store_unavailable`, `403 app_not_owned`,
+  `409 invalid_account|no_user_interface`, `502 age_signals_failed`.
+
+## VPN
+
+`AddVpnBridge()` puts the app's one profile in the OS's built-in IKEv2 VPN client behind `/_bridge/vpn`, backed by
+Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager + strongSwan plugin); Windows answers
+`501`. IKEv2 only — not WireGuard or OpenVPN.
+
+- **Check `GetStatusAsync().Capabilities` before offering an option**: Android 11–12 has no `Status` (state is
+  `Unknown`, `vpn.status` never fires, `ConnectAsync` returns once the OS accepts), Android has no `RemoteIdentifier`,
+  Apple has no `ServerRootCertificate`, Linux has no `Certificate`. A missing option answers `501 not_supported`.
+- `SaveProfileAsync(new VpnProfileRequest(Name, ServerAddress, VpnAuthenticationType.UsernamePassword, Username: …,
+  Password: …))` — or `SharedSecret` (`Secret`, and `LocalIdentifier` on Android) or `Certificate` (`Pkcs12` bytes,
+  base64 string in TypeScript, plus `Password`). The first save shows the OS consent prompt: check
+  `VpnProfileResult.Access == Denied`. Saving does not connect.
+- `ConnectAsync(new VpnConnectRequest(TimeoutSeconds))` (1–300, default 30) waits for the tunnel and answers the new
+  `VpnStatus`; `DisconnectAsync()` keeps the profile; `RemoveProfileAsync()` deletes it and its secrets.
+- Subscribe with `OnStatusChangedAsync` (`vpn.status`): the user can change the tunnel in system settings.
+- Errors by `BridgeException.Code`: `403 vpn_permission` (no profile, or consent withdrawn), `502 vpn_connection_failed`
+  (the OS's reason in the message), `502 vpn_failed`.
+- Never log a `VpnProfileRequest`'s secrets — its `ToString()` leaves them out, keep it that way — and don't ship
+  credentials in the web app's bundle; fetch them from your server after sign-in.
 
 ## Printing
 
