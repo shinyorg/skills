@@ -1,6 +1,6 @@
 ---
 name: shiny-obd
-description: Generate code using Shiny.Obd, an OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE + WiFi (TCP) + serial (USB/UART) transports
+description: Generate code using Shiny.Obd, an OBD-II vehicle communication library for .NET with command-object pattern, adapter auto-detection, and BLE + classic Bluetooth (RFCOMM/SPP) + WiFi (TCP) + serial (USB/UART) transports
 auto_invoke: true
 triggers:
   - obd
@@ -15,6 +15,18 @@ triggers:
   - IObdDeviceScanner
   - ObdDiscoveredDevice
   - BleObdDeviceScanner
+  - BluetoothObdTransport
+  - BluetoothObdConfiguration
+  - BluetoothObdDeviceScanner
+  - AddShinyObdBluetooth
+  - Shiny.Obd.Bluetooth
+  - classic bluetooth obd
+  - bluetooth classic obd
+  - elm327 bluetooth
+  - elm327 v1.5
+  - obd spp
+  - rfcomm obd
+  - obdlink lx
   - SerialObdTransport
   - SerialObdConfiguration
   - SerialObdDeviceScanner
@@ -210,14 +222,14 @@ triggers:
 
 # Shiny.Obd Skill
 
-You are an expert in Shiny.Obd, a .NET library for communicating with vehicles through OBD-II adapters. It uses a command-object pattern with generic return types, pluggable transports (BLE, WiFi, serial), and adapter auto-detection for ELM327 and OBDLink (STN) adapters.
+You are an expert in Shiny.Obd, a .NET library for communicating with vehicles through OBD-II adapters. It uses a command-object pattern with generic return types, pluggable transports (BLE, classic Bluetooth, WiFi, serial), and adapter auto-detection for ELM327 and OBDLink (STN) adapters.
 
 ## When to Use This Skill
 
 Invoke this skill when the user wants to:
 - Read vehicle data (speed, RPM, coolant temp, VIN, etc.) through OBD-II
 - Create custom OBD commands with typed return values
-- Connect to an OBD-II adapter over Bluetooth LE, WiFi or serial (USB/UART)
+- Connect to an OBD-II adapter over Bluetooth LE, classic Bluetooth (SPP), WiFi or serial (USB/UART)
 - Scan for / discover available OBD adapters
 - Configure ELM327 or OBDLink adapter initialization
 - Implement a custom transport (Android USB Host, J2534, a replay harness) for OBD communication
@@ -228,9 +240,9 @@ Invoke this skill when the user wants to:
 ## Library Overview
 
 - **Repository**: https://github.com/shinyorg/obd
-- **Namespaces**: `Shiny.Obd`, `Shiny.Obd.Ble`, `Shiny.Obd.Wifi`, `Shiny.Obd.Serial`, `Shiny.Obd.Commands`, `Shiny.Obd.Emulator`
-- **NuGet**: `Shiny.Obd` (core), `Shiny.Obd.Ble` (BLE), `Shiny.Obd.Wifi` (WiFi/TCP), `Shiny.Obd.Serial` (USB/UART), `Shiny.Obd.Emulator` (+ `.Ble`) — be an adapter instead of reading one
-- **Targets**: `net10.0` throughout
+- **Namespaces**: `Shiny.Obd`, `Shiny.Obd.Ble`, `Shiny.Obd.Bluetooth`, `Shiny.Obd.Wifi`, `Shiny.Obd.Serial`, `Shiny.Obd.Commands`, `Shiny.Obd.Emulator`
+- **NuGet**: `Shiny.Obd` (core), `Shiny.Obd.Ble` (BLE), `Shiny.Obd.Bluetooth` (classic Bluetooth/SPP — Android, Windows, macOS, Linux; not iOS), `Shiny.Obd.Wifi` (WiFi/TCP), `Shiny.Obd.Serial` (USB/UART), `Shiny.Obd.Emulator` (+ `.Ble`) — be an adapter instead of reading one
+- **Targets**: `net10.0` throughout (`Shiny.Obd.Bluetooth` adds `net10.0-android`)
 
 ## Core Types
 
@@ -286,8 +298,9 @@ public interface IObdTransport : IAsyncDisposable
 }
 ```
 
-Three implementations ship: `BleObdTransport` (`Shiny.Obd.Ble`), `WifiObdTransport`
-(`Shiny.Obd.Wifi`) and `SerialObdTransport` (`Shiny.Obd.Serial`). All three also implement
+Four implementations ship: `BleObdTransport` (`Shiny.Obd.Ble`), `BluetoothObdTransport`
+(`Shiny.Obd.Bluetooth`, classic RFCOMM/SPP), `WifiObdTransport` (`Shiny.Obd.Wifi`) and
+`SerialObdTransport` (`Shiny.Obd.Serial`). All four also implement
 `IDisposable` so a container can tear them down on its synchronous path.
 
 ### IObdDeviceScanner — Device discovery
@@ -777,7 +790,7 @@ Three constructors:
 - `BleObdTransport(IPeripheral peripheral, BleObdConfiguration config)` — uses pre-discovered peripheral
 - `BleObdTransport(ObdDiscoveredDevice device, BleObdConfiguration config)` — uses device from scanner
 
-Uses Shiny.BluetoothLE v6 APIs (Shiny.Obd 1.4.0+ requires Shiny 6.0.0 — an app referencing other Shiny packages must move them to 6.x too):
+Uses Shiny.BluetoothLE v6 APIs (Shiny.Obd 1.5.0+ is built against Shiny 6.5.1 — an app referencing other Shiny packages should move them to 6.5.1 too):
 - `ConnectAsync` for task-based connection
 - `NotifyCharacteristic` for RX notifications — `Connect` waits on `WhenCharacteristicSubscriptionChanged` until they are confirmed on, so the first command cannot overtake the CCCD write
 - `WriteCharacteristicAsync` for TX writes
@@ -870,6 +883,9 @@ services.AddShinyObdSerial(config => config.PortNameFilter = "OBDLink");
 
 // BLE — all platforms Shiny.BluetoothLE supports
 services.AddShinyObdBluetoothLE();
+
+// Classic Bluetooth (RFCOMM/SPP) — Android, Windows, macOS, Linux. NOT iOS / Mac Catalyst
+services.AddShinyObdBluetooth();
 ```
 
 Each registers `IObdTransport`, `IObdConnection`, `IObdDeviceScanner` and their configuration as
@@ -880,10 +896,10 @@ guessing. If they name a target platform but no adapter:
 
 | Target | Default to | Why |
 |---|---|---|
-| iOS | WiFi or BLE | Serial is `PlatformNotSupportedException` |
-| Android | WiFi or BLE | Serial compiles and then fails at runtime — see below |
+| iOS | WiFi or BLE | Serial is `PlatformNotSupportedException`; classic Bluetooth does not exist there |
+| Android | WiFi, BLE or classic Bluetooth | Match the adapter's radio. Serial compiles and then fails at runtime — see below |
 | Raspberry Pi / fleet device | Serial | Wired, no pairing, cannot wander out of range |
-| Windows / macOS / Linux desktop | Serial or WiFi | Whatever adapter is on hand |
+| Windows / macOS / Linux desktop | Serial, WiFi or classic Bluetooth | Whatever adapter is on hand |
 
 WiFi is the only transport with no platform caveats at all.
 
@@ -901,9 +917,70 @@ Never try to make Shiny.Obd.Ble do this for the user: `Shiny.BluetoothLE.Linux` 
 `Shiny.AddBluetoothLE(IServiceCollection)`, so referencing both is a CS0121 ambiguity. Omitting the
 call throws an `ObdException` naming the package to install.
 
-**Never generate two of `AddShinyObdWifi()` / `AddShinyObdSerial()` / `AddShinyObdBluetoothLE()` for a
+**Never generate two of `AddShinyObdWifi()` / `AddShinyObdSerial()` / `AddShinyObdBluetoothLE()` / `AddShinyObdBluetooth()` for a
 fallback chain.** `TryAdd` means the first one registered wins and the rest are silently ignored. For
 a multi-transport fallback, construct the transports directly and try them in order.
+
+## Classic Bluetooth Transport (Shiny.Obd.Bluetooth)
+
+RFCOMM / Serial Port Profile over classic (BR/EDR) Bluetooth, built on `Shiny.Bluetooth`
+(`IBluetoothManager`). This is what the ELM327 v1.5 "Bluetooth" clones, OBDLink LX, Vgate iCar BT and
+Veepeak BT speak — they are **not** BLE devices, and `Shiny.Obd.Ble` will never see them. If a user says
+"my ELM327 Bluetooth adapter doesn't show up in the BLE scan", this is the answer.
+
+**Never generate `Shiny.Obd.Bluetooth` code for iOS or Mac Catalyst.** Classic Bluetooth there is
+ExternalAccessory (MFi only); `Shiny.Bluetooth` has no target and the registration throws. Recommend
+a BLE or WiFi adapter on Apple mobile.
+
+```csharp
+public class BluetoothObdConfiguration
+{
+    public string? Address { get; set; }                 // AA:BB:CC:DD:EE:FF; null = pick from paired devices
+    public string[] DeviceNameFilters { get; set; }      // OBD, ELM, V-LINK, VLINK, VGATE, VEEPEAK, KONNWEI, ICAR; [] = all
+    public Guid ServiceUuid { get; set; }                // BluetoothServiceUuids.SerialPort (0x1101)
+    public bool Secure { get; set; } = true;             // false only for clones that refuse to pair
+    public TimeSpan ConnectTimeout { get; set; }         // 20s per attempt
+    public int ConnectAttempts { get; set; } = 2;        // Android's first connect after power-up fails routinely
+    public TimeSpan ConnectRetryDelay { get; set; }      // 1s
+    public TimeSpan CommandTimeout { get; set; }         // 10s
+    public bool DiscoverUnpaired { get; set; } = true;   // scanner runs inquiries after listing paired devices
+    public bool Matches(string? name);
+}
+```
+
+Constructors (the manager is `Shiny.Bluetooth.IBluetoothManager`):
+- `BluetoothObdTransport(IBluetoothManager manager, BluetoothObdConfiguration config, ILogger? logger = null)`
+- `BluetoothObdTransport(IBluetoothManager manager, string address, ILogger? logger = null)`
+- `BluetoothObdTransport(IBluetoothManager manager, ObdDiscoveredDevice device, BluetoothObdConfiguration config, ILogger? logger = null)`
+
+`ConnectedDevice` (`IBluetoothDevice?`) is what was actually opened — persist its `Address`.
+
+```csharp
+// Android: the manager is registered for you
+services.AddShinyObdBluetooth();
+services.AddShinyObdBluetooth("00:1D:A5:68:98:8B");   // known adapter
+
+// Windows / macOS: also services.AddBluetooth()        (Shiny.Bluetooth)
+// Linux:           also services.AddLinuxBluetooth()   (Shiny.Bluetooth.Linux)
+```
+
+Rules:
+- Classic Bluetooth has no service UUID to scan for, so an adapter is chosen by **address**, or by name
+  among **paired** devices. With `Address` null, `Connect` takes the first paired device matching
+  `DeviceNameFilters`; it never runs an inquiry itself. When nothing matches, the `ObdException` lists
+  what is paired.
+- `BluetoothObdDeviceScanner` reports matching paired devices first, then inquiry results until the
+  token is cancelled. `Id` is the address, `NativeDevice` the `IBluetoothDevice`. **Cancel the scan
+  before connecting** — an inquiry slows RFCOMM connects on the same radio.
+- An unpaired adapter is paired on the way in when `Secure` is true (the OS shows its PIN prompt; most
+  clones use `1234` or `0000`). Tell users to pair in system settings if the prompt is a problem.
+- Android manifest needs `BLUETOOTH_CONNECT` + `BLUETOOTH_SCAN` (API 31+), and `BLUETOOTH`,
+  `BLUETOOTH_ADMIN`, `ACCESS_FINE_LOCATION` with `maxSdkVersion="30"`. macOS needs
+  `NSBluetoothAlwaysUsageDescription`. `Connect` calls `RequestAccess` itself.
+- No auto-reconnect — a dropped link loses ELM327 session state. Recover with `ObdConnection.Connect()`.
+- To offer both BLE and classic adapters in one app (Android), register `AddShinyObdBluetoothLE()` and
+  resolve a separately registered `BluetoothObdDeviceScanner`, then choose the transport by
+  `device.NativeDevice is IBluetoothDevice` — the sample app does exactly this.
 
 ## WiFi Transport (Shiny.Obd.Wifi)
 
@@ -1158,8 +1235,8 @@ public class MyAdapterProfile : IObdAdapterProfile
 
 ### Custom transport implementation
 
-**Never hand-roll a WiFi, BLE or serial transport — `Shiny.Obd.Wifi`, `Shiny.Obd.Ble` and
-`Shiny.Obd.Serial` already ship them.** Write one only for a channel none of them covers: the Android
+**Never hand-roll a WiFi, BLE, classic Bluetooth or serial transport — `Shiny.Obd.Wifi`,
+`Shiny.Obd.Ble`, `Shiny.Obd.Bluetooth` and `Shiny.Obd.Serial` already ship them.** Write one only for a channel none of them covers: the Android
 USB Host API, a J2534 pass-thru box, a replay harness over a recorded session.
 
 ```csharp
@@ -1299,7 +1376,7 @@ service listed, iOS 14+ blocks the mDNS advertisement outright rather than promp
 - A BLE adapter reports `IsConnected` true long after it has stopped answering the vehicle. Polling code should count consecutive unanswered polls and rebuild the connection, rather than trusting the connection flag.
 - ELM327 response parser handles both single-line (`"41 0D 50"`) and multi-frame CAN formats. A real multi-frame reply is preceded by a bare byte-count line — `"014\r0: 49 02 01 57 42 41\r1: 31 32..."` — where `014` is the total data byte count, not data. It is discarded, along with each frame's `N:` index. When writing a custom `IObdConnection` or a test fixture, include that count line: it parses cleanly as `0x14`, so omitting it in a fixture hides a real bug, and keeping it in the payload shifts every byte along by one and fails the mode-echo check. Only multi-frame commands are exposed to this — the VIN (mode 09 PID 02) and mode 03 with three or more codes.
 - A WiFi adapter reports `IsConnected` from its read pump, not from `Socket.Connected` — the latter reflects the last I/O and still says true for a link the adapter dropped while idle. Never generate `socket.Connected` as a liveness check in OBD code.
-- The **OBDLink MX+ is Bluetooth, not WiFi.** Generate `Shiny.Obd.Ble` for it. The WiFi model in that product line is the OBDLink MX Wi-Fi.
+- The **OBDLink MX+ is Bluetooth, not WiFi.** It is dual-mode: generate `Shiny.Obd.Ble` on iOS, and either `Shiny.Obd.Ble` or `Shiny.Obd.Bluetooth` (classic SPP) on Android/desktop. The OBDLink LX and the ELM327 v1.5 "Bluetooth" clones are classic only — `Shiny.Obd.Bluetooth`. The WiFi model in that product line is the OBDLink MX Wi-Fi.
 - Oxygen sensor PIDs are meaningless without `OxygenSensorsPresentCommand` first: PID `0x16` is B1S3 under the two-bank layout (`0x13`) and B2S1 under the four-bank one (`0x1D`). Always label with `layout.Position(index)`.
 - Mode 06 values must be decoded through `UnitAndScaling`. Identifiers `0x80`+ are signed; reading one unsigned turns a small negative into ~65,535. When the identifier is unknown, `Value`/`Unit`/`Passed`/`BandPosition` are all null by design — surface unknown, do not guess.
 - Torque PIDs are percentages of `ReferenceTorque`. Read the reference once, outside any poll loop. Use `EnginePower.MetricHorsepower` or `.MechanicalHorsepower` explicitly — never an unqualified "horsepower".
