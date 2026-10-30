@@ -154,6 +154,24 @@ triggers:
   - ITransfersBridge
   - IHealthBridge
   - ISpeechBridge
+  - SpeechTone
+  - SpeechEmotion
+  - IAiConversationBridge
+  - AddAiConversationBridge
+  - AddAiConversationBridgeClient
+  - AiConversationBridgeClient
+  - AiConversationBridgeOptions
+  - Shiny.AppDeviceBridge.AiConversation
+  - Shiny.AppDeviceBridge.AiConversation.Client
+  - Shiny.AiConversation
+  - IAudioBridge
+  - AddAudioBridge
+  - AddAudioBridgeClient
+  - AudioBridgeClient
+  - AudioBridgeOptions
+  - Shiny.AppDeviceBridge.Audio
+  - Shiny.AppDeviceBridge.Audio.Client
+  - Shiny.Audio
   - IScreenRecorderBridge
   - AddScreenRecorderBridge
   - AddScreenRecorderBridgeClient
@@ -222,6 +240,21 @@ triggers:
   - live activity
   - dynamic island
   - live updates
+  - IShareTargetBridge
+  - AddShareTargetBridge
+  - AddShareTargetBridgeClient
+  - ShareTargetBridgeClient
+  - ShareTargetOptions
+  - ShareInbox
+  - IncomingShare
+  - IncomingShareFile
+  - SharedContent
+  - Shiny.AppDeviceBridge.ShareTarget
+  - Shiny.AppDeviceBridge.ShareTarget.Client
+  - sharetarget.received
+  - share target
+  - receive share
+  - share extension
   - IInAppPurchasesBridge
   - AddInAppPurchasesBridge
   - AddInAppPurchasesBridgeClient
@@ -267,6 +300,29 @@ triggers:
   - age verification
   - declared age range
   - SB 2420
+  - IBiometricsBridge
+  - AddBiometricsBridge
+  - AddBiometricsBridgeClient
+  - BiometricsBridgeClient
+  - Shiny.AppDeviceBridge.Biometrics
+  - Shiny.AppDeviceBridge.Biometrics.Client
+  - Shiny.Biometrics
+  - biometrics
+  - face id
+  - touch id
+  - fingerprint
+  - windows hello
+  - INfcBridge
+  - AddNfcBridge
+  - AddNfcBridgeClient
+  - NfcBridgeClient
+  - Shiny.AppDeviceBridge.Nfc
+  - Shiny.AppDeviceBridge.Nfc.Client
+  - Shiny.Nfc
+  - nfc.tag
+  - nfc.scan
+  - nfc
+  - ndef
   - IVpnBridge
   - AddVpnBridge
   - AddVpnBridgeClient
@@ -438,11 +494,11 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Vpn, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
-  - **MAUI** — AppLinks, Camera, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
+  - **MAUI** — AppLinks, ShareTarget, Camera, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
     `Shiny.AppDeviceBridge.Maui` itself. They reference
     `Shiny.AppDeviceBridge.Maui`, extend `MauiAppDeviceBridgeBuilder`, and do their own MAUI registration through
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
@@ -579,13 +635,18 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.GameCenter` | `AddGameCenterBridge(o => o.AddAchievement(key, appleId, googleId, totalSteps).AddLeaderboard(key, appleId, googleId))` — Shiny's `GameCenterOptions`; an app's own `AddGameCenter` wins | `IGameCenterBridge` — Game Center / Play Games via Shiny.GameCenter; Apple platforms and Android, `501` elsewhere; see Game center below |
 | `.CallDirectory` | `AddCallDirectoryBridge(o => o.DefaultCountryCode = 44)` — Shiny's `CallDirectoryOptions`; iOS also needs `<ShinyCallDirectoryExtension>true</ShinyCallDirectoryExtension>` + `<ShinyCallDirectoryAppGroup>` | `ICallDirectoryBridge` — call blocking / caller ID via Shiny.Mobile.CallDirectory; iOS and Android 10+, `501` elsewhere; see Call directory below |
 | `.AgeSignals` | `AddAgeSignalsBridge()`; Apple also needs the `com.apple.developer.declared-age-range` entitlement | `IAgeSignalsBridge` — the store's age range via Shiny.AgeSignals; iOS, macOS and Android, `501` elsewhere (Mac Catalyst included); see Age signals below |
+| `.Biometrics` | `AddBiometricsBridge()`; iOS also needs `NSFaceIDUsageDescription` | `IBiometricsBridge` — the platform biometric prompt via Shiny.Biometrics (Touch ID / Face ID / Optic ID, Android BiometricPrompt, Windows Hello); iOS, Mac Catalyst, macOS, Android and Windows, `501` on Linux; see Biometrics below |
+| `.Nfc` | `AddNfcBridge()`; Android `android.permission.NFC`, iOS `NFCReaderUsageDescription` + the NFC entitlement (`TAG`) | `INfcBridge` — NDEF tags via Shiny.Nfc: one-tap read/write, scans with `nfc.tag` events, held-tag write/lock; Android, iOS, PC/SC on Windows/macOS/Linux, `501` on Mac Catalyst; see NFC below |
 | `.Vpn` | `AddVpnBridge()`; Apple also needs the Personal VPN capability (`com.apple.developer.networking.vpn.api` = `allow-vpn`) | `IVpnBridge` — the OS's IKEv2 VPN client via Shiny.Net.Vpn; iOS, Mac Catalyst, macOS, Android 11+ and Linux, `501` on Windows; see VPN below |
 | `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` — channel actions are `NotificationChannelAction(Identifier, Title, ActionType, RequiresUnlock)`; set `RequiresUnlock: true` on actions with a real-world effect ("Open Garage") |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
+| `.ShareTarget` | `AddShareTargetBridge(o => o.Root = "data")` — `ShareTargetOptions`: `Root` (`data`), `MaxPending` (20), `MaxFiles` (20), `MaxTextLength`, `AcceptCommandLineFiles` (Linux, off) | `IShareTargetBridge` — text, links and files other apps share to this one, queued for the page; see Receiving shares below |
 | `.Health` | `AddHealthBridge()` | `IHealthBridge` |
-| `.Speech` | `AddSpeechBridge()` | `ISpeechBridge` |
+| `.Speech` | `AddSpeechBridge()` | `ISpeechBridge` — `SpeakRequest.Tone` (`SpeechTone(Emotion, Intensity, Instructions)`) reaches expressive cloud engines; on-device ones ignore it |
+| `.AiConversation` | `AddAiConversationBridge(ai => ai.SetChatClientProvider<T>(), o => o.Voice = true)` — `AiConversationBridgeOptions`: `Voice` (off), `MaxOpenSessions` (8), `RegisterAiConversation` (on) | `IAiConversationBridge` — streaming, persisted sessions with the app's model, questions, images, memory and the voice loop via Shiny.AiConversation; see AI conversation below |
+| `.Audio` | `AddAudioBridge(o => o.MaxRecordingDuration = TimeSpan.FromMinutes(10))` — `AudioBridgeOptions`: `Root` (`data`), `Folder` (`audio-recordings`), `MaxRecordingDuration` (1 h; `null` for none), `RegisterAudioServices` (on) | `IAudioBridge` — clips, system volume, WAV recording with effect presets, routes and a live monitor via Shiny.Audio; see Audio below |
 | `.ScreenRecorder` | `AddScreenRecorderBridge(o => o.MaxDuration = TimeSpan.FromMinutes(10))` — `ScreenRecorderBridgeOptions`: `Root` (`data`), `Folder` (`screen-recordings`), `MaxDuration` (1 h; `null` for none), `ConfirmStart`, `RegisterScreenRecorder` (on) | `IScreenRecorderBridge` — the device's screen to a video via Shiny.ScreenRecorder; all platforms — see Screen recorder below |
 | `.Contacts` | `AddContactsBridge()` | `IContactsBridge` |
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
@@ -813,6 +874,39 @@ laws (Texas SB 2420, Utah, Louisiana) and any age-gated feature. iOS, macOS and 
   Play. Errors by `BridgeException.Code`: `503 network|transient|not_available|store_unavailable`, `403 app_not_owned`,
   `409 invalid_account|no_user_interface`, `502 age_signals_failed`.
 
+## Biometrics
+
+`AddBiometricsBridge()` puts the platform's own biometric prompt behind `/_bridge/biometrics`, backed by
+Shiny.Biometrics: LocalAuthentication on iOS, Mac Catalyst and macOS, AndroidX BiometricPrompt, and Windows Hello.
+Linux answers `501`.
+
+- `GetAvailabilityAsync()` — no UI — → `BiometricAvailability { Status, Types, IsDeviceCredentialSet }`. Check it before
+  offering biometric sign-in; label the button from `Types` (`Face` → "Face ID", `Fingerprint` → "Touch ID" /
+  "Fingerprint", `Unknown` → "Windows Hello"). `NotEnrolled` → suggest Settings; `LockedOut` → the passcode unlocks it.
+- `AuthenticateAsync(new BiometricRequest("Unlock your vault", AllowDeviceCredential: true))` → `BiometricResult`.
+  **A cancel, lockout or missing enrollment is a `Status`, not an exception** — switch on it (`Success`, `Cancelled`,
+  `Fallback` = show your own login, `LockedOut`, `NotEnrolled`, `PasscodeNotSet`, `Failed`, `NotAvailable`, `Timeout`).
+- `Reason` is required (≤ 256 chars, as are the other texts) or `400`. `409 cannot_prompt`: no Android activity or a
+  missing `NSFaceIDUsageDescription`. Windows Hello always offers its PIN.
+- **The result is a local yes/no for the page's UI.** Never send it to a server as proof of identity.
+
+## NFC
+
+`AddNfcBridge()` puts NDEF NFC tags behind `/_bridge/nfc`, backed by Shiny.Nfc. A WebView has no Web NFC, so generate
+bridge calls, never `NDEFReader`, for a hosted page.
+
+- **One tap first:** `ReadAsync(new NfcReadRequest("Hold near the tag"))` → `NfcReadResult?` (null = scan ended, e.g. the
+  iOS sheet was dismissed); `WriteAsync(new NfcWriteRequest([new(Uri: "https://…")]))` → `NfcWriteResult(Written)`.
+- **Continuous:** subscribe `OnTagAsync(...)` **before** `StartScanAsync(new NfcScanRequest())` (else `409 not_listening`);
+  each `NfcTag` already has `Records`. `OnScanEndedAsync` reports `Stopped` / `Dismissed` / `Failed`. `StopScanAsync()`
+  or disposing the subscription ends it. One NFC session at a time (`409 nfc_busy`).
+- **Write to a scanned tag** only with `HoldSeconds` > 0 (≤ 60): `WriteTagAsync(tag.TagId, …)`, `LockTagAsync` (permanent -
+  confirm with the user first), then `ReleaseTagAsync`. `TagId` is a handle, not the UID; a released tag answers `404`.
+- `NfcWriteRecord`: exactly one of `Uri`, `Text` (+`Language`), `MimeType` + `Data`, `AndroidPackage`, or raw
+  `Format` + `Type` + `Data`. Read records expose decoded `Uri` / `Text` / `MimeType` plus raw parts.
+- Errors by `BridgeException.Code`: `410 tag_lost` (ask the user to hold still), `409 tag_read_only|tag_not_supported|nfc_unavailable`,
+  `413 message_too_large`, `422 invalid_ndef`, `502 nfc_failed`. `Identifier` is null on iOS.
+
 ## VPN
 
 `AddVpnBridge()` puts the app's one profile in the OS's built-in IKEv2 VPN client behind `/_bridge/vpn`, backed by
@@ -897,6 +991,61 @@ byte[] invoicePdf = await Printing.HtmlToPdfAsync(new HtmlToPdfRequest(html, Pag
   `NSBluetoothAlwaysUsageDescription`, `NSLocalNetworkUsageDescription`, `NSBonjourServices` `_pdl-datastream._tcp` and
   `_printer._tcp` (+ `com.apple.security.print` sandboxed on macOS). Android: `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`; OS
   printing needs the app in the foreground.
+
+## AI conversation
+
+Built on Shiny.AiConversation 3.0. The model, its key, tools and prompts are the app's; the page never sees them.
+- **Register:** `AddAiConversationBridge(ai => ai.SetChatClientProvider<T>(), o => o.Voice = true)` — the first
+  argument is Shiny.AiConversation's own `AiConversationOptions` (provider, stores, tools, interceptors); without a
+  provider it uses the registered `IChatClient`. `AiConversationBridgeOptions`: `Voice` (off), `MaxOpenSessions` (8),
+  `RegisterAiConversation` (on).
+- **Sessions:** `POST sessions`, `GET sessions/latest` (`204` when none), `GET sessions?text=&tag=&profile=`,
+  `GET/DELETE sessions/{id}`, `PUT sessions/{id}/title`. Events come only from sessions the bridge holds open (it
+  opens one on use and closes the least recently used idle one past `MaxOpenSessions`).
+- **Sending:** `POST sessions/{id}/messages` takes `text` or `answer: { questionId, choiceIds }` (never both), up to
+  4 `images` as `{ file: { root, path } }`, and `instructions`. It answers with `turnId` at once; `"wait": true`
+  answers with the outcome and reply. The turn outlives the request; a newer message supersedes it;
+  `DELETE sessions/{id}/turn` interrupts (`409 no_turn`).
+- **Events:** `ai.delta`, `ai.message`, `ai.turn.started`, `ai.turn.ended` (outcome + error), `ai.questions`,
+  `ai.tool`, `ai.state`, `ai.usage`, `ai.title`, `ai.compacted`, `ai.memory`, `ai.error` — each carries `sessionId`;
+  filter on it.
+- **Questions:** answer one with choices by `answer`; one without choices with text. Not pending: `409 no_such_question`.
+- **History:** `GET sessions/{id}/messages?before=&count=` pages backwards; image parts' `attachmentId` →
+  `GET attachments?id=`.
+- **Memory:** `GET/PUT/DELETE memory` (`Global`, or `Profile`/`Session` with a `scopeKey`).
+- **Voice:** `POST voice { sessionId, wakeWord?, interruption?, quietWords?, followUpTimeoutSeconds?, culture? }`
+  needs a listener on `ai.voice.state` (`409 not_listening`) and detaches when none is left; `voice/talk`,
+  `voice/stop`, `voice/pause`, `voice/resume`, `DELETE voice`. A loop the app attached itself: `409 voice_busy`.
+- **Platforms:** sessions everywhere; voice on iOS, Mac Catalyst, macOS, Android, Windows (Linux needs a cloud or
+  Whisper speech service). `501` for whatever isn't registered.
+- **Security:** the page spends the app's model and can lead it to call any tool the app registered — register only
+  tools the web app may use.
+
+## Audio
+
+Built on Shiny.Audio 3.0 (Shiny.Audio.Linux on Linux).
+- **Playing:** `POST playback` takes exactly one of an absolute `http`/`https` `url` or a `file` (`{ root, path }`) in
+  a file root, and answers once the clip plays, with its `id`. Clips play together, at most 32 (`409 too_many_clips`);
+  `DELETE playback/{id}` stops one, `DELETE playback` all. `audio.playback.ended` carries `stopped` and any `error`.
+- **Volume:** `GET status` reads the system media volume; `PUT volume` sets it, `501` on iOS and Mac Catalyst
+  (`volumeControlSupported: false`). `audio.volume` fires for the hardware buttons too.
+- **Recording:** `POST recording` records 16 kHz mono WAV, with an optional `effect` preset (`Robot`, `Chipmunk`,
+  `DeepVoice`, `Cathedral`, `Telephone`, `Megaphone`, `Ensemble`), `processing`, `inputDeviceId` and `mode`
+  (`Both` keeps the clean take as `dryFile`). `DELETE recording` files it into `Root` (`data`) under `Folder`
+  (`audio-recordings`) as `REC_yyyyMMdd-HHmmss.wav`, read through the files bridge; `POST recording/cancel` keeps
+  nothing. `MaxRecordingDuration` (1 h; `null` for none) stops and files a recording left running and raises
+  `audio.recording.ended` with `MaxDurationReached`.
+- **Routes:** `GET devices` lists inputs and outputs; `POST devices/picker` shows the system output picker;
+  `audio.devices` fires on a route change.
+- **Monitor:** `POST monitor` routes the microphone live to the output (`PUT monitor` changes `gain`). Listen to
+  `audio.monitor.level` first (`409 not_listening` without); it stops once nobody listens, so a page that went away
+  can't leave the microphone on the speaker.
+- **One microphone:** a recording and the monitor exclude each other: `409 microphone_busy`.
+- **Platforms:** playback, recording and routes on iOS, Mac Catalyst, macOS, Android, Windows and Linux; the monitor on
+  all but Windows. Anything missing answers `501` and shows as `false` in `GET status`. Bring your own services with
+  `o => o.RegisterAudioServices = false`.
+- **Platform setup:** Android `RECORD_AUDIO`; Apple `NSMicrophoneUsageDescription`, plus
+  `com.apple.security.device.audio-input` when sandboxed.
 
 ## Screen recorder
 
@@ -1121,6 +1270,27 @@ stop();    // unsubscribes
   ```
 - `IPhotosBridge.PickAsync` needs no permission. `GetLibraryAsync`/`GetThumbnailAsync`/`ExportAsync` need
   `RequestAccessAsync()` and `NSPhotoLibraryUsageDescription` / `READ_MEDIA_IMAGES`. The library is 501 on Linux.
+
+## Receiving shares
+
+`AddShareTargetBridge()` makes the app a share target. Each share is a `SharedContent` (`Id`, `ReceivedAt`, `Text`,
+`Subject`, `Url`, `Files`) that waits in a queue, persisted across restarts, until the page removes it. Its files are
+copied into the `Root` file root under `shares/{id}/` as `BridgeFile`s, read through the files bridge.
+
+- **Read the queue at boot, then listen, then remove.** `GetPendingAsync()` → handle → `RemoveAsync(id)`, and the same
+  from `OnReceivedAsync`. `RemoveAsync` deletes the share's files, so move a file through the files bridge first to keep it.
+  Never act on a share without removing it, or it is handled again after a reload.
+- `Url` is only ever an absolute http/https URL, so it is safe to open. Text that is only such a link arrives as `Url`.
+  Any other scheme stays in `Text`. Don't re-parse `Text` as a link to navigate to.
+- **Platform declarations are the app's job**, not code:
+  - Android: `ACTION_SEND`/`ACTION_SEND_MULTIPLE` intent filters on a `SingleTop` main activity. Only `content:` files are taken.
+  - iOS/Mac Catalyst: `CFBundleDocumentTypes` ("Open in"/"Copy to" deliver files). Text and links need the app's own share
+    extension, which hands over with `ShareTarget.ReceiveAsync(new IncomingShare(...))`.
+  - Windows: the Share Target manifest declaration, or file type associations.
+  - AppKit: override `OpenUrls` in the app delegate and call `ShareTarget.ReceiveAsync`.
+  - Linux: `%F` in the .desktop `Exec` plus `AcceptCommandLineFiles = true`.
+- 501 only when the `Root` file root doesn't exist. Shares never go to `background.js`.
+- Outgoing sharing is a different bridge: `IDeviceBridge.ShareAsync` (`device/share`).
 
 ## Database
 
