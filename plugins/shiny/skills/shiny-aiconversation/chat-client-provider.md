@@ -9,48 +9,44 @@ public interface IChatClientProvider
 {
     Task<IChatClient> GetChatClient(CancellationToken cancelToken = default);
 
-    // default interface member - override only when the endpoint rejects schema-constrained responses
-    AiStructuredOutputMode StructuredOutputMode => AiStructuredOutputMode.JsonSchema;
+    // default interface members - override when known
+    int? ContextWindow => null;                    // model context window in tokens
+    bool SupportsImagesInToolResults => false;
 }
 ```
 
 ## Purpose
 
-Provides an `IChatClient` (from Microsoft.Extensions.AI) to the AI service, and declares how that
-endpoint can be asked for a structured turn.
+Provides an `IChatClient` (from Microsoft.Extensions.AI) to every session turn. The session streams
+with `GetStreamingResponseAsync` and runs the tool loop itself: a client **without** function
+invocation is wrapped with `UseFunctionInvocation()` automatically; a client that already has it is
+used as-is. Either works - don't add it just for this library.
 
-## StructuredOutputMode
+`ContextWindow` is used when `AiSessionSettings.ContextWindow` isn't set. Without either, sessions
+still report token counts but `Context.Pressure` stays null. There is no built-in model table.
 
-| Mode | Request shape | Use for |
-|------|---------------|---------|
-| `JsonSchema` *(default)* | Native schema-constrained response format | OpenAI and compatible endpoints |
-| `Json` | JSON response format + shape described in the prompt | GitHub Copilot, models without schema support |
-| `Prompt` | Shape in the prompt only, no format constraint | Endpoints that reject both of the above |
-| `None` | Plain text - opts out of structured turns entirely | Providers that can't do any of it |
-
-Both GitHub Copilot providers default to `Json` (the proxy passes `json_schema` support through
-per-model) and expose it as a settable property. A wrong value degrades rather than breaks - the
-conversation service retries unstructured and falls back to plain text. See `structured-turns.md`.
+There is **no** `StructuredOutputMode` any more - questions come from the built-in `ask_user` tool,
+which every tool-capable provider supports.
 
 ## Default Behavior
 
-A default `InjectedChatClientProvider` is registered automatically. It resolves `IChatClient` from the DI container. For most cases, simply register an `IChatClient` in DI:
+`InjectedChatClientProvider` is registered automatically and resolves `IChatClient` from DI:
 
 ```csharp
 builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
+builder.Services.AddShinyAiConversation();
 ```
 
-If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is thrown at runtime.
+If no `IChatClient` is registered and no custom provider is set, an `InvalidOperationException` is
+thrown when the first turn runs (reported as `AiTurnOutcome.Failed`).
 
 ## Built-in Providers
 
 ### Shiny.AiConversation.OpenAi
 
-**NuGet**: `Shiny.AiConversation.OpenAi`
-**Namespace**: `Shiny.AiConversation.OpenAi`
-**Class**: `OpenAiStaticChatProvider`
+**NuGet**: `Shiny.AiConversation.OpenAi` · **Class**: `OpenAiStaticChatProvider`
 
-A static provider that creates an OpenAI-compatible chat client once at startup. Works with any OpenAI-compatible endpoint (OpenAI, Azure OpenAI, Ollama, etc.). Includes logging and function invocation middleware.
+Creates an OpenAI-compatible client once (OpenAI, Azure OpenAI, Ollama, ...).
 
 ```csharp
 builder.Services.AddShinyAiConversation(opts =>
@@ -63,72 +59,53 @@ builder.Services.AddShinyAiConversation(opts =>
 });
 ```
 
-### Shiny.AiConversation.Maui.GithubCopilot
+### Shiny.AiConversation.GithubCopilot
 
-**NuGet**: `Shiny.AiConversation.Maui.GithubCopilot`
-**Namespace**: `Shiny.AiConversation.Maui.GithubCopilot`
-**Class**: `GitHubCopilotChatClientProvider`
+**NuGet**: `Shiny.AiConversation.GithubCopilot` · **Class**: `GithubCopilotStaticChatProvider`
 
-A MAUI-specific provider that uses the GitHub device code flow for authentication and the Copilot API for chat completions.
-
-**Features**:
-- Self-contained authentication — shows a popup with the device code, copies it to the clipboard, opens the browser
-- Tokens stored in `SecureStorage`
-- Copilot API token exchange with caching and automatic refresh
-- Re-authentication on 401 responses
-- `AccessTokenChanged` event for monitoring auth state
-- `SignOut()` to clear stored tokens
-- `CancelAuthentication()` to cancel an in-progress auth flow
+Exchanges a GitHub personal access token for short-lived Copilot tokens and refreshes them.
 
 ```csharp
-builder.Services.AddShinyAiConversation(opts =>
-{
-    opts.AddGithubCopilotChatClient();
-});
+opts.AddStaticGithubCopilotChatClient("github-pat", "gpt-4o");
 ```
 
-No additional configuration is needed — no token storage, no login page, no event wiring. The provider handles the entire lifecycle.
+### Shiny.AiConversation.Maui.GithubCopilot
+
+**NuGet**: `Shiny.AiConversation.Maui.GithubCopilot` · **Class**: `GitHubCopilotChatClientProvider`
+
+MAUI provider using the GitHub device code flow: shows the code in a popup, copies it, opens the
+browser, stores tokens in `SecureStorage`, refreshes the Copilot token and re-authenticates on 401.
+Extra API: `StartAuthentication()`, `CancelAuthentication()`, `SignOut()`, `IsAuthenticated`,
+`AccessTokenChanged`.
+
+```csharp
+opts.AddGithubCopilotChatClient();
+```
 
 ## Custom Implementation
 
-Implement `IChatClientProvider` only for scenarios not covered by the built-in providers:
-- Custom authentication flows
-- Client construction and configuration
-- Token refresh and re-authentication on expiry
-
-## Key Design Decisions
-
-1. **On-demand authentication** — Don't force login at startup. Let the user see the app first, then authenticate when an AI feature is first used.
-
-2. **Token expiry handling** — Catch 401/Unauthorized responses and re-authenticate transparently.
-
-3. **No reflection** — Register the provider explicitly with `SetChatClientProvider<T>()`.
-
-## Registration
-
-For most apps, just register an `IChatClient` in DI — the default provider handles it:
-
 ```csharp
-builder.Services.AddChatClient(new OpenAIClient("your-api-key").GetChatClient("gpt-4o").AsIChatClient());
-builder.Services.AddShinyAiConversation(opts => { });
-```
-
-For built-in providers, use the extension methods:
-
-```csharp
-builder.Services.AddShinyAiConversation(opts =>
+public class MyChatClientProvider(IAuthService auth) : IChatClientProvider
 {
-    opts.AddStaticOpenAIChatClient("key", "https://api.openai.com/v1", "gpt-4o");
-    // OR
-    opts.AddGithubCopilotChatClient();
-});
+    IChatClient? client;
+
+    public async Task<IChatClient> GetChatClient(CancellationToken cancelToken = default)
+    {
+        if (this.client == null)
+        {
+            var token = await auth.GetToken(cancelToken);   // authenticate on demand, not at startup
+            this.client = new OpenAIClient(new ApiKeyCredential(token))
+                .GetChatClient("gpt-4o")
+                .AsIChatClient();
+        }
+        return this.client;
+    }
+
+    public int? ContextWindow => 128_000;
+}
+
+builder.Services.AddShinyAiConversation(opts => opts.SetChatClientProvider<MyChatClientProvider>());
 ```
 
-For custom providers:
-
-```csharp
-builder.Services.AddShinyAiConversation(opts =>
-{
-    opts.SetChatClientProvider<MyChatClientProvider>();
-});
-```
+Guidelines: authenticate on demand (first turn), cache the client, refresh tokens on expiry, and
+register explicitly with `SetChatClientProvider<T>()` (no reflection/assembly scanning).
