@@ -135,11 +135,31 @@ plugins/
 
 - **`.claude-plugin/marketplace.json`** and **`.github/plugin/marketplace.json`** — Marketplace manifests for Claude Code and GitHub Copilot CLI, each declaring the single `shiny` plugin. Copilot CLI accepts either location; both are included for explicit discoverability.
 - **`plugins/shiny/.claude-plugin/plugin.json`** (Claude Code) and **`plugins/shiny/plugin.json`** (GitHub Copilot CLI) — The plugin manifests containing name, version, description, keywords, and the relative path to the skills directory. Claude Code requires the manifest under `.claude-plugin/`; Copilot CLI requires it at the plugin root. Keep the two files identical.
-- **`SKILL.md`** — The skill itself: YAML front matter with portable Agent Skills metadata (`name`, `description`, `auto_invoke`, `triggers`, and optional `when_to_use`), followed by usage guidance, code generation instructions, and best practices. Keep `triggers` and `auto_invoke: true` in front matter for GitHub Copilot CLI discovery, and keep the prose sections for Claude-friendly guidance. Supporting docs should live in the skill's `reference/` directory so both Claude and Copilot load them consistently.
+- **`SKILL.md`** — The skill itself: YAML front matter with the shared Agent Skills fields `name` and `description`, followed by usage guidance, code generation instructions, and best practices. Copilot selects skills using their names and descriptions; custom fields such as `auto_invoke`, `triggers`, `when_to_use`, and `references` are not portable discovery requirements. Retain existing custom metadata for consumers that use it, but include essential invocation cues in `description` and reference supporting docs from the Markdown body using paths relative to the skill directory.
+
+### Claude and Copilot Compatibility
+
+The same skill files serve both clients; Claude Code remains the primary use case. Follow the [Agent Skills format](https://agentskills.io/specification) and [Copilot skill guidance](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills):
+
+- Match each skill's `name` to its directory name (lowercase letters, digits, and hyphens; at most 64 characters).
+- Keep `description` non-empty and at most **1,024 characters**, describing both the capability and when to invoke it. Use a YAML folded scalar (`description: >-`) for descriptions containing punctuation such as `: `.
+- Keep detailed API scope, examples, constraints, and Claude-friendly instructions in the Markdown body or linked supporting docs, not in an oversized description. Existing topic files may stay beside `SKILL.md` or in `reference/`; neither client requires moving them.
+- Avoid client-specific tool names or absolute installation paths in skill instructions.
+
+Check local Copilot discovery without installing or updating the plugin:
+
+```bash
+copilot --plugin-dir ./plugins/shiny skill list --json
+claude plugin validate ./plugins/shiny
+```
+
+Copilot should list every skill from the local plugin with no local skill-loading errors. Other installed plugins may contribute additional skills or unrelated diagnostics.
 
 ### Adding a Skill
 
 Skills are **synced in from their owning library repo** by a `sync-skills.yml` GitHub Action — do not hand-edit `SKILL.md` here. Each source repo keeps its skills under `skills/<skill-name>/` and its workflow copies them to `plugins/shiny/skills/<skill-name>/` in this repo via a pull request. To add a new skill, add it to the source repo and let the workflow open the PR, then add a row to the tables above.
+
+Apply compatibility fixes in the owning source repo as well; otherwise a later sync can overwrite them.
 
 ## License
 

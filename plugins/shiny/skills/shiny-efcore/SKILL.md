@@ -1,6 +1,11 @@
 ---
 name: shiny-efcore
-description: Generate code using Shiny EF Core Extensions — feature packages for EF Core 10: SQLite spatial (NetTopologySuite without SpatiaLite), sqlite-vec vector search and FTS5 full-text search that work on iOS/Android; a transactional outbox; provider-agnostic temporal history; scoped Microsoft.Extensions.AI tools and an MCP server over a DbContext; versioned run-once seeding; and an Aspire AppHost seed gate
+description: >-
+  Generate code using Shiny EF Core Extensions — feature packages for EF Core 10: SQLite spatial
+  (NetTopologySuite without SpatiaLite), sqlite-vec vector search and FTS5 full-text search that
+  work on iOS/Android; a transactional outbox; provider-agnostic temporal history; scoped
+  Microsoft.Extensions.AI tools and an MCP server over a DbContext; versioned run-once seeding;
+  and an Aspire AppHost seed gate
 auto_invoke: true
 triggers:
   - Shiny.EntityFrameworkCore

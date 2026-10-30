@@ -1,6 +1,12 @@
 ---
 name: shiny-aiconversation
-description: Generate code for Shiny.AiConversation v3 - session-based AI conversations for .NET over Microsoft.Extensions.AI with persisted, resumable sessions (IAiSessionManager / IAiSession / IAiTurn), streaming replies, the built-in ask_user tool for typed questions and multiple-choice answers, interruption and supersession, usage and context-window pressure tracking, rolling context compaction, silent assistant memory, conversation search, session titles and long-term memory, session interceptors for tools and prompts, pluggable session/memory stores (in-memory or SQLite via Shiny.AiConversation.Stores.SqliteDocDb), and voice conversations via Shiny.AiConversation.Voice (wake word, push-to-talk, follow-up, quiet-word/barge-in interruption, sentence-streamed text-to-speech over Shiny.Speech, acknowledgement modes, sounds, voice selection tools), the MAUI chat UI via Shiny.AiConversation.Maui (AiChatView bound to a session with streaming bubbles, choice chips, push-to-talk and an AiMemoryView), image attachments with retention, and the use_camera tool via Shiny.AiConversation.Maui.Camera
+description: >-
+  Build session-based .NET AI conversations with Shiny.AiConversation v3 and
+  Microsoft.Extensions.AI. Use when implementing IAiSessionManager, IAiSession or IAiTurn,
+  streaming replies, ask_user questions, interruption, usage tracking, context compaction,
+  assistant memory, conversation search, session titles, interceptors, SQLite session stores,
+  OpenAI or GitHub Copilot chat clients, voice conversations (wake word, push-to-talk, barge-in,
+  STT/TTS), MAUI AiChatView/AiMemoryView, image attachments, or the use_camera tool.
 auto_invoke: true
 triggers:
   - shiny ai
@@ -120,6 +126,10 @@ references:
 ---
 
 # Shiny.AiConversation Skill
+
+## Detailed Scope
+
+Generate code for Shiny.AiConversation v3 - session-based AI conversations for .NET over Microsoft.Extensions.AI with persisted, resumable sessions (IAiSessionManager / IAiSession / IAiTurn), streaming replies, the built-in ask_user tool for typed questions and multiple-choice answers, interruption and supersession, usage and context-window pressure tracking, rolling context compaction, silent assistant memory, conversation search, session titles and long-term memory, session interceptors for tools and prompts, pluggable session/memory stores (in-memory or SQLite via Shiny.AiConversation.Stores.SqliteDocDb), and voice conversations via Shiny.AiConversation.Voice (wake word, push-to-talk, follow-up, quiet-word/barge-in interruption, sentence-streamed text-to-speech over Shiny.Speech, acknowledgement modes, sounds, voice selection tools), the MAUI chat UI via Shiny.AiConversation.Maui (AiChatView bound to a session with streaming bubbles, choice chips, push-to-talk and an AiMemoryView), image attachments with retention, and the use_camera tool via Shiny.AiConversation.Maui.Camera
 
 You are an expert in Shiny.AiConversation v3, a session-based library for talking to an AI through
 Microsoft.Extensions.AI. A session is a persisted, never-ending conversation: you start or resume it,
