@@ -12,7 +12,8 @@ public enum HubTransports
     None = 0,
     Ble = 1,
     Http = 2,
-    All = Ble | Http
+    Multipeer = 4,      // Shiny.UniversalHubs.Multipeer - does nothing until that package is set up
+    All = Ble | Http | Multipeer
 }
 
 public static class UniversalHubProtocol
@@ -108,7 +109,8 @@ public sealed record HubConnection(string Id, HubTransports Transport, BleHubCon
     public IDictionary<string, object> Properties { get; }               // per-connection state (Client.Items)
     public Shiny.BluetoothLE.Hosting.IPeripheral? Ble { get; }           // null over HTTP
     public CallerContext? Http { get; }                                   // null over BLE and in OnDisconnectedAsync
-    public static HubTransports GetTransport(string connectionId);
+    public MultipeerPeer? Multipeer { get; }                              // null over BLE and HTTP
+    public static HubTransports GetTransport(string connectionId);       // sb: = Http, mc: = Multipeer, else Ble
 }
 ```
 
@@ -140,6 +142,7 @@ public interface IUniversalHubClient<out TContract> : IBleHubClient<TContract> w
 
 public sealed record HubHostInfo(string Key, string Name, string? HostId, BleHubHostInfo? Ble, DiscoveredHttpServer? Http)
 {
+    public MultipeerHost? Multipeer { get; init; }              // set while seen over MultipeerConnectivity
     public HubTransports Transports { get; }                    // None = the host has gone
     public int? Rssi { get; }
     public static HubHostInfo FromUrl(Uri serverUrl, string endpoint = "/hubs");   // HTTP only
@@ -147,9 +150,11 @@ public sealed record HubHostInfo(string Key, string Name, string? HostId, BleHub
 
 public sealed record HubConnectOptions(string? Name = null, string? AppVersion = null, Dictionary<string, string>? Properties = null)
 {
-    public HubTransports Prefer { get; init; }                  // Http
+    public HubTransports Prefer { get; init; }                  // Http - tried first; then Http, Multipeer, Ble
     public HubTransports Allowed { get; init; }                 // All
 }
+
+public sealed record MultipeerHost(string DisplayName, IReadOnlyDictionary<string, string> Info);   // Info: proto, hostId, name, hubs
 ```
 
 
@@ -165,4 +170,42 @@ public sealed record HubHandshakeReply(
     string? MediaToken = null,              // send as X-Hub-Media-Token on the WebSocket upgrade; null = no media channels
     int? MediaMaxPacketSize = null);
 // GET {BasePath}/media  (WebSocket; one binary message = one packet)  401 token, 404 no media channels, 400 not an upgrade
+```
+
+
+## Multipeer (`Shiny.UniversalHubs.Multipeer`)
+
+```csharp
+public static class MultipeerExtensions
+{
+    // host - once per AddUniversalServer
+    public static UniversalServerBuilder Multipeer(this UniversalServerBuilder server, string serviceType, Action<MultipeerHostOptions>? configure = null);
+    // client - inside AddUniversalHubClient's configure, once per contract
+    public static UniversalHubClientOptions Multipeer(this UniversalHubClientOptions options, string serviceType, Action<MultipeerClientOptions>? configure = null);
+}
+
+public sealed class MultipeerHostOptions
+{
+    public string ServiceType { get; }
+    public string? DisplayName { get; set; }        // default: BleHubHostOptions.LocalName; at most 63 UTF-8 bytes
+}
+
+public sealed class MultipeerClientOptions
+{
+    public string ServiceType { get; }
+    public TimeSpan InviteTimeout { get; set; }     // 10s, then the next transport is tried
+    public string? DisplayName { get; set; }        // this device's radio name - the host sees it as MultipeerPeer.DisplayName; "Hub client"
+}
+
+// on the host (Shiny.UniversalHubs.Host): HubConnection.Multipeer
+public sealed record MultipeerPeer(string DisplayName);
+
+public static class MultipeerProtocol
+{
+    public const int Version = 1;                                       // the handshake refuses other versions
+    public const string FileResourcePrefix = "hubfile-";
+    public static void ValidateServiceType(string serviceType);         // 1-15 of a-z 0-9 -, a letter, no leading/trailing/double -
+    public static IReadOnlyList<string> BonjourServices(string serviceType);   // ["_{type}._tcp", "_{type}._udp"] for NSBonjourServices
+}
+// connection ids: "mc:{guid}" - HubConnection.GetTransport(id) == HubTransports.Multipeer
 ```
