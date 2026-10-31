@@ -149,6 +149,25 @@ triggers:
   - print from the web app
   - IWifiBridge
   - IDiscoveryBridge
+  - IHubsBridge
+  - AddHubsBridge
+  - WebAppHub
+  - WebAppHubMethods
+  - WebAppHubOptions
+  - WebAppHubs
+  - AddWebAppHub
+  - HubCall
+  - HubCallReply
+  - HubException
+  - hostHub
+  - IWebAppNativeCalls
+  - universal hubs from the web app
+  - web app hub
+  - hub logic in the web app
+  - HubClientRequest
+  - HubConnectRequest
+  - HubInvokeRequest
+  - join a hub from the web app
   - IPushBridge
   - INotificationsBridge
   - ITransfersBridge
@@ -214,6 +233,22 @@ triggers:
   - camera.status
   - remote viewfinder
   - device camera
+  - IBarcodesBridge
+  - AddBarcodesBridge
+  - AddBarcodesBridgeClient
+  - BarcodesBridgeClient
+  - Shiny.AppDeviceBridge.Barcodes
+  - Shiny.AppDeviceBridge.Barcodes.Client
+  - IBarcodeScanSource
+  - BarcodeScanRequest
+  - BarcodeScanResult
+  - BarcodeScanMode
+  - ScannedBarcode
+  - barcodes.detected
+  - barcode scanner
+  - QR code scanner
+  - long-range barcode
+  - auto-zoom
   - IWearablesBridge
   - AddWearablesBridge
   - AddWearablesBridgeClient
@@ -493,12 +528,12 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine), Shiny.Core's `IBattery` and `IConnectivity`, and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Hubs, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
     (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
-  - **MAUI** — AppLinks, ShareTarget, Camera, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
+  - **MAUI** — AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
     `Shiny.AppDeviceBridge.Maui` itself. They reference
     `Shiny.AppDeviceBridge.Maui`, extend `MauiAppDeviceBridgeBuilder`, and do their own MAUI registration through
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
@@ -628,6 +663,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Printing` | `AddPrintingBridge(o => o.MaxFileBytes = …)` — `PrintingBridgeOptions`: `MaxJsonBytes` (16 MB), `MaxFileBytes` (512 MB) | `IPrintingBridge` (`PrintingJsonContext`) — the OS print dialog / spooler for PDF, image, HTML; see Printing below |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
+| `.Hubs` | `AddHubsBridge(server => server.AllowDynamicHubs(o => o.ServiceTypes.Add("_myapp._tcp")))` — Universal Hubs' own `AddUniversalServer` builder (call it nowhere else) | `IHubsBridge` + the page-side `WebAppHub` base class (`AddWebAppHub<THub>(new(name, uuid, serviceType))`) — Universal Hubs (BLE, Wi-Fi, Multipeer) whose logic is the web app's; see Hubs below |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.9; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
@@ -651,6 +687,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Contacts` | `AddContactsBridge()` | `IContactsBridge` |
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
+| `.Barcodes` | `AddBarcodesBridge()` — calls `UseShinyCamera()`; camera permission as for `.Camera` | `IBarcodesBridge` — the Shiny.Maui.Controls modal scanner, full screen: one code or many, `LongRange` mode with `AutoZoom` (not Linux) |
 | `.Camera` | `AddCameraBridge(o => …)` | `ICameraBridge` — this device's camera driven from a page anywhere; viewfinder MJPEG at `camera/preview` for an `<img>` (not Linux) |
 | `.Folders` | `AddFoldersBridge()` — also registers `FolderRoots` for folders the app adds by path | `IFoldersBridge` |
 | `.Database` | `AddDatabaseBridge(o => o.StatementTimeout = …)`; another engine: `bridge.Services.AddDatabaseDriver<T>()` | `IDatabaseBridge` — SQLite files in the file roots, or a driver's connections; all platforms — see Database below |
@@ -874,6 +911,27 @@ laws (Texas SB 2420, Utah, Louisiana) and any age-gated feature. iOS, macOS and 
   Play. Errors by `BridgeException.Code`: `503 network|transient|not_available|store_unavailable`, `403 app_not_owned`,
   `409 invalid_account|no_user_interface`, `502 age_signals_failed`.
 
+## Barcodes
+
+`AddBarcodesBridge()` puts a barcode scanner behind `/_bridge/barcodes`: the Shiny.Maui.Controls modal scanner, shown full
+screen over the web app — Apple Vision on iOS, Mac Catalyst and macOS, ML Kit on Android, ZXing.Net on Windows. Linux
+answers `501`. It is the camera of the device running the app; the camera of the machine *showing* the page is the
+browser's `BarcodeDetector`, and driving the device camera with a viewfinder from elsewhere is `.Camera`.
+
+- `ScanAsync(new BarcodeScanRequest())` → `BarcodeScanResult { Barcodes, Reason }`, answered when the scanner closes. Each
+  `ScannedBarcode` has `Value`, `Format`, `Bounds` (normalized). **A refused permission, a dismissal or a timeout is a
+  `Reason`, not an exception** — switch on it (`MaxResults`, `Done`, `Dismissed`, `Timeout`, `Stopped`,
+  `PermissionDenied`, `CameraUnavailable`).
+- `MaxResults` is 1 by default (closes on the first read); `0` scans until the person taps ✓, `TimeoutSeconds` (idle)
+  passes or `StopScanAsync()` is called — then subscribe `OnDetectedAsync(...)` (`barcodes.detected`) to show codes as
+  they come. Also `Formats` (narrowing it is the biggest speed-up), `FilterDuplicates` (on), `ScanWindow`, `TorchOn`,
+  `Title`, `Instructions`.
+- **Distant codes:** `Mode: BarcodeScanMode.LongRange, AutoZoom: true` — shelf labels across an aisle, small, rotated or
+  soft codes. Tune with `MaxAutoZoom` (1–10), `FullFrameInterval` (0–30), `MaxNativeCropsPerFrame` (0–8),
+  `UncheckedConfirmations` (1–10); null keeps the scanner's defaults, and all are ignored in `Standard` mode. `Standard`
+  stays the default: it is quickest for a code held up to the lens.
+- `400` for a field out of range or `Unknown` in `Formats`; `409 scan_in_progress` — one scan at a time.
+
 ## Biometrics
 
 `AddBiometricsBridge()` puts the platform's own biometric prompt behind `/_bridge/biometrics`, backed by
@@ -927,6 +985,72 @@ Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager +
   (the OS's reason in the message), `502 vpn_failed`.
 - Never log a `VpnProfileRequest`'s secrets — its `ToString()` leaves them out, keep it that way — and don't ship
   credentials in the web app's bundle; fetch them from your server after sign-in.
+
+## Hubs
+
+`AddHubsBridge(...)` serves Universal Hubs whose logic lives in the web app, so a hub's behavior ships with a web app
+update. The app hosts them over BLE, Wi-Fi (mDNS) and Multipeer on the bridge's own server; every client call reaches the
+web app as the native call `hub:{name}` — the page while open, otherwise background.js — carrying a `HubCall`, and the
+`HubCallReply` goes back to the client. Clients are ordinary Universal Hubs clients (`AddUniversalHubClient<TContract>`)
+and can't tell the logic is in a page.
+
+```csharp
+// the app: what web app hubs may use is fixed here (iOS lists every mDNS type in NSBonjourServices)
+bridge.AddHubsBridge(server => server
+    .ServiceUuid(ServiceUuid)                                   // optional - clients must use the same one
+    .AllowDynamicHubs(o => o.ServiceTypes.Add("_myapp._tcp")));
+builder.Services.AddShinyHttpServer(http => http.Options.Address = IPAddress.Any, autoStart: false);   // for Wi-Fi clients
+
+// the Blazor page
+builder.Services.AddWebAppHostClient().AddWebAppHub<GameHub>(new("game", GameCharacteristic, "_myapp._tcp") { MaxClients = 6 });
+// once the page is up — every load:
+var hubs = host.Services.GetRequiredService<WebAppHubs>();
+await hubs.DefineAsync();
+await hubs.StartAsync("game");
+
+public sealed class GameHub(GameEngine engine) : WebAppHub
+{
+    protected override void Map(WebAppHubMethods methods) => methods
+        .Invoke("MakeMove", GameJson.Default.Int32, GameJson.Default.MoveResult, this.MakeMove)
+        .Stream("Watch", GameJson.Default.GameState, engine.Changes);
+
+    public override Task OnConnectedAsync(HubConnectionInfo c) => engine.HasSeat ? Task.CompletedTask : throw new HubException("Full", "No seats");
+
+    async Task<MoveResult> MakeMove(int cell)
+    {
+        var result = engine.Move(this.Connection.Id, cell);
+        await this.PushAsync("StateChanged", GameJson.Default.GameState, engine.State);
+        return result;
+    }
+}
+```
+
+- **Names are the contract.** Method and event names must match the clients' `[BleHubClient]` interface exactly, and
+  the page's JSON must match the clients' serializer (a camelCase source-gen context on both sides, say). Methods not in
+  the definition are answered `HubMethodNotFound` without reaching the page.
+- **Every page load defines its hubs** (`DefineAsync`): defining with the same values keeps the hub and its clients (the
+  method list may change); a changed characteristic, service type, `MaxClients` or `AllowTunnel` replaces the hub and
+  disconnects its clients.
+- `HubException(type, message)` keeps its type for the client (`BleHubRemoteException.RemoteErrorType`); any other
+  exception is typed by its class name. `Abort(reason)` ends the caller's session after the reply. Throw from
+  `OnConnectedAsync` to refuse a client.
+- With no page and no background.js answering `hub:{name}`, connections are refused and calls fail with `HubUnavailable`.
+  Calls get the invoker's `PageInvocationTimeout` (25 s); streams run until they end or the caller leaves.
+- Plain JS/TS pages: `import { hostHub } from "/_bridge/hubs/client.js"` — `hostHub(definition, { MakeMove(cell) {…},
+  async *Watch() {…}, onConnected(c) {…} })`, an async generator being a stream; `throw new HubError(type, message)`.
+  The generated TypeScript `HubsBridge` client wraps the same routes.
+- **Joining another device's hub** (any hub, compiled or a web app's): `CreateClientAsync(new HubClientRequest(uuid,
+  "_myapp._tcp"))`, then — with `OnHostAsync` listened to first (`409 not_listening`) — `DiscoverAsync(id, new(Transports))`;
+  `ConnectAsync(id, new HubConnectRequest(Host: seen.Name /* or Url: "http://…" */, Name: "Allan", Prefer: HubTransports.Ble,
+  Allowed: HubTransports.Ble | HubTransports.Http))`; `InvokeAsync(id, new HubInvokeRequest("Send", [json]))` (a hub's
+  own failure is `result.Error`, not an exception), `StreamAsync` with items on `OnStreamItemAsync`, pushes on
+  `OnPushAsync`, status on `OnClientChangedAsync`. `409 refused` carries the host's reason. Clients share
+  `AddHubsBridge(server => …, clients => clients.Multipeer("myapp-mc"))`'s options. At most 8.
+- `400` for a bad definition or a service type the app doesn't allow, `409` for a name or characteristic taken (or the
+  app's `MaxHubs`), `503` when no transport could start, `410` on a stream whose caller left.
+- Wi-Fi on every head; BLE on Android, iOS and Mac Catalyst, and on Windows and macOS once the app calls
+  `services.AddBluetoothLeHosting()` — without it the hubs run over Wi-Fi and Multipeer, never fail; Multipeer on Apple
+  with `Shiny.UniversalHubs.Multipeer`. A host without `AddHubsBridge` answers `501`.
 
 ## Printing
 
@@ -1470,6 +1594,10 @@ public static TBuilder AddOrdersBridge<TBuilder>(this TBuilder bridge) where TBu
   applies), `server.UseAuthentication(); server.UseAuthorization();` in `http.Configure`. Nothing is authenticated by
   default unless the app sets a fallback policy. `WebAppPolicies.Session` accepts only the WebView. Bridge policy and
   endpoint policies are separate, and the bridges enforce theirs without the app's pipeline.
+- **Hub routes are not bridges.** `AddHubsBridge` serves hubs at `/hubs`, outside the bridge prefix: the bridge
+  policy doesn't apply there — each hub's own rules do (`MaxClients`, the page refusing in `OnConnectedAsync`,
+  `AllowTunnel`) — and other devices reach them only once the app binds past loopback. Treat hub arguments as untrusted
+  input from other devices.
 - Release-server downloads are ECDSA P-256 signed; keep the public key given to `ReleaseServerUpdateProvider` compiled
   into the app. GitHub releases are not signed — the asset's SHA-256 (`digest`) is checked when GitHub reports it — so
   prefer the release server when anything other than repository write access must stand between an attacker and the app.
