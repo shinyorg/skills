@@ -1,6 +1,6 @@
 ---
 name: shiny-universal-hubs
-description: Generate code using Shiny.UniversalHubs - Shiny.BluetoothLE.Hubs hubs served over Wi-Fi (HttpServer Switchboard + mDNS) as well as Bluetooth LE, with merged BLE/mDNS discovery, Wi-Fi-first connect with BLE fallback, resume, per hub start/stop, tunnels, file transfers and media channels (live audio/video packet pipes) on either transport
+description: Generate code using Shiny.UniversalHubs - Shiny.BluetoothLE.Hubs hubs served over Wi-Fi (HttpServer Switchboard + mDNS) as well as Bluetooth LE, and between Apple devices over MultipeerConnectivity (Shiny.UniversalHubs.Multipeer, no network needed), with merged BLE/mDNS/Multipeer discovery, Wi-Fi-first connect with fallback, resume, per hub start/stop, tunnels, file transfers and media channels (live audio/video packet pipes) on every transport
 auto_invoke: true
 triggers:
   - universal hubs
@@ -57,6 +57,22 @@ triggers:
   - IBleHubMediaChannel
   - MediaTokenHeader
   - MediaPath
+  - multipeer
+  - multipeerconnectivity
+  - Shiny.UniversalHubs.Multipeer
+  - MCSession
+  - awdl
+  - peer to peer wifi
+  - apple peer to peer
+  - hub without network
+  - offline hub
+  - iphone to iphone hub
+  - HubTransports.Multipeer
+  - MultipeerHostOptions
+  - MultipeerClientOptions
+  - MultipeerHost
+  - MultipeerPeer
+  - MultipeerProtocol
 ---
 
 # Shiny.UniversalHubs Skill
@@ -70,6 +86,8 @@ range and bandwidth, no MTU), and both kinds share the same hub, groups and push
   serialization, `Clients` targets, groups and streaming. This library only carries the calls.
 - The **Wi-Fi side** is a Shiny.Net.HttpServer Switchboard (SSE + POST, with resume), advertised over mDNS.
 - The **client** merges BLE scanning and mDNS browsing into one list, connects over Wi-Fi first and falls back to BLE.
+- **Multipeer** (optional package, Apple only): iPhones, iPads and Macs also reach each other over MultipeerConnectivity,
+  at Wi-Fi speed with no shared network. See section 10.
 
 ## When to Use This Skill
 
@@ -81,6 +99,7 @@ Invoke this skill when the user wants to:
 - Make a hub reachable from the internet through a tunnel, or connect to a host by URL / QR code
 - Move files over HTTP on Wi-Fi and L2CAP on BLE behind the same calls
 - Stream live audio or video (calls) between devices on a hub, over Wi-Fi or Bluetooth
+- Connect Apple devices with no shared network (plane, park) over MultipeerConnectivity, beside BLE and Wi-Fi
 
 Do NOT use this skill for BLE-only hubs (use `shiny-ble-hubs`), generic HTTP servers (use `shiny-httpserver`) or
 generic mDNS discovery (use `shiny-discovery`).
@@ -92,6 +111,7 @@ generic mDNS discovery (use `shiny-discovery`).
 | `Shiny.UniversalHubs.Host` | `AddUniversalServer`, `UniversalHub<T>`, `HubConnection`, `IUniversalHubHost`, file routes, mDNS |
 | `Shiny.UniversalHubs.Client` | `AddUniversalHubClient<T>`, `IUniversalHubClient<T>`, `HubHostInfo`, `HubConnectOptions` |
 | `Shiny.UniversalHubs` | The shared Wi-Fi wire protocol (`HubTransports`, `UniversalHubProtocol`). Comes with both |
+| `Shiny.UniversalHubs.Multipeer` | `server.Multipeer(...)` / `o.Multipeer(...)`: MultipeerConnectivity, iOS, Mac Catalyst, macOS |
 
 - **Namespace**: `Shiny.UniversalHubs` (plus `Shiny.BluetoothLE.Hubs` for the contract and hub types)
 - **Platforms**: iOS, Android and Mac Catalyst register the BLE stacks for you. On plain `net10.0` (Linux, tests,
@@ -266,9 +286,9 @@ public class JoinViewModel(IUniversalHubClient<IGameHub> client)
 
 - `IUniversalHubClient<T>` **is** an `IBleHubClient<T>`: `Hub`, `Status`, `Disconnected`, `StatusChanged`, `Rename`,
   `UploadFile` / `DownloadFile` all work on either transport. `Discover()` / `Connect(BleHubHostInfo)` are BLE only.
-- **`Prefer`** (Http by default) is tried first when the host is reachable both ways; the other is the fallback.
-  **`Allowed`** limits which may be used. A **refusal** (full, `ValidateClient`, hub not running) is **not retried**
-  on the other transport. The transport never changes mid-session.
+- **`Prefer`** (Http by default) is tried first when the host is reachable more than one way; the rest follow in the
+  order Http, Multipeer, Ble. **`Allowed`** limits which may be used. A **refusal** (full, `ValidateClient`, hub not
+  running) is **not retried** on another transport. The transport never changes mid-session.
 - **Resume**: a short Wi-Fi drop keeps the connection id and groups and replays missed pushes; neither side sees a
   disconnect. `UniversalHubClientOptions.AutomaticReconnect = false` turns it off.
 - **Discovery merges by host name** (Apple can't advertise a host id over BLE), so hosts need distinct `LocalName`s.
@@ -286,15 +306,15 @@ still gated by the per-client file token. Put authentication in front of anythin
 
 ### 7. Disconnect reasons
 
-The same `HubDisconnectReason` on both transports, host and client:
+The same `HubDisconnectReason` on every transport, host and client:
 
-| Reason | BLE | HTTP |
-|---|---|---|
-| `ClientDisconnect` | client called `Disconnect()` | client closed its line |
-| `ClientTimeout` | unsubscribe without goodbye, or the sweep | line dropped and the resume window ran out |
-| `ServerDisconnect` | `Context.Abort` / `IHubContext.Disconnect` | same |
-| `ServerShutdown` | `IUniversalHubHost.Stop` / `StopHub` / `IHubContext.Stop` | same |
-| `ConnectionFailed` | link failed | line faulted |
+| Reason | BLE | HTTP | Multipeer |
+|---|---|---|---|
+| `ClientDisconnect` | client called `Disconnect()` | client closed its line | client said goodbye |
+| `ClientTimeout` | unsubscribe without goodbye, or the sweep | line dropped and the resume window ran out | session ended without a goodbye (no resume) |
+| `ServerDisconnect` | `Context.Abort` / `IHubContext.Disconnect` | same | same |
+| `ServerShutdown` | `IUniversalHubHost.Stop` / `StopHub` / `IHubContext.Stop` | same | same |
+| `ConnectionFailed` | link failed | line faulted | connect failed |
 
 ### 8. Platform setup
 
@@ -354,13 +374,59 @@ if (client.CanOpenMediaChannel)
 - Permissions for calls: iOS/Mac `NSMicrophoneUsageDescription`, `NSCameraUsageDescription`; Android `RECORD_AUDIO`,
   `CAMERA`, `MODIFY_AUDIO_SETTINGS`.
 
+### 10. Multipeer (Apple devices, no network)
+
+Add `Shiny.UniversalHubs.Multipeer` and Apple devices also reach each other over MultipeerConnectivity, which picks the
+Wi-Fi network, peer-to-peer Wi-Fi (AWDL) or Bluetooth itself. Android can't use it - Android players stay on Wi-Fi or
+BLE against the same host and hub.
+
+```csharp
+// host: one Multipeer service type per host
+builder.Services.AddUniversalServer(server => server
+    .Multipeer("mygame-mc")                            // optional: o => o.DisplayName = "..." (default: BLE LocalName)
+    .AddHub<GameHub>(GameUuid, "_mygame._tcp"));
+
+// client: inside AddUniversalHubClient's options
+builder.Services.AddUniversalHubClient<IGameHub>(GameUuid, "_mygame._tcp", o =>
+{
+    o.ServiceUuid = ServiceUuid;
+    o.Multipeer("mygame-mc");                          // optional: mc => { mc.DisplayName = ...; mc.InviteTimeout = ...; }
+});
+```
+
+Info.plist (host and client) - **without these, discovery silently finds nothing**:
+
+```xml
+<key>NSBonjourServices</key>
+<array>
+    <string>_mygame._tcp</string>       <!-- the hub's mDNS type, as before -->
+    <string>_mygame-mc._tcp</string>    <!-- Multipeer: both _tcp and _udp -->
+    <string>_mygame-mc._udp</string>
+</array>
+<key>NSLocalNetworkUsageDescription</key>
+<string>The local network is used to talk to nearby devices</string>
+```
+
+- **Service type**: 1-15 lowercase letters, digits, hyphens (at least one letter, no leading/trailing/double hyphen).
+  It **must differ** from the name inside any hub's mDNS type (`mygame` for `_mygame._tcp`) - MC advertises over
+  Bonjour too. Use the same one on host and client. Call `.Multipeer(...)` once per server and once per client contract.
+- **`HubTransports.All` includes Multipeer.** It only runs once the package is set up, and is skipped quietly where
+  MultipeerConnectivity doesn't exist, so register it in shared code - no `#if IOS` needed.
+- `HubHostInfo.Multipeer` is set when seen over MC; `client.Transport == HubTransports.Multipeer` when connected over it.
+- In the hub: connection ids are `mc:{id}`, `connection.Transport == HubTransports.Multipeer`, and
+  `connection.Multipeer?.DisplayName` is the peer's radio name (the hub client name is still `connection.Client.Name`).
+- Values travel as **binary** (any `IBleHubSerializer`, like BLE). **Renames work.** Files move as MC resources under
+  the same `EnableFileTransfers` / `AuthorizeFile` rules; media channels work too.
+- **No resume**: a dropped session (backgrounded app, out of range) is `ClientTimeout`. Foreground only, like the rest.
+- One MC session per hub connection on the host - no 8-peer limit to design around.
+
 ## Best Practices
 
 1. **Set your own BLE `ServiceUuid` and mDNS service types**, so other apps' hosts stay out of your scans.
 2. **Give hosts short, distinct names** (`LocalName`). Discovery merges BLE and mDNS by name.
 3. **Persist `HostId`** if clients should recognize a host across restarts.
 4. **Keep BLE as the fallback.** Plane, hotel and public Wi-Fi usually isolate clients, blocking mDNS and
-   device-to-device traffic.
+   device-to-device traffic. Between Apple devices, add Multipeer: it works there too.
 5. **Register a BLE hosting stack even for Wi-Fi-only hosting**; Wi-Fi hosting still works with Bluetooth off.
 6. **About six hubs** fit in one mDNS TXT record per host.
 7. **Never store state on the hub instance** - it is recreated per call. Use singletons or `connection.Properties`.
