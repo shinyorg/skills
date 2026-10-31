@@ -72,6 +72,16 @@ triggers:
   - ble video
   - live audio over ble
   - l2cap stream
+  - BleHubRemoteException.TypeOf
+  - RemoteErrorType
+  - handler hubs
+  - IBleHubHandler
+  - IBleHubHandlerHost
+  - IBleHubHandle
+  - BleHubHandlerCall
+  - AllowHandlerHubs
+  - ReadSerialized
+  - WriteSerialized
 ---
 
 # Shiny.BluetoothLE.Hubs Skill
@@ -232,7 +242,9 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
       => this.Clients.Others.PlayerRenamed(previousName, this.Context.Client.Name);   // contract: event Action<string?, string?> PlayerRenamed
   ```
 - **Exceptions** thrown in a hub method reach the caller as `BleHubRemoteException` (with `RemoteErrorType` and
-  `Message`).
+  `Message`). `RemoteErrorType` is the exception's class name - unless the hub throws a `BleHubRemoteException` itself,
+  which keeps its own `RemoteErrorType` (relay another hub's or service's error with its type intact). Same on every
+  transport; `BleHubRemoteException.TypeOf(exception)` is the rule.
 
 ### 3. Host registration and lifetime
 
@@ -275,7 +287,7 @@ public class Lobby(IHubContext<GameHub> hub)
   match). `AddHub` / `AddBleHubClient` take only the characteristic. Leaving the default
   (`BleHubProtocolOptions.DefaultServiceUuid`) means other apps using this library show up in scans, so set your own in
   a real app.
-- **Call `AddBleHubServer` once** with every hub. A second call, no hubs, a hub or characteristic added twice, or a
+- **Call `AddBleHubServer` once** with every hub. A second call, no hubs (unless `AllowHandlerHubs()`, a hidden seam), a hub or characteristic added twice, or a
   malformed UUID throws at registration. There is no `AddBleHub` / `ConfigureBleHubHost` / `ConfigureBleHubProtocol`.
 - **A scan can't tell which hubs a host runs** (it only sees the one service UUID). Joining a stopped hub is refused
   by the handshake (`BleHubException` "Host refused..."), so handle that when a host runs some hubs only on demand.
@@ -438,6 +450,10 @@ use **Shiny.UniversalHubs**. The hub and contract stay as they are; the host reg
 `AddUniversalServer(server => server.AddHub<THub>(characteristicUuid, "_myapp._tcp"))` in place of `AddBleHubServer` and
 starts with `IUniversalHubHost.Start(HubTransports.All)`, the client registers `AddUniversalHubClient<TContract>(...)` and
 uses `IUniversalHubClient<TContract>.DiscoverAll()` / `Connect(HubHostInfo)`.
+
+For hubs defined while the app runs (methods dispatched by name, values passed through as serialized bytes), use
+Shiny.UniversalHubs' **dynamic hubs** (`server.AllowDynamicHubs(...)`, `IDynamicHubs`), not blehubs' hidden
+`IBleHubHandlerHost` they are built on.
 
 ## Best Practices
 

@@ -45,7 +45,8 @@ public class BleHubException : Exception;
 public class BleHubProtocolException : BleHubException { ushort? MessageId; }
 public class BleHubRemoteException : BleHubException
 {
-    string RemoteErrorType;                      // hub method threw
+    string RemoteErrorType;                      // hub method threw: its class name, or a thrown BleHubRemoteException's own type
+    public static string TypeOf(Exception exception);         // that rule
     public const string RenameRefused = "HubRenameRefused";   // the host refused a Rename - Message says why
 }
 public class BleHubDisconnectedException : BleHubException { HubDisconnect? Disconnect; string? Reason; }   // Reason = Disconnect?.Description
@@ -88,6 +89,7 @@ public sealed class BleHubServerBuilder
     BleHubServerBuilder Host(Action<BleHubHostOptions> configure);
     BleHubServerBuilder Protocol(Action<BleHubProtocolOptions> configure);   // app-wide
     BleHubServerBuilder AddHub<THub>(string characteristicUuid, Action<BleHubOptions>? configure = null);   // throws on a duplicate hub/characteristic or bad UUID
+    BleHubServerBuilder AllowHandlerHubs();   // hidden: no compiled hubs needed, hubs added via IBleHubHandlerHost
 }
 
 public class BleHubOptions
@@ -288,3 +290,29 @@ rather than these directly.
   throws `NotSupportedException`; `BleHubClient` serializes it, reuses an open channel and closes it on disconnect).
   `IBleHubClientTransportEvents`: `Pushed(eventName, encodedArguments)`, `HostRenamed(hostName)` (in order with `Pushed`),
   `Closed(HubDisconnect)`.
+
+Handler hubs - hubs added while the app runs, dispatched by method name, values as the caller's serializer wrote them.
+The seam Shiny.UniversalHubs' dynamic hubs (`AllowDynamicHubs`, `IDynamicHubs`) are built on; use those in app code.
+- `BleHubServerBuilder.AllowHandlerHubs()` lets the server have no compiled hubs.
+- `IBleHubHandlerHost` (registered by `AddBleHubServer`): `Handlers`, `Add(characteristicUuid, name, BleHubOptions, IBleHubHandler)`
+  → `IBleHubHandle` (throws when the characteristic is used), `Remove(characteristicUuid, reason)` (stops it, disconnects
+  its clients on every transport; its characteristic refuses handshakes until the GATT service is next rebuilt).
+- `IBleHubHandler`: `GetMethodKind(method)` → `BleHubMethodKind`, `Invoke(BleHubHandlerCall, ct)` → `byte[]?`,
+  `Stream(BleHubHandlerCall, ct)` → `IAsyncEnumerable<byte[]>`, `OnConnectedAsync(BleHubCallerContext)` (throw to refuse),
+  `OnDisconnectedAsync(context, HubDisconnect)`, `OnRenamedAsync(context, previousName)` (throw to refuse).
+  `BleHubHandlerCall`: `Context`, `Method`, `Arguments` (`IReadOnlyList<ReadOnlyMemory<byte>>`).
+- `IBleHubHandle`: `CharacteristicUuid`, `Name`, `Handler`, `IsRunning`, `Start`, `Stop`, `Groups`, `ConnectedClients`,
+  `Clients` (`IHubClients<BleHubPush<IBleHubHandler>>`), `Disconnect`, `TransportEndpoint`, `ClientConnected` /
+  `ClientDisconnected`.
+- A hub added while the GATT service is up goes on air when it first starts: the service is rebuilt, and BLE clients
+  of the other hubs are first sent `ServerShutdown` ("The host's hubs changed - reconnect").
+- `BleHubArgumentWriter.WriteSerialized(ReadOnlySpan<byte>)` / `BleHubArgumentReader.ReadSerialized()` →
+  `ReadOnlyMemory<byte>`: an argument's bytes exactly as serialized.
+
+Clients without a compiled contract - the seam Shiny.UniversalHubs' dynamic hub clients (`AddDynamicHubClients`,
+`IDynamicHubClients`) are built on; use those in app code.
+- `BleHubClient` (protected): `InvokeSerializedCore(method, BleHubArgumentWriter, ct)` → `Task<ReadOnlyMemory<byte>>` and
+  `StreamSerializedCore(method, BleHubArgumentWriter, ct)` → `IAsyncEnumerable<ReadOnlyMemory<byte>>`: results left as the
+  host's serializer wrote them. Build arguments with `CreateArguments()` + `WriteSerialized`.
+- `services.AddBleHubClientCore()`: what every client needs (platform BLE stack, protocol, serializer, proxy services)
+  without a proxy. `AddBleHubClient<T>` calls it.
