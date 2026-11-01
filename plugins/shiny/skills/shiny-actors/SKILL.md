@@ -49,8 +49,25 @@ triggers:
 - PublishActorsAsync
 - BrowseActorPeersAsync
 - UseDocumentDb
+- ActorDocumentStore
+- PurgeTombstonesAsync
+- IReminderNotificationHandler
+- ReminderNotificationTap
+- UpcomingOccurrences
 - ActorTestHost
+- MapRequestContext
+- ActorCallAuthorization
+- ActorStreamAuthorization
+- ActorStreamAccess
+- StreamHeartbeat
+- AdvertiseOverMdns
+- ActorAdvertisement
 - ActorDeadlockException
+- CallTimeout
+- ActivationRetryBackoff
+- IActorDeadLetterObserver
+- AddDeadLetterObserver
+- ActorDeadLetter
 - ActorStateConflictException
 ---
 
@@ -225,7 +242,10 @@ await this.RegisterReminderAsync("invoice", TimeSpan.FromHours(1), TimeSpan.From
 ```
 
 - **Mobile.** `actors.UseBackgroundReminders()` fires them from OS jobs, every 15+ minutes and only roughly on time.
-  `actors.UseReminderNotifications()` shows the notification exactly on time, app running or not.
+  `actors.UseReminderNotifications()` shows the notification exactly on time, app running or not. A repeating reminder
+  keeps `UpcomingOccurrences` (default 3) scheduled. To react to a tap, implement `IReminderNotificationHandler` on
+  the actor class (`OnReminderNotificationTappedAsync(ReminderNotificationTap tap, ct)`); don't write an
+  `INotificationDelegate` that parses the payload by hand.
 - **Persistent storage.** Reminders need persistent storage (`UseDocumentDb`/`UseFileStorage`); in-memory is empty
   after the OS restarts the app.
 - **Passing the token.** `notification` comes before the `CancellationToken`, so pass the token by name:
@@ -242,7 +262,11 @@ await this.RegisterReminderAsync("invoice", TimeSpan.FromHours(1), TimeSpan.From
 | `[StatelessWorker(MaxLocalWorkers = n)]` (class) | Parallel activations per id. No state or reminders (SACT011). |
 
 - **Deadlocks.** A call that waits on itself through other actors throws `ActorDeadlockException` naming the path. Fix
-  it by restructuring, making a call `[OneWay]`, or marking it `[AlwaysInterleave]`.
+  it by restructuring, making a call `[OneWay]`, or marking it `[AlwaysInterleave]`. Calls back into an actor from its
+  own `OnActivateAsync`/`OnDeactivateAsync` throw even when interleaving, so never call out-and-back from those.
+- **Timeouts.** `o.CallTimeout` (default 30 s, wall-clock) throws `TimeoutException` to the caller and cancels the
+  call's token. Long-running work belongs in a `[OneWay]` call or a reminder, not a long ask; set
+  `Timeout.InfiniteTimeSpan` only deliberately.
 
 ## Pipeline
 
@@ -251,6 +275,9 @@ await this.RegisterReminderAsync("invoice", TimeSpan.FromHours(1), TimeSpan.From
   An actor implementing `IActorCallFilter` filters its own calls.
 - **Request context.** `ActorRequestContext.Set("tenant", id)` flows into calls, onward to other actors, and across
   remote calls.
+- **Dead letters.** `actors.AddDeadLetterObserver<T>()` (`IActorDeadLetterObserver.OnDeadLetterAsync(ActorDeadLetter, ct)`)
+  hears about one-way calls and stream events that threw or never ran. Suggest one whenever the user relies on
+  `[OneWay]` for anything that matters.
 - **Telemetry.** `AddSource(ActorTelemetry.Name)` / `AddMeter(ActorTelemetry.Name)`. Traces stay connected across
   actors and HTTP.
 
@@ -263,16 +290,23 @@ actors.ServeOverHttp(
     http => { /* address, AddAuthentication().AddApiKey(...), UseAuthentication/UseAuthorization */ },
     authorizationPolicies: []);
 
-// client - same IActorSystem
-IActorSystem remote = new RemoteActorSystem(new HttpClient { BaseAddress = new("http://192.168.1.20:8080/actors/") });
+// client - same IActorSystem; dispose it (it owns the HttpClient it made)
+using var remote = new RemoteActorSystem(new Uri("http://192.168.1.20:8080/actors/")) { CallTimeout = TimeSpan.FromSeconds(10) };
 ```
 
-- **Errors.** `RemoteActorException.StatusCode` is 400 (bad arguments), 401/403, 404 (not exposed), 409 (deadlock) or
-  500 (the actor threw; no details unless `IncludeExceptionDetails`).
+- **Authorization.** Route policies first, then per exposure: `Expose<T>(call => ...)` (`call.User`, `ActorId`,
+  `Method`) and `ExposeStream<T>(s => ...)` (`s.User`, `Key`, `Access` = `Publish`/`Subscribe`). Default to a callback
+  whenever ids map to users.
+- **Never authorize on caller-sent request context.** `x-actor-context` is client-controlled. If a filter checks
+  `ActorRequestContext.Get("user")`, the server must have `expose.MapRequestContext("user", u => u.Identity?.Name)`.
+- **Errors.** `RemoteActorException.StatusCode` is 400 (bad arguments, null for non-nullable), 401/403, 404 (not
+  exposed), 409 (deadlock, also across processes), 499 (caller gone), 500 (the actor threw; no details unless
+  `IncludeExceptionDetails`), 502 (a downstream remote call failed) or 504 (timeout).
 - **LAN access.** The server must bind the LAN for other devices (`Address = IPAddress.Any`); Shiny.Net.HttpServer
   binds loopback by default.
-- **Discovery.** `actors.UseDiscovery()`, then `mdns.PublishActorsAsync(name, port)` on the server and
-  `mdns.BrowseActorPeersAsync(ct)` → `peer.Connect(...)` on the client. Apple platforms need `_shinyactors._tcp` in
+- **Discovery.** `actors.UseDiscovery().AdvertiseOverMdns(name)` advertises the server while it runs (or
+  `mdns.PublishActorsAsync(name, port)` by hand), and `mdns.BrowseActorPeersAsync(ct)` → `peer.Connect(...)` on the
+  client; dispose what `Connect` returns. Apple platforms need `_shinyactors._tcp` in
   `NSBonjourServices` plus `NSLocalNetworkUsageDescription`.
 
 ## Testing
@@ -287,6 +321,11 @@ await host.Get<ICart>("u1").Add("coffee", 2);
 await host.AdvanceAsync(TimeSpan.FromHours(1));   // timers, reminders, idle deactivation - no sleeps
 Assert.Contains(host.Calls, c => c.Method == "Add");
 ```
+
+- Seed with `SetStateAsync`, `SetReminderAsync<TActor>(name, dueAt, period?)` and `AppendEventsAsync<TActor, TEvent>`;
+  inspect with `GetStateAsync`, `GetRemindersAsync`, `GetEventsAsync`. Seeded state goes through the same `$v`
+  stamping and migrations as the runtime.
+- A store chosen in the `actors` callback (`UseDocumentDb(...)`) replaces the in-memory default, and the helpers use it.
 
 ## Build diagnostics
 
@@ -303,6 +342,10 @@ Assert.Contains(host.Calls, c => c.Method == "Add");
 | SACT009 | Two actors share an `[ActorName]` |
 | SACT010 | `[ActorState]` parameter isn't an `IActorState<T>` |
 | SACT011 | `[StatelessWorker]` with persistent state |
+| SACT012 | Two methods share a wire key (CancellationToken doesn't count) |
+| SACT013 | Two actor interfaces share a wire name |
+| SACT014 | Warning: `[OneWay]` method takes a CancellationToken |
+| SACT015 | Info: wire type without JSON metadata |
 
 ## Gotchas to mention when relevant
 
