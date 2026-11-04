@@ -504,6 +504,43 @@ triggers:
   - GitHubReleasesUpdateProvider
   - GitHubUpdateInfo
   - github releases
+  - UpdateRequest
+  - UpdateOffer
+  - UpdateDownloadRequest
+  - GetDownloadRequest
+  - HostUpdateInfo
+  - WebAppHostUpdate
+  - WebAppHostPolicy
+  - WebAppLocalizedText
+  - WebAppHostUpdateRequiredException
+  - HostUpdateRequired
+  - native app update
+  - store update
+  - force update
+  - minimum app version
+  - localized release notes
+  - splash screen
+  - SplashTemplate
+  - SplashText
+  - WebAppSplashContext
+  - WebAppSplashText
+  - SplashDismissed
+  - PageReady
+  - WaitForPageReady
+  - PageReadyTimeout
+  - host/ready
+  - ReadyAsync
+  - OpenStoreAsync
+  - StoreUpdate
+  - BlockOnRequiredUpdateFailure
+  - Shiny.AppDeviceBridge.AutoUpdate
+  - AddWebAppAutoUpdate
+  - WebAppAutoUpdateOptions
+  - WebAppAutoUpdater
+  - IWebAppUpdateDownloader
+  - InstallDownloadedAsync
+  - CheckForUpdateAsync
+  - background updates
 ---
 
 # Shiny.AppDeviceBridge
@@ -631,10 +668,38 @@ public class App : Application
 Updates come from `webApp.UpdateProvider` (an `IUpdateProvider`): `ReleaseServerUpdateProvider(uri, publicKey)` for the
 signed ASP.NET Core release server (`Channel` for prereleases), `GitHubReleasesUpdateProvider("https://github.com/owner/repo")`
 for GitHub releases (`AssetName`, `IncludePrereleases`, `TagPrefix`, `Token`, `RequiredWhen`), or a class of the app's
-own: `GetUpdateInfoAsync(Version host, WebAppVersion? app, ct)` returns an `UpdateInfo` (derive it to carry a download
-URL; null = nothing newer) and `DownloadAsync(update, ct)` returns the zip stream. The host enforces newer-only, the
+own: `CheckAsync(UpdateRequest request, ct)` — `request.HostVersion`, `request.AppVersion`, `request.Culture` — returns an
+`UpdateOffer(UpdateInfo? WebApp, HostUpdateInfo? Host)` (`UpdateOffer.None` = nothing newer; derive `UpdateInfo` to carry a
+download URL), `DownloadAsync(update, ct)` returns the zip stream, and the optional `GetDownloadRequest(update)` returns an
+`UpdateDownloadRequest(uri, headers)` for background transfers (default null = in-process). The host enforces newer-only, the
 size/`Sha256` when given, and the archive opening; an exception is offline, `InvalidDataException` rejects. Never
-generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFactory` — those options don't exist.
+generate `GetUpdateInfoAsync` (removed), `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFactory` —
+those don't exist.
+
+**The splash screen.** `WebAppHostView` shows a splash until the page posts `POST /_bridge/host/ready`
+(`IHostBridge.ReadyAsync()` / `new HostBridge().ready()`; the Blazor client sends it automatically) or `PageReadyTimeout`
+(15 s) passes; `WaitForPageReady = false` hides it on WebView navigation instead. A required web app update installs on the
+splash with version, release notes and progress; if it fails, the splash stops with the error and **Try again**
+(`BlockOnRequiredUpdateFailure`, default **true**). A required native app update stops the splash with a message and
+**Update** (store). Customize with `SplashTemplate` (a `DataTemplate` bound to `WebAppSplashContext`: `Message`,
+`ReleaseNotes`, `HasReleaseNotes`, `UpdateVersion`, `Progress`, `IsProgressVisible`, `IsBusy`, `IsStopped`, `CanRetry`,
+`RetryCommand`, `CanOpenStore`, `OpenStoreCommand`, `HostUpdate`, `State`) and `SplashText` (the words). Outside the view,
+`StartAsync()` throws `WebAppHostUpdateRequiredException` (state `HostUpdateRequired`) or `WebAppUnavailableException`.
+
+**Native app updates.** Release server `app.json` → `"hosts": { "ios": { "minimumVersion", "latestVersion", "storeUrl",
+"releaseNotes" }, "*": { … } }` (`WebAppPolicy.Hosts`, `WebAppHostPolicy`). Below minimum = required (splash stops, no web
+download); below latest = optional (page sees `HostInfo.StoreUpdate`, calls `IHostBridge.OpenStoreAsync()` /
+`POST host/open-store`). The store opens via Shiny `IAppStore` when registered (`AddAppBridge(store => store.AppleAppId = …)`),
+else the `storeUrl` (https or a store scheme only), or `webApp.OpenStore = update => …`. A requirement is remembered offline.
+Release notes are localized: the check sends `culture` (`webApp.Culture`, default `CurrentUICulture`); `releaseNotes` is a
+string or `{ "*": "…", "fr": "…" }` (`WebAppLocalizedText`, resolves culture → parent → `*` → first).
+
+**Background updates** — `Shiny.AppDeviceBridge.AutoUpdate`: `bridge.AddWebAppAutoUpdate(o => { o.RequiredInternetAccess =
+InternetAccess.Unmetered; o.RequireCharging = false; o.UseMeteredConnection = true; })`. A Shiny.Jobs job checks; new releases
+(optional or required) download as Shiny.Net.Http background transfers, are verified, and are served next launch. Shares one
+transfer manager with `AddHttpTransfersBridge` in either order. iOS: `BGTaskSchedulerPermittedIdentifiers` (`com.shiny.jobnet`),
+`processing` mode, forward `HandleEventsForBackgroundUrl`; Android: `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC`.
+Custom downloader: implement `IWebAppUpdateDownloader` and finish with `WebAppHost.InstallDownloadedAsync(update, file)`.
 
 - `UseAppDeviceBridge` listens on loopback port 5780 unless the app sets a port of its own.
 - Without MAUI: `services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => …).AddRpiCameraBridge().AddTunnel().AddBridge<ClipboardBridge>()))`.
@@ -677,6 +742,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Maps` | `AddMapsBridge(o => { o.Basemap; o.Catalog; o.CatalogPublicKey; o.Directions.Router; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` — channel actions are `NotificationChannelAction(Identifier, Title, ActionType, RequiresUnlock)`; set `RequiresUnlock: true` on actions with a real-world effect ("Open Garage") |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
+| `.AutoUpdate` | `AddWebAppAutoUpdate(o => …)` — `WebAppAutoUpdateOptions`: `RequiredInternetAccess` (`Any`), `RequireCharging`, `UseMeteredConnection` (on), `RegisterTransferService` (on) | none — not a bridge; background web app updates (Shiny.Jobs + Shiny.Net.Http) |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
 | `.ShareTarget` | `AddShareTargetBridge(o => o.Root = "data")` — `ShareTargetOptions`: `Root` (`data`), `MaxPending` (20), `MaxFiles` (20), `MaxTextLength`, `AcceptCommandLineFiles` (Linux, off) | `IShareTargetBridge` — text, links and files other apps share to this one, queued for the page; see Receiving shares below |
 | `.Health` | `AddHealthBridge()` | `IHealthBridge` |
