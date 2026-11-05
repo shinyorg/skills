@@ -218,6 +218,8 @@ triggers:
   - adapter profile
   - Shiny.Obd
   - AddShinyObdBluetoothLE
+  - AddShinyObdLinuxBluetoothLE
+  - Shiny.Obd.Ble.Linux
 ---
 
 # Shiny.Obd Skill
@@ -903,19 +905,19 @@ guessing. If they name a target platform but no adapter:
 
 WiFi is the only transport with no platform caveats at all.
 
-**Critical rule for non-mobile targets.** `AddShinyObdBluetoothLE()` registers the BLE manager itself
-**only on iOS and Android**. On Linux, Blazor WebAssembly, Windows and Apple desktop you must
-generate a `services.AddBluetoothLE()` call as well, from the platform package the app references:
+**BLE manager registration.** `AddShinyObdBluetoothLE()` calls Shiny.BluetoothLE's
+`AddBluetoothLE()` itself on iOS, Android, Mac Catalyst, macOS, Windows and Blazor WebAssembly. Do
+**not** generate a separate `services.AddBluetoothLE()` call (it is idempotent, so an existing one is
+harmless — no need to remove it). **Linux is the only exception**: the BlueZ manager lives in
+`Shiny.BluetoothLE.Linux`, so for a Linux app reference the **`Shiny.Obd.Ble.Linux`** package and
+generate this single call instead of `AddShinyObdBluetoothLE()`:
 
 ```csharp
-services.AddBluetoothLE();          // Shiny.BluetoothLE.Linux / .Blazor / .BluetoothLE
-services.AddShinyObdBluetoothLE();  // order does not matter — DI resolves lazily
+services.AddShinyObdLinuxBluetoothLE(); // Linux only — registers BlueZ manager + OBD stack
 ```
 
-Never try to make Shiny.Obd.Ble do this for the user: `Shiny.BluetoothLE.Linux` and
-`Shiny.BluetoothLE.Blazor` both ship `net10.0` assemblies declaring
-`Shiny.AddBluetoothLE(IServiceCollection)`, so referencing both is a CS0121 ambiguity. Omitting the
-call throws an `ObdException` naming the package to install.
+Never reference `Shiny.Obd.Ble.Linux` from a Blazor WebAssembly or mobile project — it pulls in D-Bus.
+Omitting it on Linux throws an `ObdException` naming the package to install.
 
 **Never generate two of `AddShinyObdWifi()` / `AddShinyObdSerial()` / `AddShinyObdBluetoothLE()` / `AddShinyObdBluetooth()` for a
 fallback chain.** `TryAdd` means the first one registered wins and the rest are silently ignored. For
@@ -1201,14 +1203,13 @@ await connection.Connect();
 
 ```csharp
 // In MauiProgram.cs
-builder.Services.AddBluetoothLE();  // Shiny BLE v4 — namespace: Shiny
-builder.Services.AddShinyObdBluetoothLE(new BleObdConfiguration
+builder.Services.AddShinyObdBluetoothLE(new BleObdConfiguration // namespace: Shiny — also registers the BLE manager
 {
     DeviceNameFilter = "OBD"
 });
 ```
 
-`AddShinyObdBluetoothLE` registers `BleObdConfiguration` and `IObdDeviceScanner` (`BleObdDeviceScanner`). Call `AddBluetoothLE()` separately for platform BLE support.
+`AddShinyObdBluetoothLE` registers the Shiny.BluetoothLE manager, `BleObdConfiguration`, `IObdDeviceScanner` (`BleObdDeviceScanner`), `IObdTransport` and `IObdConnection`. No separate `AddBluetoothLE()` call is needed.
 
 ### Explicit adapter profile
 
@@ -1383,6 +1384,6 @@ service listed, iOS 14+ blocks the mDNS advertisement outright rather than promp
 - A null is always an absence, never a value, across this library: `FuelTypes.Describe`, `ObdStandards.Describe`, `MonitorIds.Describe`, `OxygenSensorVoltage.ShortTermFuelTrim`, `InUsePerformanceRatio.Ratio`, `OnBoardTestResult.Value` and the VIN decoder all answer null rather than a placeholder. Never coerce these to 0 or "Unknown" — these values reach users and AI prompts, where a placeholder reads as a fact about the vehicle.
 - `BleObdDeviceScanner` deduplicates by peripheral UUID — each device is reported once.
 - BLE scans match on `Peripheral.Name ?? AdvertisementData.LocalName`, never `Peripheral.Name` alone (null on iOS while scanning), and are never filtered by `ServiceUuid` (iOS matches that against the advertisement, which ELM327 clones don't carry). See "BLE scanning rules" above.
-- For MAUI, register BLE with `builder.Services.AddBluetoothLE()` (namespace `Shiny`, no `UseShiny` needed in v4), then call `builder.Services.AddShinyObdBluetoothLE()` to register OBD BLE services.
-- `AddShinyObdBluetoothLE` registers `BleObdConfiguration` and `IObdDeviceScanner` (`BleObdDeviceScanner`).
+- For MAUI, call `builder.Services.AddShinyObdBluetoothLE()` (namespace `Shiny`) — it registers the Shiny.BluetoothLE manager too, so never generate a separate `AddBluetoothLE()`. On Linux use `AddShinyObdLinuxBluetoothLE()` from `Shiny.Obd.Ble.Linux` instead.
+- `AddShinyObdBluetoothLE` registers the BLE manager, `BleObdConfiguration`, `IObdDeviceScanner` (`BleObdDeviceScanner`), `IObdTransport` and `IObdConnection`.
 - A full MAUI sample app exists in `samples/Sample.Maui/`. It is both a client (scan → select → dashboard) and an **adapter emulator** — see "Testing without a vehicle" above. When a user asks how to test OBD code without a car, point them at it rather than suggesting they mock `IObdConnection`.
