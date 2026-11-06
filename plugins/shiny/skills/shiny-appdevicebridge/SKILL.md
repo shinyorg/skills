@@ -18,7 +18,6 @@ triggers:
   - BridgeCallers
   - IAppDeviceBridgeServerExtension
   - IWebAppMainThread
-  - IWebAppBackgroundInvoker
   - Shiny.AppDeviceBridge.WebView
   - WebAppHost
   - WebAppHostView
@@ -463,6 +462,11 @@ triggers:
   - camera over Bluetooth LE
   - AddTrayIconBridge
   - AddQuickEntryBridge
+  - AddWindowBridge
+  - IWindowBridge
+  - WindowBridgeOptions
+  - HideOnClose
+  - tray app
   - Shiny.AppDeviceBridge.Desktop
   - quick entry
   - global hotkey
@@ -474,7 +478,9 @@ triggers:
   - AddFoldersBridge
   - photo picker
   - folder picker
-  - background.js
+  - IsPageListening
+  - WebAppInvocationResult
+  - background work
   - ShinyHttpServerBuilder
   - AddShinyHttpServer
   - IsLocalConnection
@@ -676,6 +682,12 @@ size/`Sha256` when given, and the archive opening; an exception is offline, `Inv
 generate `GetUpdateInfoAsync` (removed), `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFactory` —
 those don't exist.
 
+**Store policy.** Over-the-air web updates are for fixes, content and refinements within the app's reviewed purpose
+(Apple DPLA 3.3.1(B), Google Play's WebView exemption, Microsoft Store 10.2.2). Never generate hidden or dormant features
+switched on after review (Apple 2.5.19). The **Mac App Store** (macOS and Mac Catalyst heads) is stricter
+(2.4.5(iv) and (vii)): fixes only, or leave `UpdateProvider` unset in that build. **Microsoft Store games and Xbox
+products** must update only through the Store (10.2.5): no `UpdateProvider` there. See https://shinylib.net/appdevicebridge/faq/.
+
 **The splash screen.** `WebAppHostView` shows a splash until the page posts `POST /_bridge/host/ready`
 (`IHostBridge.ReadyAsync()` / `new HostBridge().ready()`; the Blazor client sends it automatically) or `PageReadyTimeout`
 (15 s) passes; `WaitForPageReady = false` hides it on WebView navigation instead. A required web app update installs on the
@@ -711,6 +723,34 @@ Custom downloader: implement `IWebAppUpdateDownloader` and finish with `WebAppHo
 - Platform setup is the underlying library's: usage descriptions, manifest permissions, entitlements. Loopback
   needs cleartext to `127.0.0.1` on Android and `NSAllowsLocalNetworking` on Apple platforms.
 
+## Native calls and background work
+
+A native call — `gps`, `geofence`, `push.received`, `wearables.message`, `hub:{name}`, `tray.menu`, … — goes to the page
+only while it's open, listening and accepts within `PageAcceptTimeout` (2 s). Otherwise it's not handled
+(`WebAppInvocationResult.NotHandled`, `Handled == false`) and nothing in the web app runs; a late accept is refused.
+
+**Background work is the app's own native code, the usual MAUI way:** a Shiny delegate (`IGpsDelegate`,
+`IGeofenceDelegate`, `IPushDelegate`, …) or a Shiny `IJob` (`services.AddJob<T>()`). Shiny runs every registered
+delegate, so the app's runs alongside the bridge's, page open or not. Generate that when the user wants something to
+happen with the app backgrounded or closed.
+
+```csharp
+// in the MAUI app, next to AddGpsBridge(): runs whether or not a page is open
+services.AddGps<TripGpsDelegate>();
+
+sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
+{
+    public Task OnReading(GpsReading reading) => trips.AppendAsync(reading);
+}
+```
+
+- When only one side should act (finish a purchase, reply to a watch), native code checks
+  `WebAppInvoker.IsPageListening(name)`, or calls `invoker.InvokeAsync(...)` itself and acts when `!result.Handled`.
+- Share logic between the Blazor app and the MAUI app through a class library both reference.
+- **Never generate** `background.js`, `appdevicebridge.on(...)`, `WebAppHostOptions.BackgroundScript`, `AddBackgroundHandler`,
+  `IWebAppBackgroundHandler`, `BackgroundHandlerTimeout`, `WebAppInvocationTarget`, `AddWebAppJob`, `job:{name}` calls,
+  `JobRun` or `Shiny.AppDeviceBridge.Jobs` — all removed. Nothing downloaded runs outside the WebView.
+
 ## Bridge packages
 
 | Package | Registration (on the bridge builder) | Client package / interface |
@@ -720,7 +760,7 @@ Custom downloader: implement `IWebAppUpdateDownloader` and finish with `WebAppHo
 | `Shiny.AppDeviceBridge.Maui` | `AddDeviceBridge()`, `AddSensorsBridge()` | `Shiny.AppDeviceBridge.Client`: `IDeviceBridge` (`DeviceJsonContext`) — browser (`http`/`https`/`mailto`/`tel` only), map, share (text or file roots, ≤ 20), haptics, vibrate (≤ 5 s), keep-awake (`PUT` 501 where it does not hold), clipboard (≤ 1 MB), over MAUI Essentials, each 501 alone where missing; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
-| `.RegionGeofencing` | `AddRegionGeofenceBridge(cfg => cfg.AddGeocoderRegionSet(name, GeocoderRegionLevel.X) / .AddDocumentRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:) / .AddNorthAmericanRegions() / .AddNorthAmericanCities(withinMeters:) / .AddRegionSet(name, IRegionSource), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IRegionGeofencesBridge` (`RegionGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`regiongeofence.change`; background.js `regiongeofence`). Backed by Shiny.Geofencing.Regions; region sets are registered in C# only, and the app must not also call `AddRegionGeofencing`. Document sets (`AddDocumentRegionSet`, `AddNorthAmerican*`) need the app to reference Shiny.Geofencing.Regions.DocumentDb and register a SQLite store with the geometry mapped (`MapSpatialProperty` / `MapNorthAmericaData()`, plus `AddNorthAmericaSeeder()` for the dataset). `region`: a geocoder set's placemark always; anything else only through `o.RegionSerializerOptions` metadata (pass the store's `JsonSerializerOptions`), null without it. `start`: 409 `geofence_refused`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
+| `.RegionGeofencing` | `AddRegionGeofenceBridge(cfg => cfg.AddGeocoderRegionSet(name, GeocoderRegionLevel.X) / .AddDocumentRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:) / .AddNorthAmericanRegions() / .AddNorthAmericanCities(withinMeters:) / .AddRegionSet(name, IRegionSource), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IRegionGeofencesBridge` (`RegionGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`regiongeofence.change`; native call `regiongeofence`). Backed by Shiny.Geofencing.Regions; region sets are registered in C# only, and the app must not also call `AddRegionGeofencing`. Document sets (`AddDocumentRegionSet`, `AddNorthAmerican*`) need the app to reference Shiny.Geofencing.Regions.DocumentDb and register a SQLite store with the geometry mapped (`MapSpatialProperty` / `MapNorthAmericaData()`, plus `AddNorthAmericaSeeder()` for the dataset). `region`: a geocoder set's placemark always; anything else only through `o.RegionSerializerOptions` metadata (pass the store's `JsonSerializerOptions`), null without it. `start`: 409 `geofence_refused`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
@@ -757,9 +797,8 @@ Custom downloader: implement `IWebAppUpdateDownloader` and finish with `WebAppHo
 | `.Camera` | `AddCameraBridge(o => …)` | `ICameraBridge` — this device's camera driven from a page anywhere; viewfinder MJPEG at `camera/preview` for an `<img>` (not Linux) |
 | `.Folders` | `AddFoldersBridge()` — also registers `FolderRoots` for folders the app adds by path | `IFoldersBridge` |
 | `.Database` | `AddDatabaseBridge(o => o.StatementTimeout = …)`; another engine: `bridge.Services.AddDatabaseDriver<T>()` | `IDatabaseBridge` — SQLite files in the file roots, or a driver's connections; all platforms — see Database below |
-| `.Desktop` | `AddTrayIconBridge()`, `AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")` | `Shiny.AppDeviceBridge.Desktop.Client`: `ITrayBridge`, `IQuickEntryBridge` (desktop only; `501` on mobile) |
+| `.Desktop` | `AddTrayIconBridge()`, `AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")`, `AddWindowBridge(o => o.HideOnClose = true)` | `Shiny.AppDeviceBridge.Desktop.Client`: `ITrayBridge`, `IQuickEntryBridge`, `IWindowBridge` (desktop only; `501` on mobile; the window bridge is `501` on Mac Catalyst too) |
 | `.RpiCamera` | `AddRpiCameraBridge(o => …)` (either builder — a headless Pi's too) | `IRpiCameraBridge` — snapshots, captures into a file root, controls; live MJPEG at `rpicamera/stream` for an `<img>`; `ICameraService.StreamToAsync(stream)` for a pipe with no HTTP, read with `ReadFramesAsync` (Linux + native shim only) |
-| `.Jobs` | `AddWebAppJob(name, configure)` | native call `job:{name}` with `JobRun` |
 | `.Tunnel` | `AddTunnel(o => o.Host = QuickTunnelHost.Pinggy)` (either builder) | none — the app opens and closes it (`AppDeviceBridgeTunnel.StartAsync(token)` / `StopAsync()`) from its own UI or endpoints |
 
 Client packages are `Shiny.AppDeviceBridge.{Bridge}.Client`, registered with `Add{Name}BridgeClient()` — the
@@ -858,18 +897,10 @@ behind `/_bridge/wearables`, backed by Shiny.Wearables (registers `AddWearables<
   return at once with a `WearableTransferTicket`; `wearables.completed` reports the id delivered/failed/cancelled.
   A file must be in a root on disk and stay there until `wearables.completed`. `GetPendingTransfersAsync`, `CancelTransferAsync(id)`.
 - **Watch → web app:** events `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`,
-  `wearables.file`, `wearables.completed`. To act on traffic — including in the background — register a native-call
-  handler (`wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`) in the page or
-  `background.js`: the platform wakes the app, and a `wearables.message` handler's **return value is the reply**.
+  `wearables.file`, `wearables.completed`. To act on traffic, register a native-call handler (`wearables.message`,
+  `wearables.context`, `wearables.transfer`, `wearables.file`) in the page; a `wearables.message` handler's **return value
+  is the reply**. With no page open, the app's own Shiny.Wearables delegate is what answers.
   Received files are filed to `data/wearables/{id}/{name}` and arrive as a `BridgeFile` for the files bridge.
-
-```js
-// background.js
-appdevicebridge.on("wearables.message", async ({ path, data }) => {
-    if (path === "steps") return { today: 8421 };
-    return null;
-});
-```
 
 The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
 Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
@@ -891,7 +922,8 @@ itself unless the app already registered `ILiveActivityManager`). iOS 16.2+ and 
 - Errors: `404` unknown id, `400` no content / progress outside 0–1, `502 live_activity_failed` when ActivityKit refuses.
 - **`RequestPushToken` defaults to true and needs the `aps-environment` entitlement on iOS** (ActivityKit otherwise fails
   with "ActivityInput error 0"). Generate `RequestPushToken: false` unless the app is set up for push.
-- **Server-driven updates:** send the tokens to your server from a native-call handler in `background.js` (or the page):
+- **Server-driven updates:** send the tokens to your server from the page, and from the app's native code for tokens
+  issued with no page open:
   `liveactivities.token` (`{ activityId, token }`, per activity) and `liveactivities.starttoken` (`{ token }`, iOS 17.2+
   push-to-start). Events `liveactivities.started` and `liveactivities.state` carry `{ id, state, pushToken }`.
 
@@ -914,9 +946,9 @@ purchasing, **not** Apple Pay / Google Pay card processing.
   purchase_not_found` usually means it was already finished. Google refunds purchases not finished within 3 days.
 - At startup, run `GetUnfinishedAsync()` through the same path. `GetEntitlementsAsync()` for what is owned;
   `RestoreAsync()` only from a "Restore Purchases" button (Apple may prompt sign-in); `ShowManageSubscriptionsAsync(new ManageSubscriptionsRequest(productId?))`.
-- **Out-of-band updates:** `OnUpdatedAsync` / a `purchases.updated` handler in `background.js` — Ask to Buy approvals,
-  renewals, refunds (`State: Revoked` → revoke), other devices. Idempotent on `TransactionId`; generate the background.js
-  handler so purchases arriving with no page open are still verified and finished.
+- **Out-of-band updates:** `OnUpdatedAsync` / a `purchases.updated` handler — Ask to Buy approvals, renewals, refunds
+  (`State: Revoked` → revoke), other devices. Idempotent on `TransactionId`. Purchases arriving with no page open are the
+  native app's to verify and finish — its own purchase delegate, checking `WebAppInvoker.IsPageListening("purchases.updated")`.
 - Errors by `BridgeException.Code`: `503 store_unavailable|network`, `403 not_allowed`, `404 product_not_found`,
   `409 product_unavailable|no_user_interface|invalid_state`, `400 developer_error`, `502 verification_failed|purchase_failed`.
 
@@ -1054,9 +1086,8 @@ Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager +
 
 ## Hubs
 
-`AddHubsBridge(...)` serves Universal Hubs whose logic lives in the web app, so a hub's behavior ships with a web app
-update. The app hosts them over BLE, Wi-Fi (mDNS) and Multipeer on the bridge's own server; every client call reaches the
-web app as the native call `hub:{name}` — the page while open, otherwise background.js — carrying a `HubCall`, and the
+`AddHubsBridge(...)` serves Universal Hubs whose logic lives in the web app page. The app hosts them over BLE, Wi-Fi (mDNS) and Multipeer on the bridge's own server; every client call reaches the
+web app as the native call `hub:{name}`, answered by the page while it's open, carrying a `HubCall`, and the
 `HubCallReply` goes back to the client. Clients are ordinary Universal Hubs clients (`AddUniversalHubClient<TContract>`)
 and can't tell the logic is in a page.
 
@@ -1100,7 +1131,7 @@ public sealed class GameHub(GameEngine engine) : WebAppHub
 - `HubException(type, message)` keeps its type for the client (`BleHubRemoteException.RemoteErrorType`); any other
   exception is typed by its class name. `Abort(reason)` ends the caller's session after the reply. Throw from
   `OnConnectedAsync` to refuse a client.
-- With no page and no background.js answering `hub:{name}`, connections are refused and calls fail with `HubUnavailable`.
+- With no page answering `hub:{name}`, connections are refused and calls fail with `HubUnavailable`.
   Calls get the invoker's `PageInvocationTimeout` (25 s); streams run until they end or the caller leaves.
 - Plain JS/TS pages: `import { hostHub } from "/_bridge/hubs/client.js"` — `hostHub(definition, { MakeMove(cell) {…},
   async *Watch() {…}, onConnected(c) {…} })`, an async generator being a stream; `throw new HubError(type, message)`.
@@ -1265,10 +1296,41 @@ var recording = await recorder.StopAsync();                // recording.File is 
   `NSMicrophoneUsageDescription` for the microphone; packaged Windows `graphicsCapture`; Linux xdg-desktop-portal +
   GStreamer or ffmpeg.
 
+## Tray apps (window bridge)
+
+A tray app runs with no window and no taskbar/Dock entry, only its tray icon. Generate `AddWindowBridge` next to
+`AddTrayIconBridge`; the page keeps running while the window is hidden, so tray and quick entry handlers stay in the page.
+
+```csharp
+bridge.AddTrayIconBridge().AddWindowBridge(o =>
+{
+    o.HideOnClose = true;                                                     // close hides instead of quitting
+    o.StartHidden = Environment.GetCommandLineArgs().Contains("--autostart"); // login launch lands in the tray
+});
+```
+
+```csharp
+// the page: the tray menu brings the window back and quits
+await nativeCalls.HandleAsync("tray.menu", TrayJsonContext.Default.TrayMenuSelection, async s =>
+{
+    if (s.ItemId == "open") await window.ShowAsync();     // IWindowBridge
+    if (s.ItemId == "quit") await window.QuitAsync();
+});
+```
+
+- The page must put its tray icon up at startup (it still loads when `StartHidden`): closing only hides, and
+  `HideAsync` only succeeds (else `409 no_tray_icon`), while a tray icon is showing. `RequireTrayIcon = false` turns that
+  off for an app that comes back another way.
+- Hidden = off the taskbar (Windows, Linux), out of the Dock and app switcher (macOS accessory app). `window.visibility`
+  reports every change. `QuitAsync` answers, then quits.
+- macOS (AppKit), Windows, Linux (GTK4); Mac Catalyst, Android and iOS answer `501`.
+
 ## Quick entry
 
-A prompt window over other applications. The page configures it and answers submissions; the answer also goes to
-`background.js` when no page is open, so register the handler as a native call, not only an event:
+A prompt window over other applications. The page configures it and answers submissions — the app and its page are
+running whenever quick entry (or a tray icon) is there, so generate the handlers in the page, not native code. Native code
+can also set the prompt with `QuickEntryBridge.SetPromptAsync(…)` (throws `ArgumentException` / `PlatformNotSupportedException`;
+null when the window shows custom content). Register the page's handler as a native call, not only an event:
 
 ```csharp
 await quickEntry.SetPromptAsync(new QuickEntryPromptInput(Placeholder: "Ask…", Suggestions: [new("Sync now", Value: "sync")]));
@@ -1409,9 +1471,9 @@ Rules:
    `SetAsync<T>(…)` with a source-generated `JsonTypeInfo<T>`. Never reflection-based `JsonSerializer` calls.
 4. **Files move by `BridgeFile { Root, Path }`.** Bridges that produce files (photos, exports) return one; read it
    through `IFilesBridge`. Bridges that take a file (share, notification image, tray icon) take one.
-5. **Native calls** — background work handed to the page — are typed:
-   `nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => …)`. The same names run in
-   `background.js` when no page is open; that script is JavaScript (Jint), with `fetch` to `/_bridge`.
+5. **Native calls** — native events handed to the open page — are typed:
+   `nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => …)`. With no page open nothing in
+   the web app runs; background work is the app's own Shiny delegates and jobs.
 
 ## A JavaScript / TypeScript page
 
@@ -1479,7 +1541,7 @@ copied into the `Root` file root under `shares/{id}/` as `BridgeFile`s, read thr
   - Windows: the Share Target manifest declaration, or file type associations.
   - AppKit: override `OpenUrls` in the app delegate and call `ShareTarget.ReceiveAsync`.
   - Linux: `%F` in the .desktop `Exec` plus `AcceptCommandLineFiles = true`.
-- 501 only when the `Root` file root doesn't exist. Shares never go to `background.js`.
+- 501 only when the `Root` file root doesn't exist. Shares only ever reach a page.
 - Outgoing sharing is a different bridge: `IDeviceBridge.ShareAsync` (`device/share`).
 
 ## Database
