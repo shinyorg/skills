@@ -8,7 +8,7 @@ A service-first dialog system that emulates the classic `alert`, `confirm`, `pro
 
 ### MAUI
 
-Registered automatically by `UseShinyControls()`. The overlay auto-attaches to whichever page is current **at the time of each call** — no XAML or OverlayHost required, and dialogs keep working after navigating between pages.
+Registered automatically by `UseShinyControls()`. The overlay auto-attaches to whichever page is current **at the time of each call** — no XAML or OverlayHost required, and dialogs keep working after navigating between pages. Dialogs share the page's overlay root with toasts (installed before render by `UseShinyControls()`; see toast.md for the `page.Content` consequence and the `InstallPageOverlayBeforeRender` opt-out).
 
 ```csharp
 builder.UseMauiApp<App>().UseShinyControls();
@@ -76,7 +76,7 @@ public class MyViewModel(IDialogService dialogs)
 |---|---|---|
 | `Alert(title, message, okText = "OK", configure?)` | `Task` | Single dismiss button. |
 | `Confirm(title, message, okText = "Yes", cancelText = "No", configure?)` | `Task<bool>` | `true` on confirm, `false` on cancel. |
-| `Prompt(title, message, placeholder = null, okText = "OK", cancelText = "Cancel", initialValue = null, maxLength = null, keyboard/inputType = null, configure?)` | `Task<PromptResult>` | Text field + confirm/cancel. `initialValue` pre-fills the field, `maxLength` caps the length (`null` = no limit), and the keyboard arg picks the input mode — **MAUI** takes a `Keyboard` (`Keyboard.Email`, `Keyboard.Numeric`, …); **Blazor** takes an HTML `inputType` string (`"email"`, `"number"`, `"password"`, …). |
+| `Prompt(title, message, placeholder = null, okText = "OK", cancelText = "Cancel", initialValue = null, maxLength = null, keyboard/inputType = null, configure?)` | `Task<PromptResult>` | Text field + confirm/cancel. `initialValue` pre-fills the field, `maxLength` caps the length (`null` = no limit), and the keyboard arg picks the input mode — **MAUI** takes a `Keyboard` (`Keyboard.Email`, `Keyboard.Numeric`, …); **Blazor** takes an HTML `inputType` string (`"email"`, `"number"`, `"password"`, …). On MAUI the field is focused (initial value selected) once the dialog has animated in — don't generate code that hunts for the dialog's Entry to focus it. |
 | `ActionSheet(title, options, cancelText = "Cancel", destructive = null, configure?)` | `Task<string?>` | One button per option + cancel. Returns the chosen option text, or `null` if cancelled. `destructive` (must match an option) renders that one in red. Defaults to a bottom slide-up, anchored to the bottom of the screen. |
 
 `configure` is an optional `Action<DialogConfig>` for per-call animation and styling. `options` is an `IReadOnlyList<string>`.

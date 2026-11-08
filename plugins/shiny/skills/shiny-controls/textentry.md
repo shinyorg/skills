@@ -7,7 +7,9 @@ hint text for validation errors, character count, input masking, an autofill/aut
 Two things to know before generating code:
 
 - **`Variant="Floating"` is the M3 outlined notch.** The label rides up ONTO the top border stroke and
-  sits in a gap cut out of the outline. It never overlaps the text being typed. `Classic` (the default)
+  sits in a gap cut out of the outline. It never overlaps the text being typed. It floats on focus and
+  whenever the field holds text (typed, bound or set from code), so never float it yourself or pad
+  `Text` to force it up. `Classic` (the default)
   leaves the placeholder to the native control.
 - **Tools are inline by default.** An icon or label sits on the field itself with no separator and no
   grey block, tinted with the on-surface-variant token. Set `ToolStyle="Addon"` for the older Bootstrap
@@ -275,6 +277,10 @@ When `Mask` is set:
     <shiny:ClearButtonTool />
 </shiny:TextEntry>
 ```
+
+### Native chrome (Material 3, Windows, macOS)
+
+Never strip platform chrome off TextEntry yourself (no handler mappers, `Style` swaps or `OnHandlerChanged` tweaks). The internal field is already borderless on every head. On Android with `<UseMaterial3>true</UseMaterial3>` it stays on MAUI's classic `EntryHandler`/`EditorHandler`, so no `TextInputLayout` box or native floating hint shows, and `Variant` is never changed for you. On Windows the hover/focus/disabled underline and fill are removed via theme-resource overrides. On macOS AppKit, reference `Shiny.Maui.Controls.Desktop`, which polishes the `NSTextField`. The same applies to TagEntry, AutoCompleteEntry, EntryCell and the quick entry prompt.
 
 ## Blazor
 
