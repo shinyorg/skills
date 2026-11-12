@@ -1,4 +1,4 @@
----
+--
 name: shiny-documentdb
 description: Generate code using Shiny.DocumentDb, a schema-free multi-provider JSON document store for .NET supporting SQLite, LiteDB, CosmosDB, MongoDB, Azure Table Storage, Amazon DynamoDB, Amazon DocumentDB, Redis, RavenDB, Google Firestore, DuckDB, IndexedDB (Blazor WASM), MySQL, MariaDB, SQL Server, PostgreSQL, CockroachDB, and Oracle with LINQ queries, spatial/geo queries, and AOT support
 auto_invoke: true
@@ -1821,6 +1821,8 @@ await store.SetProperty<Order>("order-1", o => o.ShippingAddress.City, "Portland
 // Remove a field via json_remove
 await store.RemoveProperty<User>("user-1", u => u.Email);
 ```
+
+`SetProperty` and `ExecuteUpdate` values are scalars: string, char, numbers, bool, enums, the date/time types, Guid, or null. Each is written exactly as an insert would have serialized it under the store's options. An enum is written as its number, or as its member name with a `JsonStringEnumConverter`. `NaN`/`Infinity` throw unless `AllowNamedFloatingPointLiterals` is on. This path is AOT-safe. To replace a nested object or collection, use `Update` or `Upsert`.
 
 ### Remove / Clear
 
