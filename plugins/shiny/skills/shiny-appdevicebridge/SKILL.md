@@ -342,6 +342,16 @@ triggers:
   - Shiny.AppDeviceBridge.Biometrics.Client
   - Shiny.Biometrics
   - biometrics
+  - IPasskeysBridge
+  - AddPasskeysBridge
+  - AddPasskeysBridgeClient
+  - PasskeysBridgeClient
+  - PasskeyCreateRequest
+  - PasskeyAssertRequest
+  - passkeys
+  - passkey
+  - webauthn
+  - fido2
   - face id
   - touch id
   - fingerprint
@@ -571,12 +581,12 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine), Shiny.Core's `IBattery` and `IConnectivity`, and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Hubs, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Hubs, Wifi, HttpTransfers, Database, Jobs (plain `net11.0`), Gps
     (GPS/motion), Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
-  - **MAUI** — AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
+  - **MAUI** — AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders, Desktop (tray, quick entry), and the device, sensors and passkeys bridges inside
     `Shiny.AppDeviceBridge.Maui` itself. They reference
     `Shiny.AppDeviceBridge.Maui`, extend `MauiAppDeviceBridgeBuilder`, and do their own MAUI registration through
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
@@ -610,7 +620,7 @@ calls device features from that web app, updates it over the air, or writes a br
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each on the bridge builder. Host, settings, files and
   invoke are built in. `AddAppBridge()` (`app/…`, over Shiny.Core) ships with `Shiny.AppDeviceBridge`; `AddDeviceBridge()`
-  (`device/…`, over MAUI Essentials) and `AddSensorsBridge()` (`/_bridge/sensors`) ship with `Shiny.AppDeviceBridge.Maui`.
+  (`device/…`, over MAUI Essentials) `AddSensorsBridge()` (`/_bridge/sensors`) and `AddPasskeysBridge(...)` (`/_bridge/passkeys`) ship with `Shiny.AppDeviceBridge.Maui`.
 - **The event stream carries only named topics.** `GET /_bridge/events?topics=a,b` opens it; the first event,
   `bridge.stream`, carries the id for `PUT /_bridge/events/{id}` `{ "topics": [...] }`. The host runs each topic's
   native source only while a stream names it, and unhooks it when the page drops it, disconnects, or the source throws
@@ -757,7 +767,7 @@ sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
 | --- | --- | --- |
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `Shiny.AppDeviceBridge` (the server) | `AddAppBridge(store => store.AppleAppId = …, startup => startup.Arguments.Add(…))` | `Shiny.AppDeviceBridge.Client`: `IAppBridge` (`AppJsonContext`) — info, orientation, screen (`app.screen`), settings, store (Shiny.AppStore's `IAppStore`; 501 unless `store` is passed; `OpenReviewPageAsync`), launch at login (Shiny.Core's `IAppStartupInstaller`; 409 `startup_failed`), battery (`app.battery` carries `BatteryInfo` with energy saver) and connectivity, from Shiny.Core's `IPlatform`, `IScreenInfo`, `IBattery` and `IConnectivity`. No MAUI; a host without MAUI calls `services.AddBattery()` / `AddConnectivity()` itself |
-| `Shiny.AppDeviceBridge.Maui` | `AddDeviceBridge()`, `AddSensorsBridge()` | `Shiny.AppDeviceBridge.Client`: `IDeviceBridge` (`DeviceJsonContext`) — browser (`http`/`https`/`mailto`/`tel` only), map, share (text or file roots, ≤ 20), haptics, vibrate (≤ 5 s), keep-awake (`PUT` 501 where it does not hold), clipboard (≤ 1 MB), over MAUI Essentials, each 501 alone where missing; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
+| `Shiny.AppDeviceBridge.Maui` | `AddDeviceBridge()`, `AddSensorsBridge()`, `AddPasskeysBridge("example.com")` (relying party ids required; each needs the app's domain association — Apple `webcredentials:` + AASA, Android `assetlinks.json`) | `Shiny.AppDeviceBridge.Client`: `IDeviceBridge` (`DeviceJsonContext`) — browser (`http`/`https`/`mailto`/`tel` only), map, share (text or file roots, ≤ 20), haptics, vibrate (≤ 5 s), keep-awake (`PUT` 501 where it does not hold), clipboard (≤ 1 MB), over MAUI Essentials, each 501 alone where missing; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event; `IPasskeysBridge` (`PasskeysJsonContext`) — WebAuthn passkeys, iOS / Mac Catalyst / Android / Windows, `501` on AppKit and Linux; see Passkeys below |
 | `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
 | `.RegionGeofencing` | `AddRegionGeofenceBridge(cfg => cfg.AddGeocoderRegionSet(name, GeocoderRegionLevel.X) / .AddDocumentRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:) / .AddNorthAmericanRegions() / .AddNorthAmericanCities(withinMeters:) / .AddRegionSet(name, IRegionSource), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IRegionGeofencesBridge` (`RegionGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`regiongeofence.change`; native call `regiongeofence`). Backed by Shiny.Geofencing.Regions; region sets are registered in C# only, and the app must not also call `AddRegionGeofencing`. Document sets (`AddDocumentRegionSet`, `AddNorthAmerican*`) need the app to reference Shiny.Geofencing.Regions.DocumentDb and register a SQLite store with the geometry mapped (`MapSpatialProperty` / `MapNorthAmericaData()`, plus `AddNorthAmericaSeeder()` for the dataset). `region`: a geocoder set's placemark always; anything else only through `o.RegionSerializerOptions` metadata (pass the store's `JsonSerializerOptions`), null without it. `start`: 409 `geofence_refused`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
@@ -1045,6 +1055,26 @@ Linux answers `501`.
 - `Reason` is required (≤ 256 chars, as are the other texts) or `400`. `409 cannot_prompt`: no Android activity or a
   missing `NSFaceIDUsageDescription`. Windows Hello always offers its PIN.
 - **The result is a local yes/no for the page's UI.** Never send it to a server as proof of identity.
+
+## Passkeys
+
+`AddPasskeysBridge("example.com")` (in `Shiny.AppDeviceBridge.Maui`; contracts in `Shiny.AppDeviceBridge.Client`) puts WebAuthn passkeys behind `/_bridge/passkeys`, backed by `Microsoft.Maui.Authentication.Passkeys`
+(.NET MAUI 11 Essentials). macOS (AppKit) and Linux answer `501`. **A hosted page is on loopback, so `navigator.credentials`
+can't make passkeys for your domain — generate bridge calls, never `navigator.credentials.create/get`, for a hosted page**
+(fall back to `navigator.credentials` only when `GetStatusAsync().Supported` is false in a plain browser).
+
+- Pass every relying party id to `AddPasskeysBridge` (host names, not URLs). Options for any other id → `403 rp_not_allowed`.
+- The page is a pass-through: fetch options from the relying party server, then
+  `CreateAsync(new PasskeyCreateRequest(optionsJsonElement))` → `PasskeyCreateResult { Id, Response }` or
+  `AssertAsync(new PasskeyAssertRequest(optionsJsonElement))` → `PasskeyAssertResult { Id, UserHandle, Response }`, and
+  POST `Response` (a `JsonElement`, `unknown` in TypeScript) back to the server. Never build challenges or verify in the
+  page or app — the server does.
+- Creation options must have `rp.id`; request options must have `rpId` (no origin to default it from) — else `400`.
+- `PreferImmediatelyAvailable: true` keeps it on-device (no QR / hybrid). Ignored on Windows.
+- Errors by `BridgeException.Code`: `409 cancelled` (sheet dismissed — treat like `NotAllowedError`), `409 failed` (no
+  domain association, no matching passkey; `Message` has the platform's reason), `501` unsupported OS.
+- Setup per relying party: Apple `com.apple.developer.associated-domains` = `webcredentials:example.com` + the site's
+  `apple-app-site-association`; Android the site's `assetlinks.json` with `delegate_permission/common.get_login_creds`.
 
 ## NFC
 
@@ -1509,7 +1539,7 @@ stop();    // unsubscribes
   cancelled. The app's own roots (`data`, `cache`) cannot be replaced.
 - On Android a picked folder has no path: the files bridge works, but share, transfers and notification images
   refuse it.
-- A plain `net10.0` project referencing `.Folders` (a shared setup project used by mobile heads) gets GirCore's source
+- A plain `net11.0` project referencing `.Folders` (a shared setup project used by mobile heads) gets GirCore's source
   generators from the Linux build, and iOS then fails at launch with `Could not find GLib-2.0`. Generate this target in
   that project's csproj:
 
@@ -1620,7 +1650,7 @@ await foreach (var frame in channel.ReadFramesAsync(ct))   // RpiCameraStreamFra
 
 ## Writing a bridge with a typed client
 
-1. **Contracts project** (`net10.0`, references `Shiny.AppDeviceBridge.Client`): records plus a
+1. **Contracts project** (`net11.0`, references `Shiny.AppDeviceBridge.Client`): records plus a
    `[BridgeClient]` interface and its `JsonSerializerContext`.
 
 ```csharp
