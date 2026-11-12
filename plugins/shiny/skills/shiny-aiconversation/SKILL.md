@@ -1,14 +1,16 @@
 ---
 name: shiny-aiconversation
-description: >-
-  Build session-based .NET AI conversations with Shiny.AiConversation v3 and
-  Microsoft.Extensions.AI. Use when implementing IAiSessionManager, IAiSession or IAiTurn,
-  streaming replies, ask_user questions, interruption, usage tracking, context compaction,
-  assistant memory, conversation search, session titles, interceptors, SQLite session stores,
-  OpenAI or GitHub Copilot chat clients, voice conversations (wake word, push-to-talk, barge-in,
-  STT/TTS), MAUI AiChatView/AiMemoryView, image attachments, or the use_camera tool.
+description: Generate code for Shiny.AiConversation v3 - session-based AI conversations for .NET over Microsoft.Extensions.AI with persisted, resumable sessions (IAiSessionManager / IAiSession / IAiTurn), streaming replies, the built-in ask_user tool for typed questions and multiple-choice answers, interruption and supersession, usage and context-window pressure tracking, rolling context compaction, silent assistant memory, conversation search, session titles and long-term memory, session interceptors for tools and prompts, pluggable session/memory stores (in-memory or SQLite via Shiny.AiConversation.Stores.SqliteDocDb), and voice conversations via Shiny.AiConversation.Voice (wake word, push-to-talk, follow-up, quiet-word/barge-in interruption, sentence-streamed text-to-speech over Shiny.Speech, acknowledgement modes, sounds, voice selection tools), the MAUI chat UI via Shiny.AiConversation.Maui (AiChatView bound to a session with streaming bubbles, choice chips, push-to-talk and an AiMemoryView), image attachments with retention, and the use_camera tool via Shiny.AiConversation.Maui.Camera, and AG-UI via Shiny.AiConversation.AgUi (a session as an AG-UI event stream for the Shiny AgentView with ask_user questions as interrupts, the render_ui tool for A2UI surfaces, and a remote AG-UI agent as the chat client)
 auto_invoke: true
 triggers:
+  - ag-ui
+  - agui
+  - a2ui
+  - runaguiasync
+  - agentview
+  - render_ui
+  - addaguirendertool
+  - addaguichatclient
   - shiny ai
   - shiny ai conversation
   - shiny.aiconversation
@@ -123,13 +125,10 @@ references:
   - images.md
   - camera.md
   - chat-client-provider.md
+  - ag-ui.md
 ---
 
 # Shiny.AiConversation Skill
-
-## Detailed Scope
-
-Generate code for Shiny.AiConversation v3 - session-based AI conversations for .NET over Microsoft.Extensions.AI with persisted, resumable sessions (IAiSessionManager / IAiSession / IAiTurn), streaming replies, the built-in ask_user tool for typed questions and multiple-choice answers, interruption and supersession, usage and context-window pressure tracking, rolling context compaction, silent assistant memory, conversation search, session titles and long-term memory, session interceptors for tools and prompts, pluggable session/memory stores (in-memory or SQLite via Shiny.AiConversation.Stores.SqliteDocDb), and voice conversations via Shiny.AiConversation.Voice (wake word, push-to-talk, follow-up, quiet-word/barge-in interruption, sentence-streamed text-to-speech over Shiny.Speech, acknowledgement modes, sounds, voice selection tools), the MAUI chat UI via Shiny.AiConversation.Maui (AiChatView bound to a session with streaming bubbles, choice chips, push-to-talk and an AiMemoryView), image attachments with retention, and the use_camera tool via Shiny.AiConversation.Maui.Camera
 
 You are an expert in Shiny.AiConversation v3, a session-based library for talking to an AI through
 Microsoft.Extensions.AI. A session is a persisted, never-ending conversation: you start or resume it,
@@ -158,6 +157,7 @@ The library provides:
 - **Images**: `AiInput.WithImage(...)`, `ImagePart`, `IAiAttachmentStore` (`UseFileAttachments(dir)`), `ImageRetention`, `TurnContext.QueueFollowUp`. See `images.md`
 - **use_camera** (`Shiny.AiConversation.Maui.Camera`): `AddAiConversationCamera()`; the assistant asks to take a photo or scan. See `camera.md`
 - **IChatClientProvider**: Supplies the `IChatClient`; optional `ContextWindow`. See `chat-client-provider.md`
+- **AG-UI** (`Shiny.AiConversation.AgUi`): `session.RunAgUiAsync(input, ct)` runs a session as an AG-UI event stream, so `AgentView` takes it with `AgentSession.Create(session.SessionId, session.RunAgUiAsync)`; `opts.AddAgUiRenderTool()` (A2UI surfaces), `opts.AddAgUiChatClient(uri)` (remote AG-UI agent). See `ag-ui.md`
 
 **Provider packages**:
 - **Shiny.AiConversation.OpenAi**: `opts.AddStaticOpenAIChatClient(apiToken, endpointUri, modelName)`
