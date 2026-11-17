@@ -63,6 +63,12 @@ triggers:
   - shiny-bridge-sim --web
   - drive the simulator
   - GPX trail
+  - KML trail
+  - simulate geofences
+  - OBD emulator profile
+  - obd-emulator.schema.json
+  - IObdVirtualAdapter
+  - AddObdVirtualAdapter
   - traffic monitor
   - WebAppNativeCalls
   - WebAppEvents
@@ -773,7 +779,7 @@ sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
 | `.RegionGeofencing` | `AddRegionGeofenceBridge(cfg => cfg.AddGeocoderRegionSet(name, GeocoderRegionLevel.X) / .AddDocumentRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:) / .AddNorthAmericanRegions() / .AddNorthAmericanCities(withinMeters:) / .AddRegionSet(name, IRegionSource), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IRegionGeofencesBridge` (`RegionGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`regiongeofence.change`; native call `regiongeofence`). Backed by Shiny.Geofencing.Regions; region sets are registered in C# only, and the app must not also call `AddRegionGeofencing`. Document sets (`AddDocumentRegionSet`, `AddNorthAmerican*`) need the app to reference Shiny.Geofencing.Regions.DocumentDb and register a SQLite store with the geometry mapped (`MapSpatialProperty` / `MapNorthAmericaData()`, plus `AddNorthAmericaSeeder()` for the dataset). `region`: a geocoder set's placemark always; anything else only through `o.RegionSerializerOptions` metadata (pass the store's `JsonSerializerOptions`), null without it. `start`: 409 `geofence_refused`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
-| `.Obd` | `AddObdBridge()` | `IObdBridge` |
+| `.Obd` | `AddObdBridge()`; `AddObdVirtualAdapter(IObdVirtualAdapter)` adds a non-hardware adapter (emulator, store-review demo car: `Id`, `Name`, `IsAvailable`, `CreateTransport()` → Shiny.Obd `IObdTransport`) that every scan lists and the page connects to by `Id` as `peripheralUuid` | `IObdBridge` |
 | `.Printers` | `AddPrintersBridge(o => o.NetworkPorts.Add(9200))` — `PrintersBridgeOptions.NetworkPorts` (9100–9102); registers BLE, mDNS and the PDF renderer itself | `IPrintersBridge` (`PrintersJsonContext`) + the `PrintElements` builder — ESC/POS / TSPL receipt printers over BLE or TCP; see Printing below |
 | `.Printing` | `AddPrintingBridge(o => o.MaxFileBytes = …)` — `PrintingBridgeOptions`: `MaxJsonBytes` (16 MB), `MaxFileBytes` (512 MB) | `IPrintingBridge` (`PrintingJsonContext`) — the OS print dialog / spooler for PDF, image, HTML; see Printing below |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
@@ -1421,7 +1427,19 @@ shiny-bridge-sim --dev-server http://localhost:5288 --web      # a browser panel
 - Trail JSON: `{ "name": "...", "loop": false, "steps": [ { "delayMs": 0, "event": "wifi.changed", "payload": {...} },
   { "delayMs": 5000, "bridge": "wifi", "route": "GET current", "mode": "null" }, { "bridge": "ble", "supported": false } ] }`.
   Route keys are `"<METHOD> <pattern>"` from the interface (`GET current`, `DELETE regions/{identifier}`, `GET` for the root).
-- `.gpx` loads as `gps.reading` events plus `GET gps/current`/`GET gps/last` values at the recorded pace.
+- `.gpx`, `.kml` and `.kmz` load as `gps.reading` events plus `GET gps/current`/`GET gps/last` values at the recorded
+  pace (KML: `gx:Track` with times, else `LineString`, else `Point` placemarks, one point per interval).
+- Geofence simulation (on by default): regions the page monitors via `POST geofences/regions` are kept, `GET regions` and
+  `GET regions/{identifier}/state` answer from them (`404` if not monitored), and each `gps.reading` that crosses one fires
+  `geofence.status`. A region starts `Unknown`; first reading inside fires `Entered`, first outside is silent;
+  `notifyOnEntry`/`notifyOnExit`/`singleUse` are honored. Off via `--no-geofences`, `"simulateGeofences": false` in a
+  scenario, or `set_geofence_simulation` — then the bridge answers its set route values. `regiongeofences` isn't simulated
+  (its sets are registered in C#).
+- OBD vehicles: `--obd <profile.json>` (Shiny.Obd `obd-emulator.schema.json`: vehicle, scenarios, state) makes the `obd`
+  bridge the real `ObdBridge` with an emulated adapter `shiny-obd-emulator` — scan lists it for any transport, connect
+  with it as `peripheralUuid`, then commands/raw/VIN/DTCs/monitor run through Shiny.Obd against an in-process ELM327.
+  `--obd-drive <scenario>` / `drive_obd` plays a drive in real time so monitored values move. Unloaded, the simulated
+  bridge and its route values are back. Tools: `get_obd`, `load_obd_profile`, `unload_obd_profile`, `drive_obd`, `stop_obd`.
 - A route can also answer a **sequence**: values one per call, the last repeating — for a page that polls (queued →
   running → done). In a trail step or scenario it is `"values": [ … ]` instead of `"value"`.
 - A new bridge must be added to `BridgeCatalog` and the simulator's csproj; `SimulatorCatalogTests` fail until it is.
@@ -1433,7 +1451,8 @@ client config (and writing it to `mcp.json` in the data directory). Use it when 
 state and then check what it did. `--mcp-stdio` instead speaks MCP on stdin/stdout, for starting the simulator yourself.
 
 Tools: `get_status`, `list_bridges`, `describe_bridge`, `get_route`; `set_route`, `set_route_sequence`, `reset_route`,
-`set_bridge_supported`, `set_platform`, `set_sticky_writes`; `fire_event`, `set_event_payload`; `list_trails`,
+`set_bridge_supported`, `set_platform`, `set_sticky_writes`, `set_geofence_simulation`; `get_obd`, `load_obd_profile`,
+`unload_obd_profile`, `drive_obd`, `stop_obd`; `fire_event`, `set_event_payload`; `list_trails`,
 `load_trail`, `load_trail_file`, `play_trail`, `pause_trail`, `stop_trail`, `remove_trail`; `apply_scenario`,
 `apply_scenario_file`, `capture_scenario`; `get_traffic`, `get_activity`, `clear_traffic`, `set_recording`,
 `wait_for_request`, `wait_for_quiet`.
