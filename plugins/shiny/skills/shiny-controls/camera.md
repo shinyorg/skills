@@ -681,10 +681,7 @@ using Shiny.Maui.Controls.Analysis.Ai;
 
 builder.Services.AddSingleton<IChatClient>(_ =>
 {
-    if (!(OperatingSystem.IsIOSVersionAtLeast(27) ||
-          OperatingSystem.IsMacCatalystVersionAtLeast(27) ||
-          OperatingSystem.IsMacOSVersionAtLeast(27)) ||
-        !FoundationModelsChatClient.IsAvailable)
+    if (!FoundationModelsChatClient.IsAvailable)        // Availability says why: DeviceNotEligible, AppleIntelligenceNotEnabled, ModelNotReady, UnsupportedOperatingSystem, UnsupportedPlatform
         return cloudChatClient;
     FoundationModelsChatClient.Prewarm();               // the first request otherwise pays a multi-second cold start
     return new FoundationModelsChatClient(new()
