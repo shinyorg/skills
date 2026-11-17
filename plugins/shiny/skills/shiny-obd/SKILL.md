@@ -196,6 +196,11 @@ triggers:
   - ObdEmulatorConfiguration
   - IObdEmulatorTransport
   - IObdEmulatorDispatcher
+  - ObdEmulatorProfile
+  - ObdEmulatorStateSnapshot
+  - obd-emulator.schema.json
+  - emulator profile
+  - emulator json
   - TcpObdServer
   - Elm327Responder
   - DrivingScenarioPlayer
@@ -1365,6 +1370,36 @@ Hosting requires permissions a client does not: `BLUETOOTH_ADVERTISE` on Android
 `CHANGE_WIFI_MULTICAST_STATE` for the TCP/mDNS side), and on iOS both
 `NSLocalNetworkUsageDescription` and an `NSBonjourServices` array naming `_obd._tcp` — without the
 service listed, iOS 14+ blocks the mDNS advertisement outright rather than prompting.
+
+### Sharing a setup as JSON (ObdEmulatorProfile)
+
+When the user wants an emulator vehicle, scenario or fault state reused across projects, generate a JSON file
+validated by `obd-emulator.schema.json` (repo root,
+`https://raw.githubusercontent.com/shinyorg/obd/main/obd-emulator.schema.json`) and load it, rather than
+copying `EmulatedVehicle`/`DrivingScenario` initializers between repos.
+
+```csharp
+var profile = await ObdEmulatorProfile.Load(stream);   // or ObdEmulatorProfile.Parse(json)
+profile.ApplyTo(state, player);                         // player optional - only needed for scenarios
+var json = ObdEmulatorProfile.Capture(state, myScenarios).ToJson();
+```
+
+Rules when generating profile files or code:
+
+- Sections `vehicle`, `scenarios`, `state` are all optional. Property names are the C# names in camelCase.
+  Always include `"$schema"` so editors validate it.
+- **PIDs, modes and `unsupportedPids` are two-digit hex strings** (`"0D"`), never numbers. DTCs are
+  `"P0301"`-style; the digit after the letter is 0-3 (`P4xxx` cannot be encoded and is rejected).
+- `vehicle` requires `name`, `vin`, `decodes`, `note`, `ecuName`, `calibrationId`; anything omitted takes the
+  `EmulatedVehicle` default. `vehicle.vin` must be plausible (17 chars, no I/O/Q). For a malformed-VIN test,
+  set `text` on parameter `09`/`02` under `state` instead.
+- `state.parameters` entries set the field matching the PID's kind: `number` (engineering units) for scalars,
+  `text` for VIN/ECU name/calibration ID, `hex` for bitfield PIDs. The wrong field throws rather than being ignored.
+- `state` is applied after `vehicle`, and a vehicle resets fault memory, so put DTC overrides in `state`
+  when combining both.
+- Scenario `action` values are camelCase: `idle`, `accelerate`, `cruise`, `coast`, `brake`, `harshBrake`.
+- Unknown properties are an error, not ignored. Validation runs before anything is applied; an invalid
+  profile throws `ObdException` and leaves the emulator unchanged. Do not wrap `ApplyTo` expecting partial success.
 
 ## Important Notes
 
