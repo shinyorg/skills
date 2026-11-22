@@ -149,7 +149,7 @@ generic mDNS discovery (use `shiny-discovery`).
 | `Shiny.UniversalHubs.Nearby` | `server.Nearby(...)` / `o.Nearby(...)`: Google Nearby Connections, Android, iOS, macOS |
 
 - **Namespace**: `Shiny.UniversalHubs` (plus `Shiny.BluetoothLE.Hubs` for the contract and hub types)
-- **Platforms**: iOS, Android and Mac Catalyst register the BLE stacks for you. On plain `net10.0` (Linux, tests,
+- **Platforms**: iOS, Android and Mac Catalyst register the BLE stacks for you. On plain `net11.0` (Linux, tests,
   macOS AppKit) register an `IBleHostingManager` / `IBleManager` yourself.
 - Hosting is **foreground only**, the same as BLE hosting.
 

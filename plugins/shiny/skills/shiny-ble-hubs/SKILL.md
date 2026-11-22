@@ -128,7 +128,7 @@ Do NOT use this skill for talking to third party BLE peripherals (use `shiny-blu
 - **Platform BLE stacks are registered for you.** On Android, iOS and Mac Catalyst, `AddBleHubServer` calls
   `AddBluetoothLeHosting()` and `AddBleHubClient` calls `AddBluetoothLE()`, so don't add them yourself. On Apple the
   client turns off iOS's background alerts, because hubs are foreground only; to use your own `AppleBleConfiguration`,
-  call `AddBluetoothLE(config)` *before* `AddBleHubClient` (the first registration wins). On plain `net10.0`, register an
+  call `AddBluetoothLE(config)` *before* `AddBleHubClient` (the first registration wins). On plain `net11.0`, register an
   `IBleHostingManager` / `IBleManager` yourself.
 
 ## Code Generation Instructions
