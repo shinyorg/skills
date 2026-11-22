@@ -1,15 +1,6 @@
 ---
 name: shiny-httpserver
-description: >-
-  Build embedded .NET HTTP/1.1, HTTP/2 and HTTP/3 servers with Shiny.Net.HttpServer where
-  ASP.NET Core cannot run, including MAUI and tvOS. Use when implementing typed endpoints,
-  routing, middleware, JSON/XML/MessagePack/protobuf, static files or Blazor WASM, uploads,
-  WebSockets, SSE, SignalR-style switchboards, gRPC, MCP with OAuth discovery, OAuth/OIDC
-  loopback sign-in, authentication, TLS/ACME, CORS, rate limiting, reverse proxies, tunnels,
-  WebDAV/CalDAV/CardDAV, tus, private NuGet/npm feeds, two-way folder sync, mDNS, MAUI
-  lifecycle, caching, localization, webhooks, idempotency, content digests, JSON Patch, API
-  versioning/OpenAPI/Scalar, observability, or the in-memory test harness. AOT/trim-clean with
-  minimal dependencies.
+description: Generate code using Shiny.Net.HttpServer — a dependency-light, AOT/trim-clean HTTP/1.1, HTTP/2 & HTTP/3 server that runs anywhere .NET runs, including .NET MAUI and native tvOS, where ASP.NET Core cannot. Covers routing, middleware, source-generated typed endpoints, results and JSON, content negotiation with XML/MessagePack/protobuf formatters in both directions, static files and Blazor WASM, uploads/downloads, WebSockets, SSE, SignalR-style switchboards (real-time two-way calls over SSE with groups, an operator, client results, resumable lines, and a generated typed .NET client), sessions, OpenAPI, authentication (Basic/API key/cookie/JWT), authorization, CORS, rate limiting, IP filtering, TLS and self-signed certificates, tunnelling (relay, SSH, quick tunnels, Azure Relay, and supervised cloudflared/ngrok/tailscale agents), serving a directory over WebDAV, serving gRPC and gRPC-Web, hosting an MCP server with RFC 9728 OAuth discovery, receiving the OAuth/OIDC loopback redirect so a desktop app or CLI can sign in through the system browser (RFC 8252), health checks, OpenTelemetry-shaped metrics and tracing, W3C access logs, request timeouts, output caching and conditional requests, request decompression, antiforgery and browser security headers, a reverse proxy with destination clusters, load balancing, health checks, session affinity, transforms, WebSocket forwarding and IConfiguration-driven routes, mDNS/Bonjour advertising and discovery, MAUI lifecycle (background/foreground, Android foreground service, network rebinding), host filtering against DNS rebinding, request localization, webhook signature verification (GitHub/Stripe/Slack/Standard Webhooks), idempotency keys, RFC 9530 content digests, 103 Early Hints, the PROXY protocol, RFC 6902 JSON Patch, API versioning with per-version OpenAPI, a Scalar API reference page, tus resumable uploads, CalDAV/CardDAV, a private NuGet feed (V3 protocol with push), a private npm registry (publish/install/dist-tags/deprecate/unpublish with npmjs.org fall-through), Dropbox-style two-way folder sync with content-defined chunking and a Shiny.Net.Http background-transfer client, automatic HTTPS via ACME (Let's Encrypt/ZeroSSL), and an in-memory test harness.
 auto_invoke: true
 triggers:
 - Shiny.Net.HttpServer
@@ -527,10 +518,6 @@ triggers:
 
 # Shiny HTTP Server Skill
 
-## Detailed Scope
-
-Generate code using Shiny.Net.HttpServer — a dependency-light, AOT/trim-clean HTTP/1.1, HTTP/2 & HTTP/3 server that runs anywhere .NET runs, including .NET MAUI and native tvOS, where ASP.NET Core cannot. Covers routing, middleware, source-generated typed endpoints, results and JSON, content negotiation with XML/MessagePack/protobuf formatters in both directions, static files and Blazor WASM, uploads/downloads, WebSockets, SSE, SignalR-style switchboards (real-time two-way calls over SSE with groups, an operator, client results, resumable lines, and a generated typed .NET client), sessions, OpenAPI, authentication (Basic/API key/cookie/JWT), authorization, CORS, rate limiting, IP filtering, TLS and self-signed certificates, tunnelling (relay, SSH, quick tunnels, Azure Relay, and supervised cloudflared/ngrok/tailscale agents), serving a directory over WebDAV, serving gRPC and gRPC-Web, hosting an MCP server with RFC 9728 OAuth discovery, receiving the OAuth/OIDC loopback redirect so a desktop app or CLI can sign in through the system browser (RFC 8252), health checks, OpenTelemetry-shaped metrics and tracing, W3C access logs, request timeouts, output caching and conditional requests, request decompression, antiforgery and browser security headers, a reverse proxy with destination clusters, load balancing, health checks, session affinity, transforms, WebSocket forwarding and IConfiguration-driven routes, mDNS/Bonjour advertising and discovery, MAUI lifecycle (background/foreground, Android foreground service, network rebinding), host filtering against DNS rebinding, request localization, webhook signature verification (GitHub/Stripe/Slack/Standard Webhooks), idempotency keys, RFC 9530 content digests, 103 Early Hints, the PROXY protocol, RFC 6902 JSON Patch, API versioning with per-version OpenAPI, a Scalar API reference page, tus resumable uploads, CalDAV/CardDAV, a private NuGet feed (V3 protocol with push), a private npm registry (publish/install/dist-tags/deprecate/unpublish with npmjs.org fall-through), Dropbox-style two-way folder sync with content-defined chunking and a Shiny.Net.Http background-transfer client, automatic HTTPS via ACME (Let's Encrypt/ZeroSSL), and an in-memory test harness.
-
 ## Triggers
 - Shiny.Net.HttpServer
 - embedded / in-app HTTP server
@@ -576,8 +563,10 @@ with similar-looking names.
 **Documentation**: https://shinylib.net/httpserver
 
 Only `Microsoft.Extensions.*` abstractions are taken as dependencies. Everything else — JSON, crypto,
-JWT, OpenAPI, HPACK, QPACK — is in the box. Everything targets `net10.0` with the trim, AOT and
-single-file analyzers on.
+JWT, OpenAPI, HPACK, QPACK — is in the box. Everything targets `net10.0` and `net11.0` with the trim,
+AOT and single-file analyzers on; `Shiny.Net.HttpServer.Mobile` adds `-android`, `-ios` and
+`-maccatalyst` for both. On `net11.0-android` the floor is API 24 (the .NET 11 Android SDK's minimum);
+`net10.0-android` stays at 21.
 
 **The single hard rule: nothing is discovered by reflection.** Routes and binders are generated at
 compile time; JSON goes through `JsonTypeInfo` from a `JsonSerializerContext`. Any code you generate
@@ -2295,8 +2284,8 @@ app.MapDocuments<Order>("/orders", o =>
 ## tvOS
 
 tvOS is **not** MAUI — MAUI does not target the platform. A tvOS app is a native app on
-`net10.0-tvos` with a `UIApplicationDelegate`, and it references `Shiny.Net.HttpServer` the way any
-other project does; the core is plain `net10.0` and needs nothing special.
+`net10.0-tvos` or `net11.0-tvos` with a `UIApplicationDelegate`, and it references `Shiny.Net.HttpServer`
+the way any other project does; the core is plain `net10.0`/`net11.0` and needs nothing special.
 
 Rules that matter when generating a tvOS app:
 
