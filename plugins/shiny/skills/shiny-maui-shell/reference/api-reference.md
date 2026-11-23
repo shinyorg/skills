@@ -85,6 +85,12 @@ public interface INavigator
     // Set a numeric badge using the route mapped to a ViewModel
     Task SetTabBadge<TViewModel>(int value);
 
+    // Set a text badge ("" for a dot) on a tab route in the active Shell
+    Task SetTabBadge(string route, string text);
+
+    // Set a text badge ("" for a dot) using the route mapped to a ViewModel
+    Task SetTabBadge<TViewModel>(string text);
+
     // Clear a badge from a tab route in the active Shell
     Task ClearTabBadge(string route);
 
@@ -324,10 +330,8 @@ the detached content, raising `IPageLifecycleAware`, disposing an `IDisposable` 
 the content back to its page.
 
 ```csharp
-public abstract class ViewDialogPresenter(IMainThread mainThread) : IDialogPresenter
+public abstract class ViewDialogPresenter : IDialogPresenter
 {
-    protected IMainThread MainThread { get; }
-
     // Called on the main thread, binding context already set. Complete once the content
     // is gone; detach it from your host before returning. Never throw on `dismiss`.
     protected abstract Task PresentView(View content, object viewModel, CancellationToken dismiss);
@@ -435,7 +439,8 @@ public class MyViewModel(INavigator navigator)
 // Switch to a Shell resolved from DI
 await navigator.SwitchShell<MainAppShell>();
 
-// Set or clear a numeric badge on an existing tab
+// Set or clear a badge on an existing tab - a count, text, or "" for a dot
+await navigator.SetTabBadge("Inbox", "New");
 await navigator.SetTabBadge("Inbox", 3);
 await navigator.SetTabBadge<InboxViewModel>(7);
 await navigator.ClearTabBadge("Inbox");
@@ -453,8 +458,9 @@ await navigator
 ### Tab Badge Constraints
 
 - Badge APIs only work for routes already present as tabs in the active Shell
-- Supported platforms: Android, iOS, Mac Catalyst, Windows
-- Unsupported platforms throw `PlatformNotSupportedException`
+- They set MAUI 11 `BaseShellItem.BadgeText` on the tab's `ShellSection`; rendered on Android, iOS, Mac Catalyst and Windows (Windows draws non-numeric text as a dot), a no-op elsewhere
+- Style with `BadgeColor` / `BadgeTextColor` on the `Tab` in XAML; don't also bind `BadgeText` on that tab
+- Toolbar badges: bind `ToolbarItem.BadgeText` (`null` hides, `""` is a dot) - there is no `INavigator` API for them
 
 ## IPageLifecycleAware Interface
 
@@ -1107,13 +1113,12 @@ For multiple parameters:
 
 ## ShellServices Record
 
-A convenience aggregate that bundles the three shell services together, so a single constructor parameter is enough when a class needs most of them.
+A convenience aggregate that bundles the shell services together, so a single constructor parameter is enough when a class needs both.
 
 ```csharp
 public record ShellServices(
     INavigator Navigator,
-    IDialogs Dialogs,
-    IMainThread MainThread
+    IDialogs Dialogs
 );
 ```
 
@@ -1124,28 +1129,13 @@ public class MyViewModel(ShellServices shell)
 {
     async Task DoWork()
     {
-        shell.MainThread.BeginInvokeOnMainThread(() => /* UI update */);
         await shell.Dialogs.Alert("Done", "Work complete");
         await shell.Navigator.GoBack();
     }
 }
 ```
 
-## IMainThread Interface
-
-Thread-marshalling abstraction used internally by `ShellNavigator` and `ShellDialogs`. Prefer this over `Microsoft.Maui.ApplicationModel.MainThread` inside Shiny Shell code because the default implementation (`MauiMainThread`) transparently works around platforms where MAUI's `MainThread` is missing or broken: on the `net10.0-macos` (AppKit) target it dispatches to `DispatchQueue.MainQueue` directly (inline when already on the main thread) — no `Microsoft.Maui.Platforms.MacOS.Essentials` dependency; on Linux the delegate executes inline. Every other platform delegates to MAUI's `MainThread`.
-
-```csharp
-public interface IMainThread
-{
-    Task InvokeOnMainThreadAsync(Action action);
-    Task InvokeOnMainThreadAsync(Func<Task> func);
-    Task<T> InvokeOnMainThreadAsync<T>(Func<Task<T>> func);
-    void BeginInvokeOnMainThread(Action action);
-}
-```
-
-Registered as a singleton by `UseShinyShell()` with the default `MauiMainThread` implementation.
+Shiny Shell marshals to the UI thread with MAUI's `MainThread`; there is no `IMainThread` (removed in v8).
 
 ## Extension Method
 
@@ -1163,8 +1153,7 @@ public static MauiAppBuilder UseShinyShell(
 Registers:
 - `INavigator` as singleton
 - `IDialogs` as singleton (default `ShellDialogs`, replaceable via `UseDialogs<>()`)
-- `IMainThread` as singleton (default `MauiMainThread`)
-- `ShellServices` as singleton (aggregate of `INavigator`, `IDialogs`, `IMainThread`)
+- `ShellServices` as singleton (aggregate of `INavigator`, `IDialogs`)
 - `IMauiInitializeService` for lifecycle hooks
 - `ShinyAppBuilder` as singleton
 - All mapped Pages and ViewModels as transient
