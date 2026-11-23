@@ -45,14 +45,15 @@ match the `Shiny.Push` it builds on:
 
 | `Shiny.Push.FirebaseMessaging` | Shiny client packages (`Shiny.Push`, `Shiny.Hosting.Maui`, …) |
 |---|---|
-| 6.x | 6.x |
+| 7.x | 7.x (.NET 11) |
+| 6.x | 6.x (.NET 10) |
 | 5.x | 5.x |
 
 When generating or upgrading a project, keep every `Shiny.*` client reference on the same major as the Firebase
-package. Do **not** pair `Shiny.Push.FirebaseMessaging` 6.x with Shiny 5.x packages (or the reverse) — it pulls
-`Shiny.Push` 6.0 in under client packages built against 5.x. Moving from 5.x to
-6.x needs no Firebase code changes: `AddPushFirebaseMessaging`, `FirebaseConfiguration` and the `IPushDelegate`
-members are unchanged.
+package. Do **not** pair `Shiny.Push.FirebaseMessaging` 7.x with Shiny 6.x packages (or the reverse) — it pulls
+`Shiny.Push` 7.0 in under client packages built against 6.x. 7.x targets .NET 11 only (`net11.0-ios`,
+`net11.0-android`); a .NET 10 app stays on 6.x. Moving between majors needs no Firebase code changes:
+`AddPushFirebaseMessaging`, `FirebaseConfiguration` and the `IPushDelegate` members are unchanged.
 
 ## Setup
 
