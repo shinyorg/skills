@@ -60,9 +60,9 @@ Do not confuse the two packages. Pick by **where the code runs**:
 
 | TFM | Behavior |
 |---|---|
-| `net10.0-android` | Real adapter over the native SDK. Verified end-to-end against the Firestore emulator. |
-| `net10.0-ios` | Real adapter over the native SDK (slim Swift binding). Verified end-to-end against the Firestore emulator. |
-| `net10.0` | **Throw-stub.** Every operation throws `PlatformNotSupportedException`. Exists so the surface is unit-testable without a device. |
+| `net11.0-android` | Real adapter over the native SDK. Verified end-to-end against the Firestore emulator. |
+| `net11.0-ios` | Real adapter over the native SDK (slim Swift binding). Verified end-to-end against the Firestore emulator. |
+| `net11.0` | **Throw-stub.** Every operation throws `PlatformNotSupportedException`. Exists so the surface is unit-testable without a device. |
 
 Both mobile heads are at **feature parity** — the same operations work and the same ones throw, and both pass
 the same 9-case emulator harness (CRUD, real-time, query/order/count/delete, identity). The API below applies
@@ -113,7 +113,7 @@ builder.Services.AddMobileFirestoreDocumentStore(o =>
 });
 ```
 
-> **Requires `Shiny.DocumentDb` 14.x** (provider 4.0.0+). The flat per-type methods (`o.MapTypeToCollection<T>`,
+> **Requires `Shiny.DocumentDb` 14.x** (provider 4.0.0+; 5.0.0+ needs 14.4.0 and .NET 11). The flat per-type methods (`o.MapTypeToCollection<T>`,
 > `o.MapIdProperty<T>`, `o.AddQueryFilter<T>`, `o.MapVersionProperty<T>`, `o.OnBeforeWrite<T>`,
 > `o.OnAfterWrite<T>`) were **removed** in 3.0.0 — never generate them. They all live on the
 > `ConfigureDocument<T>` builder now. Store-level members (`MapIdType<TId>`, `AddInterceptor`,
@@ -402,7 +402,7 @@ any demo project id and fake API key.
 - `src/Shiny.DocumentDb.Firestore.Mobile/FirebaseIdentity.cs` — `IFirebaseIdentity` + REST implementation
 - `src/Shiny.DocumentDb.Firestore.Mobile/Platforms/Android/` — Android adapter, LINQ→native query, change feed
 - `src/Shiny.DocumentDb.Firestore.Mobile/Platforms/iOS/` — iOS adapter (same shape, over the slim Swift binding)
-- `src/Shiny.DocumentDb.Firestore.Mobile/MobileFirestoreDocumentStore.Stub.cs` — `net10.0` throw-stub
+- `src/Shiny.DocumentDb.Firestore.Mobile/MobileFirestoreDocumentStore.Stub.cs` — `net11.0` throw-stub
 - `firebase_ios/native/firestore/ShinyFirebaseFirestore/Firestore.swift` — the iOS slim `@objc` surface
 - `src/Shiny.Firebase.Firestore.iOS.Binding/ApiDefinitions.cs` — binds that surface
 - `samples/FirestoreEmulatorSample/MainActivity.cs` — end-to-end Android emulator harness
