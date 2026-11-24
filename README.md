@@ -27,6 +27,9 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-core` | Hosting, DI, key-value stores, lifecycle hooks, platform abstractions |
 | `shiny-bluetoothle` | BLE scanning, connecting, GATT operations, managed scanner |
 | `shiny-ble-hosting` | BLE peripheral GATT server, advertising, L2CAP CoC channels |
+| `shiny-accessorysetup` | System accessory pairing sheet (AccessorySetupKit / CompanionDeviceManager) with no location or Bluetooth prompt, Android presence events |
+| `shiny-mcumgr` | MCUmgr (SMP) over BLE — MCUboot firmware updates, plus OS, image, file system, shell and stats management |
+| `shiny-bluetooth` | Classic Bluetooth (BR/EDR) — RFCOMM / Serial Port Profile clients and servers, inquiry, pairing (not iOS) |
 | `shiny-ble-hubs` | SignalR-style hubs over Bluetooth LE — generated client proxies, groups, streaming, L2CAP file transfers and media channels (live audio/video) |
 | `shiny-universal-hubs` | BLE hubs also served over Wi-Fi (HttpServer + mDNS) with Wi-Fi-first connect, BLE fallback, and media channels over WebSockets |
 | `shiny-beacons` | iBeacon & Eddystone ranging, background region monitoring, broadcasting |
@@ -41,11 +44,15 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 | `shiny-httpserver` | Embedded HTTP/1.1, HTTP/2 & HTTP/3 server where ASP.NET Core cannot run — reverse proxy, gRPC, WebDAV, MCP, tunnelling |
 | `shiny-wifi` | Wi-Fi scanning, connect/disconnect, saved networks, current network, hotspot |
 | `shiny-discovery` | Local network discovery — mDNS/DNS-SD, SSDP/UPnP, WS-Discovery |
+| `shiny-nfc` | Read and write NDEF NFC tags on Android, iOS, PC/SC readers and Web NFC |
 | `shiny-obd` | OBD-II commands, adapter auto-detection, BLE/WiFi/serial transports |
 | `shiny-music` | Music library permissions, querying, playback, lyrics, album art |
 | `shiny-health` | HealthKit / Health Connect queries, writes, real-time observers |
 | `shiny-contactstore` | Contact CRUD, fluent async query builder, permissions |
 | `shiny-calendarstore` | Calendar & event CRUD, fluent async query builder, permissions |
+| `shiny-biometrics` | Touch ID, Face ID, Optic ID, Android BiometricPrompt and Windows Hello, with passcode fallback |
+| `shiny-agesignals` | Store-provided age ranges (Apple Declared Age Range, Google Play Age Signals) for age-gated features |
+| `shiny-calldirectory` | Call blocking and caller ID — CallKit Call Directory extension and Android call screening |
 | `shiny-gamepad` | Game controller input — sticks, triggers, buttons, rumble, battery, motion, light bars |
 | `shiny-gamecenter` | Achievements, leaderboards and friends over Apple Game Center and Google Play Games |
 | `shiny-inapppurchases` | In-app purchases (StoreKit 2 / Play Billing) and server-side purchase verification |
@@ -83,6 +90,7 @@ Each skill is a self-contained `SKILL.md` with trigger conditions, code generati
 |---|---|
 | `shiny-documentdb` | Schema-free JSON document store — queries, joins, CRUD, indexes & unique indexes, spatial/geo queries, AOT configuration |
 | `shiny-firestore-mobile` | On-device native Firestore provider with offline persistence and snapshot listeners |
+| `shiny-efcore` | EF Core extensions — SQLite spatial, sqlite-vec vector and FTS5 search, outbox, temporal history, AI tools and MCP, seeding |
 
 ### ASP.NET Core
 
