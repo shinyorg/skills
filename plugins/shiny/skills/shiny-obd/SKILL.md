@@ -249,7 +249,7 @@ Invoke this skill when the user wants to:
 - **Repository**: https://github.com/shinyorg/obd
 - **Namespaces**: `Shiny.Obd`, `Shiny.Obd.Ble`, `Shiny.Obd.Bluetooth`, `Shiny.Obd.Wifi`, `Shiny.Obd.Serial`, `Shiny.Obd.Commands`, `Shiny.Obd.Emulator`
 - **NuGet**: `Shiny.Obd` (core), `Shiny.Obd.Ble` (BLE), `Shiny.Obd.Bluetooth` (classic Bluetooth/SPP — Android, Windows, macOS, Linux; not iOS), `Shiny.Obd.Wifi` (WiFi/TCP), `Shiny.Obd.Serial` (USB/UART), `Shiny.Obd.Emulator` (+ `.Ble`) — be an adapter instead of reading one
-- **Targets**: `net10.0` throughout (`Shiny.Obd.Bluetooth` adds `net10.0-android`)
+- **Targets**: `net11.0` throughout (`Shiny.Obd.Bluetooth` adds `net11.0-android`)
 
 ## Core Types
 
@@ -797,7 +797,7 @@ Three constructors:
 - `BleObdTransport(IPeripheral peripheral, BleObdConfiguration config)` — uses pre-discovered peripheral
 - `BleObdTransport(ObdDiscoveredDevice device, BleObdConfiguration config)` — uses device from scanner
 
-Uses Shiny.BluetoothLE v6 APIs (Shiny.Obd 1.5.0+ is built against Shiny 6.5.1 — an app referencing other Shiny packages should move them to 6.5.1 too):
+Uses Shiny.BluetoothLE v7 APIs (Shiny.Obd 2.0+ targets net11.0 and is built against Shiny 7.0.0 — an app referencing other Shiny packages should move them to 7.0.0 too):
 - `ConnectAsync` for task-based connection
 - `NotifyCharacteristic` for RX notifications — `Connect` waits on `WhenCharacteristicSubscriptionChanged` until they are confirmed on, so the first command cannot overtake the CCCD write
 - `WriteCharacteristicAsync` for TX writes
@@ -1078,7 +1078,7 @@ not tell users `System.IO.Ports` is Windows-only; that is wrong for every deskto
 
 **Never generate `Shiny.Obd.Serial` code for an Android or iOS target.** Recommend `Shiny.Obd.Ble`
 there instead. iOS/tvOS throw `PlatformNotSupportedException`. Android is the trap: the assembly is
-not marked unsupported and the native library ships for the `android-*` RIDs, so a `net10.0-android`
+not marked unsupported and the native library ships for the `android-*` RIDs, so a `net11.0-android`
 project references this package and **compiles cleanly**, then fails at runtime with
 `UnauthorizedAccessException` — `/dev/ttyUSB*` is `root:usb` and unreachable from an app on an
 unrooted device. Android USB adapters require the USB Host API (`UsbManager`, permission intent,
