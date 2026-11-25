@@ -58,6 +58,16 @@ triggers:
   - IBleHubClientTransport
   - ConnectExternal
   - ble hubs over wifi
+  - resume
+  - reconnect
+  - automatic reconnect
+  - AutomaticReconnect
+  - Reconnecting
+  - ResumeWindow
+  - ResumeBufferSize
+  - dropped connection
+  - app went to the background
+  - link dropped
   - media channel
   - IBleHubMediaChannel
   - EnableMediaChannels
@@ -231,7 +241,16 @@ public class GameHub(GameEngine engine) : BleHub<IGameHub>
   optional `Message`. `Description` is the message, or a default text for the reason. Its default implementation calls
   `OnDisconnectedAsync(string? reason)` with `Description`, so override only one of them.
   - `ClientDisconnect`: the client called `Disconnect()` or was disposed.
-  - `ClientTimeout`: the link dropped (an unsubscribe without a goodbye, or the cleanup sweep).
+  - `ClientTimeout`: the link dropped (an unsubscribe without a goodbye, or the cleanup sweep) - and, for a client that
+    can resume, it didn't come back within `BleHubHostOptions.ResumeWindow`.
+- **Resume after a dropped link**: a client whose link drops without a goodbye is **held** for
+  `BleHubHostOptions.ResumeWindow` (30s; zero turns it off) when it said it can resume (the client library does, unless
+  `BleHubConnectOptions.AutomaticReconnect = false`). While held it stays in `ConnectedClients`, its groups and
+  `MaxClients`, `Context.ConnectionId` is unchanged, and pushes to it are kept (`ResumeBufferSize`, 128). When it comes
+  back - on any central - it is the same connection, the kept pushes are replayed in order, and the hub never sees it
+  leave. `OnDisconnectedAsync(ClientTimeout)` runs only if the window runs out or it misses more than the buffer holds.
+  A goodbye, `Context.Abort`, `IHubContext.Disconnect` and `Stop` are never held (stopping lets held clients go at once).
+  Calls that were running when the link dropped are cancelled; the client has failed them.
   - `ServerDisconnect`: `Context.Abort(reason)` or `IHubContext.Disconnect(id, reason)`.
   - `ServerShutdown`: `IBleHubHost.Stop(reason)` or `IHubContext.Stop(reason)`.
 - **Renames**: override `OnRenamedAsync(string? previousName)` to react when a connected client calls `Rename`. It
@@ -350,9 +369,24 @@ public class JoinViewModel(IBleHubClient<IGameHub> client)
   Override it with `[BleHubClient(ProxyName = "...")]`.
 - **Hub events are raised on a background thread**, one at a time and in the order the host sent them. Marshal to
   the UI thread yourself.
-- **`Status`**: `Disconnected`, `Connecting`, `Connected` or `Disconnecting`. Events: `StatusChanged`, `Connected`,
-  and `Disconnected`, an `EventHandler<HubDisconnect>`. `BleHubStatusChangedEventArgs(Status, Disconnect)` carries
-  the `HubDisconnect` for `Disconnecting` and `Disconnected`, and has a computed `Reason` string.
+- **`Status`**: `Disconnected`, `Connecting`, `Connected`, `Disconnecting` or `Reconnecting`. Events: `StatusChanged`,
+  `Connected`, and `Disconnected`, an `EventHandler<HubDisconnect>`. `BleHubStatusChangedEventArgs(Status, Disconnect)`
+  carries the `HubDisconnect` for `Disconnecting` and `Disconnected`, and why the link dropped for `Reconnecting`, and
+  has a computed `Reason` string.
+- **Automatic reconnect**: when the link drops and the host holds dropped clients, the client goes `Reconnecting`,
+  reconnects the peripheral and hands the host its resume token, then is `Connected` again - same connection on the
+  host, missed pushes raised in order. `Connected` (the event) isn't raised again, and `Disconnected` isn't raised at
+  all unless it gives up (the host's window ran out or it refused): then it goes to `Disconnected` with `ClientTimeout`.
+  Calls in flight when the link dropped, and calls made while `Reconnecting`, throw `BleHubDisconnectedException`; media
+  channels close (reopen when `Connected`). `new BleHubConnectOptions("Allan") { AutomaticReconnect = false }` turns it off.
+  ```csharp
+  client.StatusChanged += (_, e) => MainThread.BeginInvokeOnMainThread(() => this.Banner = e.Status switch
+  {
+      BleHubClientStatus.Reconnecting => "Reconnecting...",
+      BleHubClientStatus.Disconnected => $"Disconnected: {e.Reason}",
+      _ => null
+  });
+  ```
 - **Client-side reasons**: `ClientDisconnect` (`Disconnect()` / `Dispose()`), `ClientTimeout` (the link dropped),
   `ServerDisconnect` / `ServerShutdown` (from the host), and `ConnectionFailed` (a connect or handshake failed;
   `Disconnected` isn't raised because it never connected). A disconnect from a host older than reason codes arrives

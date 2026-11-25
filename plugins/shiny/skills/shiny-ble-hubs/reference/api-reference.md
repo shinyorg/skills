@@ -74,7 +74,10 @@ public sealed class MediaFrameCodec
     public IReadOnlyList<byte[]> Add(ReadOnlySpan<byte> data);   // completed frames; BleHubProtocolException over the max
 }
 
-// HandshakeAck (wire record) gained, with defaults: ushort MediaChannelPsm, bool MediaChannelSecure, string? MediaToken, int MediaMaxPacketSize
+// HandshakeAck (wire record) gained, with defaults: ushort MediaChannelPsm, bool MediaChannelSecure, string? MediaToken, int MediaMaxPacketSize,
+//   string? ResumeToken, int ResumeWindowSeconds
+// HandshakeInfo (wire record) gained, with a default: bool Resumable - the client can resume, so the host may hold it
+// FrameKind.Resume = 0x15 (client -> host, payload ResumeInfo(int ProtocolVersion, string Token)), answered with a HandshakeAck
 ```
 
 ## Host (`Shiny.BluetoothLE.Hubs.Host`)
@@ -103,6 +106,8 @@ public class BleHubHostOptions
     public string ServiceUuid { get; set; }                      // BleHubProtocolOptions.DefaultServiceUuid - the one service holding every hub; advertised
     public string? LocalName { get; set; }
     public TimeSpan ClientSweepInterval { get; set; }            // 10s
+    public TimeSpan ResumeWindow { get; set; }                   // 30s - hold a dropped client that can resume; zero = off (BLE, Multipeer, Nearby)
+    public int ResumeBufferSize { get; set; }                    // 128 - pushes kept for a held client; more and it's let go
     public BleHubHostOptions EnableFileTransfers(string rootDirectory, Action<BleHubFileTransferOptions>? configure = null);
     public BleHubMediaChannelOptions? MediaChannels { get; }
     public BleHubHostOptions EnableMediaChannels(int maxPacketSize = 128 * 1024, bool secure = false);   // second L2CAP PSM, opened on Start
@@ -236,7 +241,7 @@ public sealed class BleHubClientOptions
 
 public interface IBleHubConnection
 {
-    BleHubClientStatus Status { get; }            // Disconnected, Connecting, Connected, Disconnecting
+    BleHubClientStatus Status { get; }            // Disconnected, Connecting, Connected, Disconnecting, Reconnecting
     BleHubHostInfo? Host { get; }
     string? HostName { get; }                    // kept up to date when the host renames
     string? ClientName { get; }                  // BleHubConnectOptions.Name or the latest Rename; null while disconnected
@@ -266,7 +271,10 @@ public sealed record BleHubStatusChangedEventArgs(BleHubClientStatus Status, Hub
 {
     public string? Reason { get; }               // Disconnect?.Description
 }
-public sealed record BleHubConnectOptions(string? Name = null, string? AppVersion = null, Dictionary<string, string>? Properties = null);
+public sealed record BleHubConnectOptions(string? Name = null, string? AppVersion = null, Dictionary<string, string>? Properties = null)
+{
+    public bool AutomaticReconnect { get; init; }   // true - resume a dropped link (Reconnecting) when the host holds dropped clients
+}
 ```
 
 ## Other transports (hidden seams)
@@ -282,9 +290,16 @@ rather than these directly.
   `MediaChannelOpened(connectionId, IBleHubMediaChannel)` (raises `IHubContext.MediaChannelOpened`, closes the channel when
   the client goes; false = unknown client, the caller closes it). Clients connected this way share Clients, Groups, MaxClients and
   IHubContext with BLE clients.
+  Resume (default-implemented): `EnableResume(connectionId)` → the token to hand the client (null = the host doesn't hold
+  clients), `ResumeWindow`, `Disconnected(connectionId, IBleHubPeerChannel, HubDisconnect)` (ignored unless that channel is
+  still the client's; a dropped link holds a resumable client), and `Resume(token, connectionIdPrefix, channel,
+  accepted, ct)` (moves the held connection onto the channel, runs `accepted(connectionId)` for the reply, then replays the
+  kept pushes through the channel; returns null or why not).
 - `IBleHubPeerChannel`: `Push(eventName, encodedArguments, ct)`, `Disconnect(HubDisconnect, ct)`, `HostRenamed(hostName, ct)`
   (default no-op, called in order with `Push`) - implemented by the transport.
 - `BleHubClient.ConnectExternal(events => IBleHubClientTransport, options, ct)`, `BleHubClient.ExternalTransport`.
+- `IBleHubClientTransportEvents`: `Pushed`, `HostRenamed`, `Closed`, and (default no-ops) `Reconnecting(HubDisconnect)` /
+  `Reconnected()` for a transport that resumes its own link - `BleHubClient` reports `Reconnecting` status in between.
 - `IBleHubClientTransport`: `Handshake`, `Invoke`, `Stream`, `Rename` (default throws `NotSupportedException`),
   `CanTransferFiles`, `Upload`, `Download`, `Close`, `CanOpenMediaChannel` (default false), `OpenMediaChannel(ct)` (default
   throws `NotSupportedException`; `BleHubClient` serializes it, reuses an open channel and closes it on disconnect).
