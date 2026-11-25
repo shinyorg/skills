@@ -41,6 +41,11 @@ triggers:
   - HubConnectOptions
   - Prefer
   - AutomaticReconnect
+  - Reconnecting
+  - ResumeWindow
+  - multipeer resume
+  - nearby resume
+  - ble resume
   - HttpRediscoverTimeout
   - UniversalHubProtocol
   - NSBonjourServices
@@ -325,8 +330,11 @@ public class JoinViewModel(IUniversalHubClient<IGameHub> client)
 - **`Prefer`** (Http by default) is tried first when the host is reachable more than one way; the rest follow in the
   order Http, Multipeer, Nearby, Ble. **`Allowed`** limits which may be used (`Prefer = Allowed = X` forces one). A **refusal** (full, `ValidateClient`, hub not
   running) is **not retried** on another transport. The transport never changes mid-session.
-- **Resume**: a short Wi-Fi drop keeps the connection id and groups and replays missed pushes; neither side sees a
-  disconnect. `UniversalHubClientOptions.AutomaticReconnect = false` turns it off.
+- **Resume**: a dropped link keeps the connection id and groups and replays missed pushes, on every transport; the hub
+  sees no disconnect. Over Wi-Fi the Switchboard line resumes on its own. Over BLE, Multipeer and Nearby the host holds
+  the client for `BleHubHostOptions.ResumeWindow` (30s, set it in `.Ble(o => ...)`) and the client reconnects by itself,
+  `Status == Reconnecting` meanwhile (see `shiny-ble-hubs` for what's held and what's lost).
+  `UniversalHubClientOptions.AutomaticReconnect = false` turns it off on every transport.
 - **Discovery merges by host name** (Apple can't advertise a host id over BLE), so hosts need distinct `LocalName`s.
   A transport that can't scan is skipped.
 - **By address** (tunnel URL, typed address, QR code), HTTP only:
@@ -347,7 +355,7 @@ The same `HubDisconnectReason` on every transport, host and client:
 | Reason | BLE | HTTP | Multipeer / Nearby |
 |---|---|---|---|
 | `ClientDisconnect` | client called `Disconnect()` | client closed its line | client said goodbye |
-| `ClientTimeout` | unsubscribe without goodbye, or the sweep | line dropped and the resume window ran out | session ended without a goodbye (no resume) |
+| `ClientTimeout` | unsubscribe without goodbye, or the sweep (after the resume window) | line dropped and the resume window ran out | session ended without a goodbye (after the resume window) |
 | `ServerDisconnect` | `Context.Abort` / `IHubContext.Disconnect` | same | same |
 | `ServerShutdown` | `IUniversalHubHost.Stop` / `StopHub` / `IHubContext.Stop` | same | same |
 | `ConnectionFailed` | link failed | line faulted | connect failed |
@@ -453,7 +461,9 @@ Info.plist (host and client) - **without these, discovery silently finds nothing
   `connection.Multipeer?.DisplayName` is the peer's radio name (the hub client name is still `connection.Client.Name`).
 - Values travel as **binary** (any `IBleHubSerializer`, like BLE). **Renames work.** Files move as MC resources under
   the same `EnableFileTransfers` / `AuthorizeFile` rules; media channels work too.
-- **No resume**: a dropped session (backgrounded app, out of range) is `ClientTimeout`. Foreground only, like the rest.
+- **Resume**: a dropped session (backgrounded app, out of range) is resumed - the client invites the host again within
+  the host's resume window and carries on as the same connection. After the window it is `ClientTimeout`. Foreground
+  only, like the rest.
 - One MC session per hub connection on the host - no 8-peer limit to design around.
 
 ### 11. Dynamic hubs (defined while the app runs)
@@ -580,7 +590,8 @@ builder.Services.AddUniversalHubClient<IGameHub>(GameUuid, "_mygame._tcp", o =>
   Android ↔ iPhone with no network is NOT promised (BLE v2 interop unverified; Wi-Fi Aware needs Apple's pairing).
   Between Apple devices Multipeer is tried first.
 - Messages over 32 KB are split and arrive whole; files are Nearby file payloads under the same `EnableFileTransfers`
-  rules; media channels and renames work. No resume: a drop is `ClientTimeout`.
+  rules; media channels and renames work. A drop is resumed within the host's resume window, like Multipeer; after it,
+  `ClientTimeout`.
 - The advertisement fits about 20 hubs (4-byte tags in 131 bytes of endpoint info).
 - Building the package from source needs `native/ShinyNearbyBridge/build.sh` first (package users don't).
 
