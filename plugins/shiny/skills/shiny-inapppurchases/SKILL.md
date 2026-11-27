@@ -31,6 +31,9 @@ triggers:
   - PurchaseResultStatus
   - PurchaseOptions
   - PurchaseState
+  - IsVerified
+  - VerificationError
+  - unverified transaction
   - SubscriptionReplacement
   - InAppPurchaseException
   - InAppPurchaseErrorCode
@@ -46,6 +49,9 @@ triggers:
   - IAppleStoreClient
   - IGooglePlayClient
   - IPurchaseEventDeduplicator
+  - IsConsumed
+  - replay protection
+  - consumptionState
 ---
 
 # Shiny.Mobile.InAppPurchases
@@ -69,10 +75,20 @@ Namespaces: `Shiny.InAppPurchases` (client) and `Shiny.InAppPurchases.Server` (s
 3. **Consumable vs non-consumable is decided at finish time**: `FinishPurchaseAsync(purchase, consume: true)` for things that can be
    bought again. Google Play does not model consumables, and `ProductType` is only `OneTime` / `Subscription`.
 4. **Verify on the server** with `Purchase.VerificationData` (Apple signed JWS / Google purchase token). Don't trust the device.
-5. **Handle updates idempotently**, keyed on `TransactionId` on the client and `NotificationId` / `TransactionId` on the server.
-6. Always set `PurchaseOptions.AccountToken` (a `Guid`, your user id). It comes back as Apple `appAccountToken` /
+5. **Never grant an unverified purchase.** On Apple, a transaction that fails StoreKit's on-device verification arrives
+   like any other (from `PurchaseAsync` as `Success`, from `GetUnfinishedPurchasesAsync`, `GetEntitlementsAsync` and
+   `IPurchaseDelegate`) with `Purchase.IsVerified == false` and the reason in `VerificationError`. Log it and finish it
+   without granting, or send it to the server, which rejects the JWS - but always finish it, or StoreKit redelivers it on
+   every launch. Google Play purchases are always `IsVerified == true` (Play verification is server-side only).
+6. **Handle updates idempotently**, keyed on `TransactionId` on the client and `NotificationId` / `TransactionId` on the server.
+7. Always set `PurchaseOptions.AccountToken` (a `Guid`, your user id). It comes back as Apple `appAccountToken` /
    Google `obfuscatedAccountId`, both on-device and in server notifications.
-7. Libraries use Shiny.Core only. Do not suggest MAUI Essentials APIs inside library code.
+8. Libraries use Shiny.Core only. Do not suggest MAUI Essentials APIs inside library code.
+9. **Replay protection on the server.** A verified purchase can be sent again (a retry, or a captured token/JWS replayed),
+   and a finished Apple consumable or a consumed Google token still verifies with `IsActive == true`. Grant at most once
+   per `VerifiedPurchase.TransactionId` (Apple `transactionId`, Google `orderId`) - store it with a unique constraint and
+   treat a repeat as "already granted". On Google one-time products also refuse a token with `IsConsumed == true` (it was
+   already granted and finished). `IsConsumed` is null on Apple (not reported) and for subscriptions.
 
 ## Client registration
 
@@ -125,6 +141,12 @@ public class StoreViewModel(IInAppPurchaseManager purchases, MyApi api)
 
             switch (result.Status)
             {
+                case PurchaseResultStatus.Success when !result.Purchase!.IsVerified:
+                    // Apple: failed on-device verification - never grant. Finish so StoreKit stops redelivering it.
+                    logger.LogWarning("Unverified purchase {Id}: {Error}", result.Purchase.TransactionId, result.Purchase.VerificationError);
+                    await purchases.FinishPurchaseAsync(result.Purchase, consume: product.Id == "coins_100");
+                    break;
+
                 case PurchaseResultStatus.Success:
                     await api.VerifyAndGrant(result.Purchase!.VerificationData, result.Purchase.ProductId);
                     await purchases.FinishPurchaseAsync(result.Purchase!, consume: product.Id == "coins_100");
@@ -155,6 +177,11 @@ public class MyPurchaseDelegate(IInAppPurchaseManager purchases, MyApi api) : IP
     {
         switch (purchase.State)
         {
+            case PurchaseState.Purchased when !purchase.IsVerified && !purchase.IsFinished:
+                // Apple only - log, never grant, finish so it is not redelivered
+                await purchases.FinishPurchaseAsync(purchase, consume: IsConsumable(purchase.ProductId));
+                break;
+
             case PurchaseState.Purchased when !purchase.IsFinished:
                 await api.VerifyAndGrant(purchase.VerificationData, purchase.ProductId);
                 await purchases.FinishPurchaseAsync(purchase, consume: IsConsumable(purchase.ProductId));
@@ -196,6 +223,7 @@ Delegates are resolved lazily, so they may inject `IInAppPurchaseManager`. At ap
 | `IsFinished` | finished | acknowledged |
 | `Environment` | Production / Sandbox / Xcode | Unknown |
 | `Signature` | null | RSA signature of `OriginalJson` |
+| `IsVerified` / `VerificationError` | false + reason when StoreKit verification fails | always true / null |
 
 ## Server
 
@@ -263,7 +291,8 @@ Status codes:
 
 Direct access:
 - `IPurchaseVerifier.VerifyAsync(new PurchaseVerificationRequest { Platform, VerificationData, ProductId })` returns
-  `VerifiedPurchase` (`IsValid`, `Error`, `IsActive`, `Kind`, ids, `AccountToken`, `ExpiresAt`, `Environment`, `IsAcknowledged`).
+  `VerifiedPurchase` (`IsValid`, `Error`, `IsActive`, `Kind`, ids, `AccountToken`, `ExpiresAt`, `Environment`, `IsAcknowledged`,
+  `IsConsumed` - Google one-time products only, from `consumptionState`; null on Apple and for subscriptions).
   Apple verifies offline, Google calls the Play Developer API.
 - `IAppleStoreClient`: `VerifyNotification`, `VerifyTransaction`, `VerifyRenewalInfo`, `GetTransactionAsync`,
   `GetSubscriptionStatusesAsync`, `RequestTestNotificationAsync(sandbox)`.
@@ -271,6 +300,20 @@ Direct access:
   `AcknowledgeProductAsync`, `ConsumeProductAsync`.
 
 Always grant to the **authenticated user** in your verify endpoint, never to an id taken from the request body.
+
+```csharp
+var result = await verifier.VerifyAsync(new PurchaseVerificationRequest { Platform = dto.Platform, VerificationData = dto.VerificationData, ProductId = dto.ProductId });
+if (!result.IsValid || !result.IsActive)
+    return Results.BadRequest(result.Error);
+
+if (await db.HasGrant(result.Platform, result.TransactionId!))   // Apple transactionId / Google orderId
+    return Results.Ok();                                          // already granted - idempotent, not an error
+
+if (result.IsConsumed == true)                                    // Google: consumed token we have no record of
+    return Results.Conflict("Purchase was already consumed");
+
+await db.Grant(user.GetUserId(), result.Platform, result.TransactionId!, result.ProductId, result.Quantity ?? 1);
+```
 
 ## Store setup & testing pointers
 
