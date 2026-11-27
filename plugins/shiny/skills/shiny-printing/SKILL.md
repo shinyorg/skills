@@ -432,18 +432,13 @@ blocks the socket to the printer too.
 needs nothing - it runs from the current foreground activity, so call it while the app is visible.
 
 **Linux**: add `SkiaSharp.NativeAssets.Linux` to the **app** when using `Shiny.Printing.Rendering` - SkiaSharp's plain
-`net11.0` build ships only macOS and Windows natives, so rendering throws `DllNotFoundException: libSkiaSharp`
+`net10.0` build ships only macOS and Windows natives, so rendering throws `DllNotFoundException: libSkiaSharp`
 without it. CUPS printing needs `lp`/`lpstat` (the `cups-client` package).
 
 ## Don't
 
 - Don't hard-code 32 or 48 columns - read `CharactersPerLine`.
 - Don't call `Cut()` without checking `SupportsCut`.
-- ESC/POS 1D barcodes carry at most 255 encoded bytes (Code128 adds a 2-byte `{B` prefix); longer data throws
-  `NotSupportedException` at encode time - use a QR code for long payloads.
-- `TsplProtocol` escapes a `"` in text, barcode and QR data as TSPL's `\["]`.
-- `SkiaPrintDocumentRenderer`: `Cut()` ends the PDF page, and the next page only starts when there is more content, so a
-  receipt ending in `Cut()` renders without a blank last page.
 - Don't send an image wider than `DotsPerLine`.
 - Don't wrap `IPrintService.Print` in try/catch to detect platform support - check `Capabilities`.
 - Don't use `Shiny.Printing` for a thermal printer (no driver, garbage output) or `Shiny.Printers` for an office

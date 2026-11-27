@@ -152,7 +152,7 @@ recording that silently came out without the microphone is worse than one that r
 | Item      | Value |
 |-----------|-------|
 | GitHub    | https://github.com/shinyorg/shiny |
-| NuGet     | `Shiny.ScreenRecorder` (its `net11.0` build holds the Blazor WebAssembly recorder - `Shiny.ScreenRecorder.Blazor` no longer exists), plus `Shiny.ScreenRecorder.Linux` on Linux |
+| NuGet     | `Shiny.ScreenRecorder` (its `net10.0` build holds the Blazor WebAssembly recorder - `Shiny.ScreenRecorder.Blazor` no longer exists), plus `Shiny.ScreenRecorder.Linux` on Linux |
 | Namespace | `Shiny.ScreenRecorder` (types); `Shiny` (registration extensions) |
 | Platforms | Android, iOS, Mac Catalyst, macOS, Windows, Linux, Blazor WebAssembly |
 
@@ -180,7 +180,7 @@ app audio at all forces the whole pipeline down.
 builder.Services.AddScreenRecorder();     // IScreenRecorder, singleton
 ```
 
-Same call everywhere except Linux. On `net11.0`, `AddScreenRecorder()` registers the browser recorder
+Same call everywhere except Linux. On `net10.0`, `AddScreenRecorder()` registers the browser recorder
 behind `OperatingSystem.IsBrowser()` and the not-supported recorder anywhere else. **On Linux, reference
 `Shiny.ScreenRecorder.Linux` and call `builder.Services.AddLinuxScreenRecorder()` instead** - it is a separate
 package so its `Tmds.DBus.Protocol` dependency never reaches a WebAssembly app.
@@ -241,10 +241,7 @@ approves still reports `Denied`, and you must tell them to restart the app. Add
 **Linux** - a desktop session with `xdg-desktop-portal` implementing ScreenCast, plus
 `gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pipewire`, or
 `ffmpeg` on X11. Audio needs `pactl`. Flatpak sandboxes are **not** supported. All of this is
-probed at runtime - a machine missing the pieces reports `ScreenRecorderCapabilities.None`. When
-GStreamer is installed but no portal is running, an X11 session with `ffmpeg` falls back to
-`x11grab` (whole display, no picker) - except for a request with `IncludeSystemAudio`, which only
-the GStreamer path can record.
+probed at runtime - a machine missing the pieces reports `ScreenRecorderCapabilities.None`.
 
 **Blazor WebAssembly** - HTTPS (or localhost) and a **user gesture**. `getDisplayMedia` is refused
 from `OnInitializedAsync`; it must run from a button click. In an iframe, add
@@ -334,10 +331,8 @@ if (recorder.Capabilities.HasFlag(ScreenRecorderCapabilities.PauseResume))
 
 Both calls are idempotent. Only the browser pauses natively; elsewhere the capture keeps running,
 frames are dropped, and later timestamps are shifted back so the output has **no frozen stretch** -
-which also means a long pause still costs battery. The span removed runs up to the first frame
-after `Resume`, so the output continues one frame after the last one written before `Pause`.
-`Elapsed` excludes the paused span, and `ScreenRecordingResult.Duration` is measured from the
-file's first frame to its last.
+which also means a long pause still costs battery. `Elapsed` excludes the paused span and matches
+the duration of the finished file.
 
 ## Choosing a display or window
 
@@ -385,8 +380,7 @@ session.Faulted += (_, e) =>
             break;
 
         case ScreenRecordingFaultReason.MaxDurationReached:
-            // stopped at the limit - e.Result carries the file, or is null with e.Exception set
-            // when finalising it failed
+            // stopped cleanly - e.Result always carries a complete file
             break;
 
         case ScreenRecordingFaultReason.TargetLost:

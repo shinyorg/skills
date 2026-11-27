@@ -18,8 +18,6 @@ triggers:
   - remote notification
   - device token
   - registration token
-  - OnUnRegistered
-  - push permission revoked
   - push tag
   - push tags
   - AddPush
@@ -72,7 +70,7 @@ Use this skill when the user needs to:
 | **NuGet (Azure NH)** | `Shiny.Push.AzureNotificationHubs` |
 | **Primary Namespace** | `Shiny.Push` |
 | **Config Namespace** | `Shiny` (extension methods on `IServiceCollection`) |
-| **Platforms** | iOS (APNs), tvOS (APNs, silent/badge only), Android (FCM), Windows (WNS), Blazor WebAssembly (Web Push / VAPID, in the same `Shiny.Push` package's `net11.0` build) |
+| **Platforms** | iOS (APNs), tvOS (APNs, silent/badge only), Android (FCM), Windows (WNS), Blazor WebAssembly (Web Push / VAPID, in the same `Shiny.Push` package's `net10.0` build) |
 
 ### tvOS
 
@@ -114,7 +112,7 @@ builder.Services.AddPush<MyPushDelegate>();
 
 ### Blazor WebAssembly (Web Push)
 
-There is no separate Blazor package - `Shiny.Push`'s `net11.0` build carries the Web Push backend (`BrowserPushManager`). Never reference `Shiny.Push.Blazor`; it was merged into `Shiny.Push` in v6.
+There is no separate Blazor package - `Shiny.Push`'s `net10.0` build carries the Web Push backend (`BrowserPushManager`). Never reference `Shiny.Push.Blazor`; it was merged into `Shiny.Push` in v6.
 
 ```csharp
 using Shiny;
@@ -224,13 +222,6 @@ keys. A failed image download never throws - the notification goes out without i
 
 4. **Multiple delegates are supported.** You can register multiple `IPushDelegate` implementations; all will be called. Register additional delegates as keyed/standard services via `services.AddSingleton<IPushDelegate, MyOtherPushDelegate>()` or tag the class with `[Singleton]` from `Shiny.Extensions.DependencyInjection`.
 
-   **A revoked permission unregisters the device at the next app start, not live.** When a device that registered starts
-   with notifications turned off (iOS/macOS authorization `Denied`; Android notifications disabled or `POST_NOTIFICATIONS`
-   revoked on 13+), Shiny runs the same path as `UnRegister()`: the provider unregisters (e.g. the ANH installation is
-   deleted), `OnUnRegistered(oldToken)` fires and `RegistrationToken` / `NativeRegistrationToken` become `null`. Put
-   "stop targeting this device" server calls in `OnUnRegistered`. A timeout or `Restricted` keeps the registration. Once
-   the user turns notifications back on, the app must call `RequestAccess()` again - it registers and raises `OnNewToken`.
-
 5. **Apple-specific customization:**
    - Cast `IPushManager` to `IApplePushManager` for custom `UNAuthorizationOptions`.
    - Implement `IApplePushDelegate` (extends `IPushDelegate`) to control foreground presentation options and background fetch results.
@@ -242,17 +233,12 @@ keys. A failed image download never throws - the notification goes out without i
    - Use `AndroidPushNotification.SendDefault(notificationId)` for quick notification display, or `SendDefaultAsync(notificationId)` / `CreateBuilderAsync()` to include the push image.
    - Configure `FirebaseConfig.DefaultChannel` to set a default `NotificationChannel`.
    - Configure `FirebaseConfig.IntentAction` to set a custom intent action for notification taps.
-   - `OnEntry` runs once per tap - not again when the activity is recreated (rotation) or reopened from recents.
-
-   **Windows:** a device that registered reopens its WNS channel at app startup (a no-prompt `RequestAccess`), so foreground pushes arrive again after a restart and an expired channel URI reaches the provider and `OnNewToken`.
 
 7. **Tags/Topics:**
    - Check `IPushManager.Tags != null` (or use `pushManager.IsTagsSupport()`) before using tag operations.
    - Native Firebase on Android supports tags via FCM topic subscriptions.
    - Azure Notification Hubs supports tags via installation tags.
-   - Use extension methods `TrySetTags`, `TryGetTags`, `TryRequestAccessWithTags` for safe tag operations. `TryRequestAccessWithTags` only applies the tags when access is `Available`.
-   - Native Firebase topics are persisted across app restarts, so `ClearTags`/`SetTags` unsubscribe topics set in an earlier session.
-   - Azure Notification Hubs: tags set before `RequestAccess` (or after `UnRegister`) are kept locally and sent with the next registration instead of throwing.
+   - Use extension methods `TrySetTags`, `TryGetTags`, `TryRequestAccessWithTags` for safe tag operations.
 
 8. **Azure Notification Hubs specifics:**
    - Implement `IPushInstallationEvent` to modify the `Installation` object (add templates, tags) before it is sent to ANH.
