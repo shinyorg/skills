@@ -47,6 +47,7 @@ triggers:
   - IHubTransport
   - IHubBinding
   - IHubEndpoint
+  - HubStreamInvocation
   - IHubPeerChannel
   - IHubClientTransport
   - HubClientContext
@@ -130,6 +131,10 @@ triggers:
   - SUH004
   - SUH005
   - SUH006
+  - SUH007
+  - SUH008
+  - SUH009
+  - MaxMessageSize
 ---
 
 # Shiny.UniversalHubs
@@ -267,7 +272,7 @@ await client.Disable<BleClientTransport>();       // Enable / Solo / IsEnabled /
   retried. `Allow<T>()` restricts, `Only<T>()` = just that one.
 - `client.Transport` is the transport in use; `Status`, `StatusChanged`, `Disconnected`, `Rename`, `UploadFile`,
   `DownloadFile`, `OpenMediaChannel` work on every transport.
-- HTTP client options: `UseHttp(type, h => { h.ConnectTimeout; h.RediscoverTimeout; h.MessageHandlerFactory; })`.
+- HTTP client options: `UseHttp(type, h => { h.ConnectTimeout; h.RediscoverTimeout; h.MessageHandlerFactory; h.MaxMessageSize; })`.
 
 ## Serializers
 
@@ -308,6 +313,9 @@ await client.Hub.Invoke("Answer", [json]);
 | SUH004 | Unsupported hub event (use Action / Action<...>) |
 | SUH005 | The hub's contract isn't marked [UniversalHubContract] |
 | SUH006 | Unsupported hub method signature |
+| SUH007 | A contract declares a property or indexer (only methods and Action events) |
+| SUH008 | Hub contracts can't be generic |
+| SUH009 | A contract member name collides with the generated proxy (Hub, OnPush, ...) or is both a method and an event |
 
 ## Platform setup
 

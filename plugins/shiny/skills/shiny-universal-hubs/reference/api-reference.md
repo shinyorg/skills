@@ -197,6 +197,7 @@ public interface IHubEndpoint
     HubMethodKind GetMethodKind(string method);
     Task<HubInvocationResult> Invoke(string connectionId, string method, ReadOnlyMemory<byte> arguments, CancellationToken cancellationToken);
     IAsyncEnumerable<byte[]> Stream(string connectionId, string method, ReadOnlyMemory<byte> arguments, CancellationToken cancellationToken);
+    HubStreamInvocation StartStream(string connectionId, string method, ReadOnlyMemory<byte> arguments, CancellationToken cancellationToken);   // send Items, the end of stream, then Disconnect when AbortRequested
     void Disconnected(string connectionId, IHubPeerChannel channel, HubDisconnect disconnect);
     string? EnableResume(string connectionId);
     TimeSpan ResumeWindow { get; }
@@ -414,6 +415,7 @@ public sealed class HttpClientTransportOptions
     public TimeSpan ConnectTimeout { get; set; } = 6s;
     public TimeSpan RediscoverTimeout { get; set; } = 3s;
     public Func<HttpMessageHandler>? MessageHandlerFactory { get; set; }
+    public int MaxMessageSize { get; set; } = 4 MB;            // largest WebSocket message taken from a host
 }
 
 public sealed class HttpHostTransport : IDynamicHubTransport;       // DisplayName "HTTP", ListenUrls
