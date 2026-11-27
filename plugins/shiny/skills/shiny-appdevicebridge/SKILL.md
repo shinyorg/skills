@@ -111,6 +111,9 @@ triggers:
   - compass
   - barometer
   - Shiny.AppDeviceBridge.Gps
+  - Shiny.Gps.Linux
+  - AddLinuxGps
+  - GeoClue
   - Shiny.AppDeviceBridge.Geofencing
   - Shiny.AppDeviceBridge.RegionGeofencing
   - AddRegionGeofenceBridge
@@ -173,6 +176,10 @@ triggers:
   - HubConnectRequest
   - HubInvokeRequest
   - join a hub from the web app
+  - Universal Hubs 3
+  - HubTransports.Nearby
+  - DynamicServiceTypes
+  - DynamicServiceUuid
   - IPushBridge
   - INotificationsBridge
   - ITransfersBridge
@@ -774,7 +781,7 @@ sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `Shiny.AppDeviceBridge` (the server) | `AddAppBridge(store => store.AppleAppId = …, startup => startup.Arguments.Add(…))` | `Shiny.AppDeviceBridge.Client`: `IAppBridge` (`AppJsonContext`) — info, orientation, screen (`app.screen`), settings, store (Shiny.AppStore's `IAppStore`; 501 unless `store` is passed; `OpenReviewPageAsync`), launch at login (Shiny.Core's `IAppStartupInstaller`; 409 `startup_failed`), battery (`app.battery` carries `BatteryInfo` with energy saver) and connectivity, from Shiny.Core's `IPlatform`, `IScreenInfo`, `IBattery` and `IConnectivity`. No MAUI; a host without MAUI calls `services.AddBattery()` / `AddConnectivity()` itself |
 | `Shiny.AppDeviceBridge.Maui` | `AddDeviceBridge()`, `AddSensorsBridge()`, `AddPasskeysBridge("example.com")` (relying party ids required; each needs the app's domain association — Apple `webcredentials:` + AASA, Android `assetlinks.json`) | `Shiny.AppDeviceBridge.Client`: `IDeviceBridge` (`DeviceJsonContext`) — browser (`http`/`https`/`mailto`/`tel` only), map, share (text or file roots, ≤ 20), haptics, vibrate (≤ 5 s), keep-awake (`PUT` 501 where it does not hold), clipboard (≤ 1 MB), over MAUI Essentials, each 501 alone where missing; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event; `IPasskeysBridge` (`PasskeysJsonContext`) — WebAuthn passkeys, iOS / Mac Catalyst / Android / Windows, `501` on AppKit and Linux; see Passkeys below |
-| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
+| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): GPS on Android, iOS, Mac Catalyst, macOS (AppKit), Windows and Linux (GeoClue2 through Shiny.Gps.Linux, registered by `AddGpsBridge()` only on Linux; to set GeoClue's desktop id call `services.AddLinuxGps(o => o.DesktopId = "com.mycompany.myapp")` before the bridge, which keeps it), 501 elsewhere; motion on Android, iOS, Mac Catalyst only. `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst/macOS, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
 | `.RegionGeofencing` | `AddRegionGeofenceBridge(cfg => cfg.AddGeocoderRegionSet(name, GeocoderRegionLevel.X) / .AddDocumentRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:) / .AddNorthAmericanRegions() / .AddNorthAmericanCities(withinMeters:) / .AddRegionSet(name, IRegionSource), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IRegionGeofencesBridge` (`RegionGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`regiongeofence.change`; native call `regiongeofence`). Backed by Shiny.Geofencing.Regions; region sets are registered in C# only, and the app must not also call `AddRegionGeofencing`. Document sets (`AddDocumentRegionSet`, `AddNorthAmerican*`) need the app to reference Shiny.Geofencing.Regions.DocumentDb and register a SQLite store with the geometry mapped (`MapSpatialProperty` / `MapNorthAmericaData()`, plus `AddNorthAmericaSeeder()` for the dataset). `region`: a geocoder set's placemark always; anything else only through `o.RegionSerializerOptions` metadata (pass the store's `JsonSerializerOptions`), null without it. `start`: 409 `geofence_refused`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
@@ -784,7 +791,7 @@ sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
 | `.Printing` | `AddPrintingBridge(o => o.MaxFileBytes = …)` — `PrintingBridgeOptions`: `MaxJsonBytes` (16 MB), `MaxFileBytes` (512 MB) | `IPrintingBridge` (`PrintingJsonContext`) — the OS print dialog / spooler for PDF, image, HTML; see Printing below |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
-| `.Hubs` | `AddHubsBridge(server => server.AllowDynamicHubs(o => o.ServiceTypes.Add("_myapp._tcp")))` — Universal Hubs' own `AddUniversalServer` builder (call it nowhere else) | `IHubsBridge` + the page-side `WebAppHub` base class (`AddWebAppHub<THub>(new(name, uuid, serviceType))`) — Universal Hubs (BLE, Wi-Fi, Multipeer) whose logic is the web app's; see Hubs below |
+| `.Hubs` | `AddHubsBridge(server => server.Http(o => o.DynamicServiceTypes.Add("_myapp._tcp")))` — Universal Hubs 3's own `AddUniversalServer` builder (call it nowhere else) | `IHubsBridge` + the page-side `WebAppHub` base class (`AddWebAppHub<THub>(new(name) { ServiceType, CharacteristicUuid })`) — Universal Hubs (Wi-Fi, BLE, Multipeer, Nearby) whose logic is the web app's; see Hubs below |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.9; iOS and Android only, `501` elsewhere |
 | `.LiveActivities` | `AddLiveActivitiesBridge(o => o.ChannelName = "Deliveries")` — Shiny's `LiveActivityOptions`; iOS also needs `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` | `ILiveActivitiesBridge` — iOS Live Activities and Android Live Updates |
@@ -1122,20 +1129,31 @@ Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager +
 
 ## Hubs
 
-`AddHubsBridge(...)` serves Universal Hubs whose logic lives in the web app page. The app hosts them over BLE, Wi-Fi (mDNS) and Multipeer on the bridge's own server; every client call reaches the
-web app as the native call `hub:{name}`, answered by the page while it's open, carrying a `HubCall`, and the
-`HubCallReply` goes back to the client. Clients are ordinary Universal Hubs clients (`AddUniversalHubClient<TContract>`)
+`AddHubsBridge(...)` serves Universal Hubs (3.x) whose logic lives in the web app page. The app hosts them over Wi-Fi
+(mDNS, a WebSocket per hub at `/hubs/{name}` on the bridge's own server), Bluetooth LE, and Multipeer or Nearby when it
+sets them up; every client call reaches the web app as the native call `hub:{name}`, answered by the page while it's
+open, carrying a `HubCall`, and the `HubCallReply` goes back to the client. Clients are ordinary Universal Hubs clients
+(`AddUniversalHubClient<TContract>("game", o => o.UseHttp("_myapp._tcp").UseBluetoothLE(service, characteristic))`)
 and can't tell the logic is in a page.
 
 ```csharp
 // the app: what web app hubs may use is fixed here (iOS lists every mDNS type in NSBonjourServices)
-bridge.AddHubsBridge(server => server
-    .ServiceUuid(ServiceUuid)                                   // optional - clients must use the same one
-    .AllowDynamicHubs(o => o.ServiceTypes.Add("_myapp._tcp")));
+bridge.AddHubsBridge(
+    server => server
+        .Configure(o => o.LocalName = "Kitchen")                   // what other devices list this one as
+        .Http(o => o.DynamicServiceTypes.Add("_myapp._tcp"))
+        .BluetoothLE(o => o.DynamicServiceUuid = ServiceUuid)      // optional - else Universal Hubs' default service
+        .Multipeer("myapp-mc"),                                    // optional - Shiny.UniversalHubs.Multipeer
+    clients => clients.UseMultipeer("myapp-mc"));                  // what the page's own hub clients share
 builder.Services.AddShinyHttpServer(http => http.Options.Address = IPAddress.Any, autoStart: false);   // for Wi-Fi clients
 
-// the Blazor page
-builder.Services.AddWebAppHostClient().AddWebAppHub<GameHub>(new("game", GameCharacteristic, "_myapp._tcp") { MaxClients = 6 });
+// the Blazor page: Wi-Fi always; BLE only with a characteristic
+builder.Services.AddWebAppHostClient().AddWebAppHub<GameHub>(new("game")
+{
+    ServiceType = "_myapp._tcp",
+    CharacteristicUuid = GameCharacteristic,
+    MaxClients = 6
+});
 // once the page is up — every load:
 var hubs = host.Services.GetRequiredService<WebAppHubs>();
 await hubs.DefineAsync();
@@ -1158,13 +1176,14 @@ public sealed class GameHub(GameEngine engine) : WebAppHub
 }
 ```
 
-- **Names are the contract.** Method and event names must match the clients' `[BleHubClient]` interface exactly, and
+- **Names are the contract.** Clients ask for the hub by its name, and method and event names must match the clients'
+  `[UniversalHubContract]` interface exactly, and
   the page's JSON must match the clients' serializer (a camelCase source-gen context on both sides, say). Methods not in
   the definition are answered `HubMethodNotFound` without reaching the page.
 - **Every page load defines its hubs** (`DefineAsync`): defining with the same values keeps the hub and its clients (the
-  method list may change); a changed characteristic, service type, `MaxClients` or `AllowTunnel` replaces the hub and
-  disconnects its clients.
-- `HubException(type, message)` keeps its type for the client (`BleHubRemoteException.RemoteErrorType`); any other
+  method list may change); a changed service type, characteristic, service, `MaxClients` or `AllowTunnel` replaces the
+  hub and disconnects its clients.
+- `HubException(type, message)` keeps its type for the client (`HubRemoteException.RemoteErrorType`); any other
   exception is typed by its class name. `Abort(reason)` ends the caller's session after the reply. Throw from
   `OnConnectedAsync` to refuse a client.
 - With no page answering `hub:{name}`, connections are refused and calls fail with `HubUnavailable`.
@@ -1172,18 +1191,23 @@ public sealed class GameHub(GameEngine engine) : WebAppHub
 - Plain JS/TS pages: `import { hostHub } from "/_bridge/hubs/client.js"` — `hostHub(definition, { MakeMove(cell) {…},
   async *Watch() {…}, onConnected(c) {…} })`, an async generator being a stream; `throw new HubError(type, message)`.
   The generated TypeScript `HubsBridge` client wraps the same routes.
-- **Joining another device's hub** (any hub, compiled or a web app's): `CreateClientAsync(new HubClientRequest(uuid,
-  "_myapp._tcp"))`, then — with `OnHostAsync` listened to first (`409 not_listening`) — `DiscoverAsync(id, new(Transports))`;
+- **Joining another device's hub** (any hub, compiled or a web app's): `CreateClientAsync(new HubClientRequest("game",
+  "_myapp._tcp", characteristicUuid /* null keeps it off BLE */, serviceUuid))`, then — with `OnHostAsync` listened to first (`409 not_listening`) — `DiscoverAsync(id, new(Transports))`;
   `ConnectAsync(id, new HubConnectRequest(Host: seen.Name /* or Url: "http://…" */, Name: "Allan", Prefer: HubTransports.Ble,
   Allowed: HubTransports.Ble | HubTransports.Http))`; `InvokeAsync(id, new HubInvokeRequest("Send", [json]))` (a hub's
   own failure is `result.Error`, not an exception), `StreamAsync` with items on `OnStreamItemAsync`, pushes on
   `OnPushAsync`, status on `OnClientChangedAsync`. `409 refused` carries the host's reason. Clients share
-  `AddHubsBridge(server => …, clients => clients.Multipeer("myapp-mc"))`'s options. At most 8.
-- `400` for a bad definition or a service type the app doesn't allow, `409` for a name or characteristic taken (or the
-  app's `MaxHubs`), `503` when no transport could start, `410` on a stream whose caller left.
+  `AddHubsBridge(server => …, clients => clients.UseMultipeer("myapp-mc"))`'s options; Wi-Fi and BLE come from each
+  request. At most 8.
+- `400` for a bad definition (a bad name or UUID, `serviceUuid` without `characteristicUuid`) or a service type the app
+  doesn't allow, `409` for a name or characteristic taken (or the app's `MaxHubs`), `503` when no transport could start
+  or the page asked only for ones the app didn't set up, `410` on a stream whose caller left.
+- `HubTransports` flags: `Ble`, `Http`, `Multipeer`, `Nearby`, `All`; `HubClientStatus` includes `Reconnecting` (the link
+  dropped and the client is resuming).
 - Wi-Fi on every head; BLE on Android, iOS and Mac Catalyst, and on Windows and macOS once the app calls
-  `services.AddBluetoothLeHosting()` — without it the hubs run over Wi-Fi and Multipeer, never fail; Multipeer on Apple
-  with `Shiny.UniversalHubs.Multipeer`. A host without `AddHubsBridge` answers `501`.
+  `services.AddBluetoothLeHosting()` — without it the hubs run over the other transports, never fail; Multipeer on Apple
+  with `Shiny.UniversalHubs.Multipeer`; Nearby on Android, iOS and macOS with `Shiny.UniversalHubs.Nearby`. Universal
+  Hubs 3 can't talk to 2.x. A host without `AddHubsBridge` answers `501`.
 
 ## Printing
 
