@@ -162,8 +162,7 @@ if (access != AccessState.Available)
 
 Numbers are `long`: country code + digits, no `+` or formatting (`18005550100`). Always convert user input with
 `PhoneNumbers.ToCallDirectory(text, defaultCountryCode = 1)`. It throws `FormatException` for input with no digits
-or more than 15 digits. A number written with a national trunk `0` (`04941 1234567`) is always treated as national
-and gets `defaultCountryCode`, so it matches the same number written internationally (`+49 4941 1234567`).
+or more than 15 digits.
 
 ```csharp
 using Shiny.CallDirectory;

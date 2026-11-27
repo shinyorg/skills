@@ -182,7 +182,7 @@ var state = await vpn.GetStatus();                  // VpnConnectionState
 ```
 
 ```csharp
-vpn.StatusChanged += this.OnVpnStatus;             // delivers the current state on subscribe (every subscriber, not only the first)
+vpn.StatusChanged += this.OnVpnStatus;             // delivers the current state on subscribe
 void OnVpnStatus(object? sender, VpnConnectionState state) { /* update UI - may be off the main thread */ }
 // unsubscribe in Dispose - the native watcher is reference counted
 ```
