@@ -731,7 +731,8 @@ the OS pick; read it back from `server.ListenUrl`.
   `InvalidOperationException`. Never copy request input into a header unchecked and expect it to go
   out; writing a body on a 204/304 throws too.
 - `RequestAborted` fires when an HTTP/1.1 client hangs up (once its body is read) and on
-  `ctx.Abort()`. A handler exception such as `FileNotFoundException` or an `HttpClient`
+  `ctx.Abort()`, before `Abort()` returns. `Abort()` ends only that request: HTTP/1.1 closes the
+  connection, HTTP/2 and HTTP/3 reset just that stream. A handler exception such as `FileNotFoundException` or an `HttpClient`
   `TaskCanceledException` is a 500 through the exception-handler chain, not a silent close.
 
 ### Behind a TCP load balancer: PROXY protocol
@@ -1298,6 +1299,7 @@ Tier 3: `[Idempotent]` (Required = true by default, `ExpirationSeconds`), `[Disa
 `[ContentDigest(RequireRequestDigest = true)]`, `[DisableContentDigest]`.
 
 - Idempotency handles POST/PATCH only. A replay carries `Idempotent-Replayed: true`. Same key with a different body → 422, still running → 409, 5xx/exceptions are not stored. Keep idempotent responses small and non-streamed or they cannot be replayed.
+- A custom `IIdempotencyStore` (shared store behind a load balancer) must make `TryReserveAsync` atomic, and should implement the owner-aware overloads (`TryReserveAsync(key, fingerprint, owner, lease, ct)`, `CompleteAsync(key, owner, record, ct)` returning false when the claim moved on, `ReleaseAsync(key, owner, ct)`). Store the owner with the claim and act only when it matches, so a request that overran `InFlightTimeout` cannot release or overwrite the retry's claim.
 - Content digests: the request body is verified as it streams, and the final read throws on a mismatch, which becomes a 400 problem. Response digests are sent when asked (`Want-Content-Digest`), as a header up to 64KB and as a trailer beyond that. HTTP/1.1 with a declared Content-Length cannot trail. Use `DigestFields.Compute(...)` to set one by hand.
 
 ## OAuth loopback sign-in (desktop and CLI)
